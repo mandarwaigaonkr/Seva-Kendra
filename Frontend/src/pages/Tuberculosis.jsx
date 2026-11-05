@@ -47,14 +47,24 @@ import {
   Trash2,
   Eye,
   RefreshCw,
-  Menu,
-  FileSpreadsheet,
 } from "lucide-react";
 import { tuberculosisAPI } from "../services/api";
 import Sidebar from "../components/Sidebar";
 import usePermissions from "../hooks/usePermissions";
 import GuidelinesCard from "../components/GuidelinesCard";
-import ExcelBulkImportButton from "../components/ExcelBulkImportButton";
+import ExcelImportPanel from "../components/ExcelImportPanel";
+import tuberculosisImportTemplate from "../lib/excelImport/templates/tuberculosis";
+import { getWardOptions } from "../lib/formOptions";
+import {
+  ModulePageHeader,
+  tableState,
+  StatusBadge,
+  formatWard,
+  formatDate,
+  toDateInput,
+} from "../components/module/ModuleKit";
+
+const WARD_OPTIONS = getWardOptions();
 
 const Tuberculosis = () => {
   const { canCreate, canEdit, canDelete, canExport } = usePermissions();
@@ -216,28 +226,18 @@ const Tuberculosis = () => {
       wardNo: record.wardNo || "",
       habitation: record.habitation || "",
       projectResponsible: record.projectResponsible || "",
-      dateOfReporting: record.dateOfReporting
-        ? new Date(record.dateOfReporting).toISOString().split("T")[0]
-        : "",
+      dateOfReporting: toDateInput(record.dateOfReporting),
       reportedBy: record.reportedBy || "",
       typeOfTB: record.typeOfTB || "",
-      dateOfMedicalScreening: record.dateOfMedicalScreening
-        ? new Date(record.dateOfMedicalScreening).toISOString().split("T")[0]
-        : "",
+      dateOfMedicalScreening: toDateInput(record.dateOfMedicalScreening),
       treatmentForTB: record.treatmentForTB || "",
       expectedDateOfTreatmentCompletion:
-        record.expectedDateOfTreatmentCompletion
-          ? new Date(record.expectedDateOfTreatmentCompletion)
-              .toISOString()
-              .split("T")[0]
-          : "",
+        toDateInput(record.expectedDateOfTreatmentCompletion),
       diagnosticDetails: record.diagnosticDetails || "",
       comorbidities: record.comorbidities || "",
       nutritionStatus: record.nutritionStatus || "",
       individualCarePlan: record.individualCarePlan || "",
-      dateOfLinkageWithDOTS: record.dateOfLinkageWithDOTS
-        ? new Date(record.dateOfLinkageWithDOTS).toISOString().split("T")[0]
-        : "",
+      dateOfLinkageWithDOTS: toDateInput(record.dateOfLinkageWithDOTS),
       overallStatus: record.overallStatus || "",
     });
     setIsEditModalOpen(true);
@@ -263,32 +263,20 @@ const Tuberculosis = () => {
       <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
 
       <div className="flex-1 flex flex-col overflow-hidden">
-        <header className="bg-background shadow-md border-b border-border">
-          <div className="flex items-center justify-between px-6 py-4">
-            <div className="flex items-center space-x-4">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setSidebarOpen(!sidebarOpen)}
-                className="lg:hidden"
-              >
-                <Menu className="h-6 w-6" />
-              </Button>
-              <div className="flex items-center space-x-2">
-                <Activity className="h-6 w-6 text-red-600" />
-                <h1 className="text-2xl font-bold text-foreground">
-                  Tuberculosis
-                </h1>
-              </div>
-            </div>
-            {canCreate("health") && (
+        <ModulePageHeader
+          icon={Activity}
+          title="Tuberculosis"
+          subtitle="TB cases, DOTS linkage and treatment outcomes"
+          onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
+          actions={
+            canCreate("health") && (
               <Button onClick={() => setIsCreateModalOpen(true)}>
-                <Plus className="h-4 w-4 mr-2" />
-                Add TB Record
+              <Plus className="h-4 w-4 mr-2" />
+              Add TB Record
               </Button>
-            )}
-          </div>
-        </header>
+            )
+          }
+        />
 
         <main className="flex-1 overflow-auto p-6">
           <GuidelinesCard
@@ -321,14 +309,14 @@ const Tuberculosis = () => {
                   />
                 </div>
                 <div>
-                  <Label htmlFor="gender">Gender</Label>
+                  <Label htmlFor="genderFilter">Gender</Label>
                   <Select
                     value={filters.gender}
                     onValueChange={(value) =>
                       handleFilterChange("gender", value === "all" ? "" : value)
                     }
                   >
-                    <SelectTrigger>
+                    <SelectTrigger id="genderFilter">
                       <SelectValue placeholder="All Genders" />
                     </SelectTrigger>
                     <SelectContent>
@@ -340,7 +328,7 @@ const Tuberculosis = () => {
                   </Select>
                 </div>
                 <div>
-                  <Label htmlFor="typeOfTB">Type of TB</Label>
+                  <Label htmlFor="typeOfTBFilter">Type of TB</Label>
                   <Select
                     value={filters.typeOfTB}
                     onValueChange={(value) =>
@@ -350,7 +338,7 @@ const Tuberculosis = () => {
                       )
                     }
                   >
-                    <SelectTrigger>
+                    <SelectTrigger id="typeOfTBFilter">
                       <SelectValue placeholder="All Types" />
                     </SelectTrigger>
                     <SelectContent>
@@ -366,7 +354,7 @@ const Tuberculosis = () => {
                   </Select>
                 </div>
                 <div>
-                  <Label htmlFor="overallStatus">Overall Status</Label>
+                  <Label htmlFor="overallStatusFilter">Overall Status</Label>
                   <Select
                     value={filters.overallStatus}
                     onValueChange={(value) =>
@@ -376,7 +364,7 @@ const Tuberculosis = () => {
                       )
                     }
                   >
-                    <SelectTrigger>
+                    <SelectTrigger id="overallStatusFilter">
                       <SelectValue placeholder="All Statuses" />
                     </SelectTrigger>
                     <SelectContent>
@@ -415,69 +403,13 @@ const Tuberculosis = () => {
             </CardContent>
           </Card>
 
-          {/* Bulk Import Card */}
+          {/* Bulk Import */}
           {canCreate("health") && (
-            <Card className="border border-muted bg-card shadow-sm mb-6">
-              <CardContent className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4">
-                <div className="space-y-1">
-                  <h3 className="font-semibold text-foreground flex items-center gap-2">
-                    <FileSpreadsheet className="h-5 w-5 text-green-600" />
-                    Bulk Import Tuberculosis Records
-                  </h3>
-                  <p className="text-xs text-muted-foreground">
-                    Download the template, fill it in, and upload it to import records in bulk.
-                  </p>
-                </div>
-                <ExcelBulkImportButton
-                  label="Import Excel"
-                  description=""
-                  templateFields={[
-                    { label: "NISKHAI ID", key: "nikshaiId" },
-                    { label: "Name", key: "name" },
-                    { label: "Gender", key: "gender", options: ["Male", "Female", "Other"] },
-                    { label: "Age", key: "age" },
-                    { label: "Contact Number", key: "contactNo" },
-                    { label: "Name of Respondant", key: "nameOfRespondant" },
-                    { label: "Contact of Respondant", key: "contactNoOfRespondant" },
-                    { label: "Ward Number", key: "wardNo" },
-                    { label: "Habitation", key: "habitation" },
-                    { label: "Project Responsible", key: "projectResponsible" },
-                    { label: "Date of Reporting", key: "dateOfReporting" },
-                    { label: "Reported By", key: "reportedBy" },
-                    { label: "Type of TB", key: "typeOfTB", options: ["Pulmonary TB", "Extra-Pulmonary TB", "Drug Resistant TB", "MDR-TB", "XDR-TB"] },
-                    { label: "Treatment for TB", key: "treatmentForTB", options: ["DOTS", "MDR Treatment", "XDR Treatment", "Other"] },
-                    { label: "Date of Medical Screening", key: "dateOfMedicalScreening" },
-                    { label: "Expected Completion Date", key: "expectedDateOfTreatmentCompletion" },
-                    { label: "Overall Status", key: "overallStatus", options: ["Active", "Cured", "Treatment Completed", "Defaulted", "Died", "Failed"] },
-                    { label: "Remarks", key: "remarks" },
-                  ]}
-                  sampleRow={{
-                    nikshaiId: "TB-2024-001",
-                    name: "Bimal Roy",
-                    gender: "Male",
-                    age: "42",
-                    contactNo: "9876543210",
-                    nameOfRespondant: "Mina Roy",
-                    contactNoOfRespondant: "9876543211",
-                    wardNo: "9",
-                    habitation: "Shyambazar",
-                    projectResponsible: "Dr. P. Mukherjee",
-                    dateOfReporting: "2024-03-01",
-                    reportedBy: "DOTS Provider",
-                    typeOfTB: "Pulmonary TB",
-                    treatmentForTB: "DOTS",
-                    dateOfMedicalScreening: "2024-02-15",
-                    expectedDateOfTreatmentCompletion: "2024-08-15",
-                    overallStatus: "Active",
-                    remarks: "On Category 1 treatment",
-                  }}
-                  createRecord={async (payload) => {
-                    await tuberculosisAPI.create(payload);
-                  }}
-                  onImported={fetchRecords}
-                />
-              </CardContent>
-            </Card>
+            <ExcelImportPanel
+              template={tuberculosisImportTemplate}
+              createRecord={tuberculosisAPI.create}
+              onImported={fetchRecords}
+            />
           )}
 
           <Card>
@@ -513,22 +445,12 @@ const Tuberculosis = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {loading ? (
-                      <TableRow>
-                        <TableCell colSpan={7} className="text-center py-4">
-                          <RefreshCw className="h-4 w-4 animate-spin mx-auto" />
-                        </TableCell>
-                      </TableRow>
-                    ) : records.length === 0 ? (
-                      <TableRow>
-                        <TableCell
-                          colSpan={7}
-                          className="text-center py-4 text-muted-foreground"
-                        >
-                          No tuberculosis records found
-                        </TableCell>
-                      </TableRow>
-                    ) : (
+                    {tableState({
+                      loading,
+                      count: records.length,
+                      colSpan: 7,
+                      filtered: Boolean(searchTerm || Object.values(filters).some(Boolean)),
+                    }) ||
                       records.map((record) => (
                         <TableRow key={record._id}>
                           <TableCell className="font-medium">
@@ -544,18 +466,10 @@ const Tuberculosis = () => {
                             </Badge>
                           </TableCell>
                           <TableCell>
-                            <Badge
-                              variant={
-                                record.overallStatus === "Treatment Completed"
-                                  ? "secondary"
-                                  : "default"
-                              }
-                            >
-                              {record.overallStatus || "N/A"}
-                            </Badge>
+                            <StatusBadge value={record.overallStatus} />
                           </TableCell>
                           <TableCell>
-                            Ward {record.wardNo}, {record.habitation}
+                            {formatWard(record.wardNo)}, {record.habitation}
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center space-x-2">
@@ -563,6 +477,7 @@ const Tuberculosis = () => {
                                 variant="ghost"
                                 size="sm"
                                 onClick={() => handleView(record)}
+                                aria-label={`View ${record.name}`}
                               >
                                 <Eye className="h-4 w-4" />
                               </Button>
@@ -571,6 +486,7 @@ const Tuberculosis = () => {
                                   variant="ghost"
                                   size="sm"
                                   onClick={() => handleEdit(record)}
+                                  aria-label={`Edit ${record.name}`}
                                 >
                                   <Edit className="h-4 w-4" />
                                 </Button>
@@ -578,7 +494,7 @@ const Tuberculosis = () => {
                               {canDelete("health") && (
                                 <AlertDialog>
                                   <AlertDialogTrigger asChild>
-                                    <Button variant="ghost" size="sm">
+                                    <Button variant="ghost" size="sm" aria-label={`Delete ${record.name}`}>
                                       <Trash2 className="h-4 w-4" />
                                     </Button>
                                   </AlertDialogTrigger>
@@ -608,8 +524,7 @@ const Tuberculosis = () => {
                             </div>
                           </TableCell>
                         </TableRow>
-                      ))
-                    )}
+                      ))}
                   </TableBody>
                 </Table>
               </div>
@@ -709,7 +624,7 @@ const Tuberculosis = () => {
                     setFormData((prev) => ({ ...prev, gender: value }))
                   }
                 >
-                  <SelectTrigger>
+                  <SelectTrigger id="gender">
                     <SelectValue placeholder="Select gender" />
                   </SelectTrigger>
                   <SelectContent>
@@ -772,6 +687,27 @@ const Tuberculosis = () => {
                 />
               </div>
               <div>
+                <Label htmlFor="nameOfRespondant">Name of Respondent</Label>
+                <Input
+                  id="nameOfRespondant"
+                  name="nameOfRespondant"
+                  value={formData.nameOfRespondant}
+                  onChange={handleInputChange}
+                />
+              </div>
+              <div>
+                <Label htmlFor="contactNoOfRespondant">
+                  Contact of Respondent
+                </Label>
+                <Input
+                  id="contactNoOfRespondant"
+                  name="contactNoOfRespondant"
+                  value={formData.contactNoOfRespondant}
+                  onChange={handleInputChange}
+                  pattern="[6-9][0-9]{9}"
+                />
+              </div>
+              <div>
                 <Label htmlFor="wardNo">Ward No *</Label>
                 <Select
                   value={formData.wardNo}
@@ -783,16 +719,11 @@ const Tuberculosis = () => {
                     <SelectValue placeholder="Select ward" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Ward 1">Ward 1</SelectItem>
-                    <SelectItem value="Ward 2">Ward 2</SelectItem>
-                    <SelectItem value="Ward 3">Ward 3</SelectItem>
-                    <SelectItem value="Ward 4">Ward 4</SelectItem>
-                    <SelectItem value="Ward 5">Ward 5</SelectItem>
-                    <SelectItem value="Ward 6">Ward 6</SelectItem>
-                    <SelectItem value="Ward 7">Ward 7</SelectItem>
-                    <SelectItem value="Ward 8">Ward 8</SelectItem>
-                    <SelectItem value="Ward 9">Ward 9</SelectItem>
-                    <SelectItem value="Ward 10">Ward 10</SelectItem>
+                    {WARD_OPTIONS.map((ward) => (
+                      <SelectItem key={ward.value} value={ward.value}>
+                        {ward.label}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -847,7 +778,7 @@ const Tuberculosis = () => {
                     setFormData((prev) => ({ ...prev, typeOfTB: value }))
                   }
                 >
-                  <SelectTrigger>
+                  <SelectTrigger id="typeOfTB">
                     <SelectValue placeholder="Select type" />
                   </SelectTrigger>
                   <SelectContent>
@@ -886,6 +817,18 @@ const Tuberculosis = () => {
                 />
               </div>
               <div>
+                <Label htmlFor="expectedDateOfTreatmentCompletion">
+                  Expected Treatment Completion
+                </Label>
+                <Input
+                  id="expectedDateOfTreatmentCompletion"
+                  name="expectedDateOfTreatmentCompletion"
+                  type="date"
+                  value={formData.expectedDateOfTreatmentCompletion}
+                  onChange={handleInputChange}
+                />
+              </div>
+              <div>
                 <Label htmlFor="nutritionStatus">Nutrition Status</Label>
                 <Select
                   value={formData.nutritionStatus}
@@ -893,7 +836,7 @@ const Tuberculosis = () => {
                     setFormData((prev) => ({ ...prev, nutritionStatus: value }))
                   }
                 >
-                  <SelectTrigger>
+                  <SelectTrigger id="nutritionStatus">
                     <SelectValue placeholder="Select status" />
                   </SelectTrigger>
                   <SelectContent>
@@ -915,7 +858,7 @@ const Tuberculosis = () => {
                     setFormData((prev) => ({ ...prev, overallStatus: value }))
                   }
                 >
-                  <SelectTrigger>
+                  <SelectTrigger id="overallStatus">
                     <SelectValue placeholder="Select status" />
                   </SelectTrigger>
                   <SelectContent>
@@ -943,13 +886,21 @@ const Tuberculosis = () => {
                 />
               </div>
               <div className="md:col-span-3">
-                <Label htmlFor="diagnosticDetails">
-                  Diagnostic Details/Comorbidities
-                </Label>
+                <Label htmlFor="diagnosticDetails">Diagnostic Details</Label>
                 <Textarea
                   id="diagnosticDetails"
                   name="diagnosticDetails"
                   value={formData.diagnosticDetails}
+                  onChange={handleInputChange}
+                  rows={2}
+                />
+              </div>
+              <div className="md:col-span-3">
+                <Label htmlFor="comorbidities">Comorbidities</Label>
+                <Textarea
+                  id="comorbidities"
+                  name="comorbidities"
+                  value={formData.comorbidities}
                   onChange={handleInputChange}
                   rows={2}
                 />
@@ -1043,7 +994,7 @@ const Tuberculosis = () => {
                   </div>
                   <div>
                     <Label className="font-semibold">Ward No</Label>
-                    <p>{selectedRecord.wardNo}</p>
+                    <p>{formatWard(selectedRecord.wardNo)}</p>
                   </div>
                   <div>
                     <Label className="font-semibold">Habitation</Label>
@@ -1065,11 +1016,7 @@ const Tuberculosis = () => {
                   <div>
                     <Label className="font-semibold">Date of Reporting</Label>
                     <p>
-                      {selectedRecord.dateOfReporting
-                        ? new Date(
-                            selectedRecord.dateOfReporting
-                          ).toLocaleDateString()
-                        : "N/A"}
+                      {formatDate(selectedRecord.dateOfReporting)}
                     </p>
                   </div>
                   <div>
@@ -1094,11 +1041,7 @@ const Tuberculosis = () => {
                       Date of Medical Screening
                     </Label>
                     <p>
-                      {selectedRecord.dateOfMedicalScreening
-                        ? new Date(
-                            selectedRecord.dateOfMedicalScreening
-                          ).toLocaleDateString()
-                        : "N/A"}
+                      {formatDate(selectedRecord.dateOfMedicalScreening)}
                     </p>
                   </div>
                   <div>
@@ -1110,11 +1053,7 @@ const Tuberculosis = () => {
                       Expected Treatment Completion
                     </Label>
                     <p>
-                      {selectedRecord.expectedDateOfTreatmentCompletion
-                        ? new Date(
-                            selectedRecord.expectedDateOfTreatmentCompletion
-                          ).toLocaleDateString()
-                        : "N/A"}
+                      {formatDate(selectedRecord.expectedDateOfTreatmentCompletion)}
                     </p>
                   </div>
                   <div>
@@ -1122,16 +1061,12 @@ const Tuberculosis = () => {
                       Date of Linkage with DOTS
                     </Label>
                     <p>
-                      {selectedRecord.dateOfLinkageWithDOTS
-                        ? new Date(
-                            selectedRecord.dateOfLinkageWithDOTS
-                          ).toLocaleDateString()
-                        : "N/A"}
+                      {formatDate(selectedRecord.dateOfLinkageWithDOTS)}
                     </p>
                   </div>
                   <div>
                     <Label className="font-semibold">Overall Status</Label>
-                    <Badge>{selectedRecord.overallStatus || "N/A"}</Badge>
+                    <StatusBadge value={selectedRecord.overallStatus} />
                   </div>
                 </div>
                 {selectedRecord.diagnosticDetails && (

@@ -79,7 +79,9 @@ import Sidebar from "../components/Sidebar";
 import usePermissions from "../hooks/usePermissions";
 import { getWardOptions } from "../lib/formOptions";
 import GuidelinesCard from "../components/GuidelinesCard";
-import ExcelBulkImportButton from "../components/ExcelBulkImportButton";
+import ExcelImportPanel from "../components/ExcelImportPanel";
+import { ModulePageHeader, StatusBadge, formatDate, formatWard, tableState, toDateInput } from "../components/module/ModuleKit";
+import boardPreparationImportTemplate from "../lib/excelImport/templates/boardPreparation";
 
 const WardCombobox = ({ id, value, onChange, options, placeholder }) => {
   const [open, setOpen] = useState(false);
@@ -290,19 +292,9 @@ const BoardPreparation = () => {
       ...boardPrep,
       educationBoard: boardPrep.educationBoard || "WBBSE",
       educationBoardOther: boardPrep.educationBoardOther || "",
-      dateOfReporting: boardPrep.dateOfReporting
-        ? new Date(boardPrep.dateOfReporting).toISOString().split("T")[0]
-        : "",
-      dateOfEducationalAssessment: boardPrep.dateOfEducationalAssessment
-        ? new Date(boardPrep.dateOfEducationalAssessment)
-            .toISOString()
-            .split("T")[0]
-        : "",
-      dateOfCareerCounselling: boardPrep.dateOfCareerCounselling
-        ? new Date(boardPrep.dateOfCareerCounselling)
-            .toISOString()
-            .split("T")[0]
-        : "",
+      dateOfReporting: toDateInput(boardPrep.dateOfReporting),
+      dateOfEducationalAssessment: toDateInput(boardPrep.dateOfEducationalAssessment),
+      dateOfCareerCounselling: toDateInput(boardPrep.dateOfCareerCounselling),
     });
     setIsEditModalOpen(true);
   };
@@ -324,37 +316,24 @@ const BoardPreparation = () => {
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden lg:ml-0">
-        {/* Mobile Header */}
-        <div className="lg:hidden bg-card shadow-sm p-4 flex items-center">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setSidebarOpen(true)}
-            className="mr-2"
-          >
-            <Menu className="h-5 w-5" />
-          </Button>
-          <h1 className="text-lg font-semibold">Board Preparation</h1>
-        </div>
+        <ModulePageHeader
+          icon={GraduationCap}
+          title="Board Preparation"
+          subtitle="Students preparing for Class 10 / 12 board exams"
+          onToggleSidebar={() => setSidebarOpen(true)}
+          actions={
+            canCreate("education") && (
+              <Button onClick={() => setIsCreateModalOpen(true)}>
+                <Plus className="h-4 w-4 mr-2" />
+                Add record
+              </Button>
+            )
+          }
+        />
 
         {/* Scrollable Content */}
         <div className="flex-1 overflow-y-auto">
-          <div className="container mx-auto p-6 space-y-6">
-            {/* Header */}
-            <div className="flex justify-between items-center">
-              <div>
-                <h1 className="text-3xl font-bold text-foreground">
-                  Board Preparation
-                </h1>
-                <p className="text-muted-foreground">Manage board exam preparation</p>
-              </div>
-              {canCreate("education") && (
-                <Button onClick={() => setIsCreateModalOpen(true)}>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add Board Prep Record
-                </Button>
-              )}
-            </div>
+          <div className="container mx-auto p-4 sm:p-6 space-y-6">
 
             <GuidelinesCard
               title="Board Exam Preparation Guidelines"
@@ -456,67 +435,14 @@ const BoardPreparation = () => {
               </CardContent>
             </Card>
 
-            {/* Bulk Import Card */}
+            {/* Bulk Import */}
             {canCreate("education") && (
-              <Card className="border border-muted bg-card shadow-sm mb-6">
-                <CardContent className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4">
-                  <div className="space-y-1">
-                    <h3 className="font-semibold text-foreground flex items-center gap-2">
-                      <FileSpreadsheet className="h-5 w-5 text-green-600" />
-                      Bulk Import Board Preparation
-                    </h3>
-                    <p className="text-xs text-muted-foreground">
-                      Download the template, fill it in, and upload it to import records in bulk.
-                    </p>
-                  </div>
-                  <ExcelBulkImportButton
-                    label="Import Excel"
-                    description=""
-                    templateFields={[
-                      { label: "Household Code", key: "householdCode" },
-                      { label: "ID Code", key: "idCode" },
-                      { label: "Name", key: "name" },
-                      { label: "Gender", key: "gender", options: ["Male", "Female", "Other"] },
-                      { label: "Age", key: "age" },
-                      { label: "Head of Household", key: "headOfHousehold" },
-                      { label: "Contact Number", key: "contactNo" },
-                      { label: "Ward Number", key: "wardNo" },
-                      { label: "Habitation", key: "habitation" },
-                      { label: "Project Responsible", key: "projectResponsible" },
-                      { label: "Date of Reporting", key: "dateOfReporting" },
-                      { label: "Reported By", key: "reportedBy" },
-                      { label: "Educational Standard", key: "educationalStandard", options: ["10th (Secondary)", "12th (Higher Secondary)", "Other"] },
-                      { label: "Education Board", key: "educationBoard", options: ["WBBSE", "WBCHSE", "CBSE", "ICSE", "ISC", "NIOS", "Other"] },
-                      { label: "School Name", key: "schoolName" },
-                      { label: "Status", key: "status", options: ["Preparing", "Appeared", "Passed", "Failed", "Discontinued"] },
-                      { label: "Remarks", key: "remarks" },
-                    ]}
-                    sampleRow={{
-                      householdCode: "HH-401",
-                      idCode: "BOARD-001",
-                      name: "Pooja Sarkar",
-                      gender: "Female",
-                      age: "16",
-                      headOfHousehold: "Bimal Sarkar",
-                      contactNo: "9876543210",
-                      wardNo: "15",
-                      habitation: "Dum Dum",
-                      projectResponsible: "Monika Sen",
-                      dateOfReporting: "2024-01-10",
-                      reportedBy: "Teacher Anita",
-                      educationalStandard: "10th (Secondary)",
-                      educationBoard: "WBBSE",
-                      schoolName: "Dum Dum Girls High School",
-                      status: "Preparing",
-                      remarks: "Attending remedial classes",
-                    }}
-                    createRecord={async (payload) => {
-                      await boardPreparationAPI.create(payload);
-                    }}
-                    onImported={fetchBoardPreps}
-                  />
-                </CardContent>
-              </Card>
+              <ExcelImportPanel
+                template={boardPreparationImportTemplate}
+                createRecord={boardPreparationAPI.create}
+                onImported={fetchBoardPreps}
+                className="mb-0"
+              />
             )}
 
             {/* Board Preparation Table */}
@@ -528,11 +454,7 @@ const BoardPreparation = () => {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                {loading ? (
-                  <div className="flex justify-center items-center h-64">
-                    <RefreshCw className="h-8 w-8 animate-spin" />
-                  </div>
-                ) : (
+                <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -547,7 +469,15 @@ const BoardPreparation = () => {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {boardPreps.map((boardPrep) => (
+                      {tableState({
+                        loading,
+                        count: boardPreps.length,
+                        colSpan: 8,
+                        filtered:
+                          Boolean(searchTerm) ||
+                          Object.values(filters).some((v) => v && v !== "all"),
+                      })}
+                      {!loading && boardPreps.map((boardPrep) => (
                         <TableRow key={boardPrep._id}>
                           <TableCell className="font-medium">
                             {boardPrep.householdCode}
@@ -572,26 +502,26 @@ const BoardPreparation = () => {
                             </Badge>
                           </TableCell>
                           <TableCell>
-                            <Badge
-                              variant={
+                            <StatusBadge
+                              value={boardPrep.status}
+                              tone={
                                 boardPrep.status === "Passed"
-                                  ? "default"
-                                  : boardPrep.status === "Preparing"
-                                  ? "secondary"
+                                  ? "success"
                                   : boardPrep.status === "Appeared"
-                                  ? "outline"
-                                  : "destructive"
+                                  ? "info"
+                                  : boardPrep.status === "Preparing"
+                                  ? "warning"
+                                  : "danger"
                               }
-                            >
-                              {boardPrep.status}
-                            </Badge>
+                            />
                           </TableCell>
                           <TableCell>
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-1">
                               <Button
                                 variant="ghost"
                                 size="sm"
                                 onClick={() => openViewModal(boardPrep)}
+                                aria-label={`View ${boardPrep.name}`}
                               >
                                 <Eye className="h-4 w-4" />
                               </Button>
@@ -600,6 +530,7 @@ const BoardPreparation = () => {
                                   variant="ghost"
                                   size="sm"
                                   onClick={() => openEditModal(boardPrep)}
+                                  aria-label={`Edit ${boardPrep.name}`}
                                 >
                                   <Edit className="h-4 w-4" />
                                 </Button>
@@ -607,31 +538,32 @@ const BoardPreparation = () => {
                               {canDelete("education") && (
                                 <AlertDialog>
                                   <AlertDialogTrigger asChild>
-                                    <Button variant="ghost" size="sm">
+                                    <Button variant="ghost" size="sm" aria-label={`Delete ${boardPrep.name}`}>
                                       <Trash2 className="h-4 w-4" />
                                     </Button>
                                   </AlertDialogTrigger>
                                   <AlertDialogContent>
                                     <AlertDialogHeader>
                                       <AlertDialogTitle>
-                                        Are you absolutely sure?
+                                        Delete {boardPrep.name}'s record?
                                       </AlertDialogTitle>
                                       <AlertDialogDescription>
-                                        This action cannot be undone. This will
-                                        permanently delete the board preparation
-                                        record.
+                                        This permanently deletes the board preparation
+                                        record for household {boardPrep.householdCode}.
+                                        It can't be undone.
                                       </AlertDialogDescription>
                                     </AlertDialogHeader>
                                     <AlertDialogFooter>
                                       <AlertDialogCancel>
-                                        Cancel
+                                        Keep record
                                       </AlertDialogCancel>
                                       <AlertDialogAction
                                         onClick={() =>
                                           handleDelete(boardPrep._id)
                                         }
+                                        className="bg-destructive text-white hover:bg-destructive/90"
                                       >
-                                        Delete
+                                        Delete record
                                       </AlertDialogAction>
                                     </AlertDialogFooter>
                                   </AlertDialogContent>
@@ -643,10 +575,11 @@ const BoardPreparation = () => {
                       ))}
                     </TableBody>
                   </Table>
-                )}
+                </div>
 
                 {/* Pagination */}
-                <div className="flex items-center justify-between space-x-2 py-4">
+                {pagination.total > 0 && (
+                <div className="flex flex-wrap items-center justify-between gap-2 py-4">
                   <div className="text-sm text-foreground">
                     Showing {(pagination.page - 1) * pagination.limit + 1} to{" "}
                     {Math.min(
@@ -687,6 +620,7 @@ const BoardPreparation = () => {
                     </Button>
                   </div>
                 </div>
+                )}
               </CardContent>
             </Card>
 
@@ -1338,7 +1272,7 @@ const BoardPreparation = () => {
                       <div>
                         <Label>Ward Number</Label>
                         <p className="text-sm font-medium">
-                          {selectedBoardPrep.wardNo}
+                          {formatWard(selectedBoardPrep.wardNo)}
                         </p>
                       </div>
                       <div>

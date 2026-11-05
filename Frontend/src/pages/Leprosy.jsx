@@ -47,14 +47,24 @@ import {
   Trash2,
   Eye,
   RefreshCw,
-  Menu,
-  FileSpreadsheet,
 } from "lucide-react";
 import { leprosyAPI } from "../services/api";
 import Sidebar from "../components/Sidebar";
 import usePermissions from "../hooks/usePermissions";
 import GuidelinesCard from "../components/GuidelinesCard";
-import ExcelBulkImportButton from "../components/ExcelBulkImportButton";
+import ExcelImportPanel from "../components/ExcelImportPanel";
+import leprosyImportTemplate from "../lib/excelImport/templates/leprosy";
+import { getWardOptions } from "../lib/formOptions";
+import {
+  ModulePageHeader,
+  tableState,
+  StatusBadge,
+  formatWard,
+  formatDate,
+  toDateInput,
+} from "../components/module/ModuleKit";
+
+const WARD_OPTIONS = getWardOptions();
 
 const Leprosy = () => {
   const { canCreate, canEdit, canDelete, canExport } = usePermissions();
@@ -208,9 +218,7 @@ const Leprosy = () => {
       wardNo: record.wardNo || "",
       habitation: record.habitation || "",
       projectResponsible: record.projectResponsible || "",
-      dateOfReporting: record.dateOfReporting
-        ? new Date(record.dateOfReporting).toISOString().split("T")[0]
-        : "",
+      dateOfReporting: toDateInput(record.dateOfReporting),
       reportedBy: record.reportedBy || "",
       typeOfLeprosy: record.typeOfLeprosy || "",
       durationOfIllness: record.durationOfIllness || "",
@@ -244,30 +252,20 @@ const Leprosy = () => {
       <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
 
       <div className="flex-1 flex flex-col overflow-hidden">
-        <header className="bg-background shadow-sm border-b border-border">
-          <div className="flex items-center justify-between px-6 py-4">
-            <div className="flex items-center space-x-4">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setSidebarOpen(!sidebarOpen)}
-                className="lg:hidden"
-              >
-                <Menu className="h-6 w-6" />
-              </Button>
-              <div className="flex items-center space-x-2">
-                <Activity className="h-6 w-6 text-orange-600" />
-                <h1 className="text-2xl font-bold text-foreground">Leprosy</h1>
-              </div>
-            </div>
-            {canCreate("health") && (
+        <ModulePageHeader
+          icon={Activity}
+          title="Leprosy"
+          subtitle="Leprosy cases, MDT treatment and follow-up"
+          onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
+          actions={
+            canCreate("health") && (
               <Button onClick={() => setIsCreateModalOpen(true)}>
-                <Plus className="h-4 w-4 mr-2" />
-                Add Leprosy Record
+              <Plus className="h-4 w-4 mr-2" />
+              Add Leprosy Record
               </Button>
-            )}
-          </div>
-        </header>
+            )
+          }
+        />
 
         <main className="flex-1 overflow-auto p-6">
           <GuidelinesCard
@@ -300,14 +298,14 @@ const Leprosy = () => {
                   />
                 </div>
                 <div>
-                  <Label htmlFor="gender">Gender</Label>
+                  <Label htmlFor="genderFilter">Gender</Label>
                   <Select
                     value={filters.gender}
                     onValueChange={(value) =>
                       handleFilterChange("gender", value === "all" ? "" : value)
                     }
                   >
-                    <SelectTrigger>
+                    <SelectTrigger id="genderFilter">
                       <SelectValue placeholder="All Genders" />
                     </SelectTrigger>
                     <SelectContent>
@@ -319,7 +317,7 @@ const Leprosy = () => {
                   </Select>
                 </div>
                 <div>
-                  <Label htmlFor="typeOfLeprosy">Type of Leprosy</Label>
+                  <Label htmlFor="typeOfLeprosyFilter">Type of Leprosy</Label>
                   <Select
                     value={filters.typeOfLeprosy}
                     onValueChange={(value) =>
@@ -329,7 +327,7 @@ const Leprosy = () => {
                       )
                     }
                   >
-                    <SelectTrigger>
+                    <SelectTrigger id="typeOfLeprosyFilter">
                       <SelectValue placeholder="All Types" />
                     </SelectTrigger>
                     <SelectContent>
@@ -345,7 +343,7 @@ const Leprosy = () => {
                   </Select>
                 </div>
                 <div>
-                  <Label htmlFor="statusOfTreatment">Treatment Status</Label>
+                  <Label htmlFor="statusOfTreatmentFilter">Treatment Status</Label>
                   <Select
                     value={filters.statusOfTreatment}
                     onValueChange={(value) =>
@@ -355,7 +353,7 @@ const Leprosy = () => {
                       )
                     }
                   >
-                    <SelectTrigger>
+                    <SelectTrigger id="statusOfTreatmentFilter">
                       <SelectValue placeholder="All Statuses" />
                     </SelectTrigger>
                     <SelectContent>
@@ -393,59 +391,13 @@ const Leprosy = () => {
             </CardContent>
           </Card>
 
-          {/* Bulk Import Card */}
+          {/* Bulk Import */}
           {canCreate("health") && (
-            <Card className="border border-muted bg-card shadow-sm mb-6">
-              <CardContent className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4">
-                <div className="space-y-1">
-                  <h3 className="font-semibold text-foreground flex items-center gap-2">
-                    <FileSpreadsheet className="h-5 w-5 text-green-600" />
-                    Bulk Import Leprosy Records
-                  </h3>
-                  <p className="text-xs text-muted-foreground">
-                    Download the template, fill it in, and upload it to import records in bulk.
-                  </p>
-                </div>
-                <ExcelBulkImportButton
-                  label="Import Excel"
-                  description=""
-                  templateFields={[
-                    { label: "Name", key: "name" },
-                    { label: "Gender", key: "gender", options: ["Male", "Female", "Other"] },
-                    { label: "Age", key: "age" },
-                    { label: "Contact Number", key: "contactNo" },
-                    { label: "Ward Number", key: "wardNo" },
-                    { label: "Habitation", key: "habitation" },
-                    { label: "Project Responsible", key: "projectResponsible" },
-                    { label: "Date of Reporting", key: "dateOfReporting" },
-                    { label: "Reported By", key: "reportedBy" },
-                    { label: "Type of Leprosy", key: "typeOfLeprosy", options: ["Pauci-Bacillary (PB)", "Multi-Bacillary (MB)"] },
-                    { label: "Status of Treatment", key: "statusOfTreatment", options: ["On MDT", "Completed", "Defaulted", "Relapsed"] },
-                    { label: "Overall Status", key: "overallStatus", options: ["Active", "Cured", "Defaulted", "Deceased"] },
-                    { label: "Remarks", key: "remarks" },
-                  ]}
-                  sampleRow={{
-                    name: "Karim Sheikh",
-                    gender: "Male",
-                    age: "50",
-                    contactNo: "9876543210",
-                    wardNo: "11",
-                    habitation: "Ultadanga",
-                    projectResponsible: "Dr. S. Biswas",
-                    dateOfReporting: "2024-02-20",
-                    reportedBy: "Health Worker D",
-                    typeOfLeprosy: "Multi-Bacillary (MB)",
-                    statusOfTreatment: "On MDT",
-                    overallStatus: "Active",
-                    remarks: "12-month MDT in progress",
-                  }}
-                  createRecord={async (payload) => {
-                    await leprosyAPI.create(payload);
-                  }}
-                  onImported={fetchRecords}
-                />
-              </CardContent>
-            </Card>
+            <ExcelImportPanel
+              template={leprosyImportTemplate}
+              createRecord={leprosyAPI.create}
+              onImported={fetchRecords}
+            />
           )}
 
           <Card>
@@ -479,22 +431,12 @@ const Leprosy = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {loading ? (
-                      <TableRow>
-                        <TableCell colSpan={7} className="text-center py-4">
-                          <RefreshCw className="h-4 w-4 animate-spin mx-auto" />
-                        </TableCell>
-                      </TableRow>
-                    ) : records.length === 0 ? (
-                      <TableRow>
-                        <TableCell
-                          colSpan={7}
-                          className="text-center py-4 text-muted-foreground"
-                        >
-                          No leprosy records found
-                        </TableCell>
-                      </TableRow>
-                    ) : (
+                    {tableState({
+                      loading,
+                      count: records.length,
+                      colSpan: 7,
+                      filtered: Boolean(searchTerm || Object.values(filters).some(Boolean)),
+                    }) ||
                       records.map((record) => (
                         <TableRow key={record._id}>
                           <TableCell className="font-medium">
@@ -509,15 +451,13 @@ const Leprosy = () => {
                             </Badge>
                           </TableCell>
                           <TableCell>
-                            <Badge variant="secondary">
-                              {record.statusOfTreatment || "N/A"}
-                            </Badge>
+                            <StatusBadge value={record.statusOfTreatment} />
                           </TableCell>
                           <TableCell>
-                            <Badge>{record.overallStatus || "N/A"}</Badge>
+                            <StatusBadge value={record.overallStatus} />
                           </TableCell>
                           <TableCell>
-                            Ward {record.wardNo}, {record.habitation}
+                            {formatWard(record.wardNo)}, {record.habitation}
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center space-x-2">
@@ -525,6 +465,7 @@ const Leprosy = () => {
                                 variant="ghost"
                                 size="sm"
                                 onClick={() => handleView(record)}
+                                aria-label={`View ${record.name}`}
                               >
                                 <Eye className="h-4 w-4" />
                               </Button>
@@ -533,6 +474,7 @@ const Leprosy = () => {
                                   variant="ghost"
                                   size="sm"
                                   onClick={() => handleEdit(record)}
+                                  aria-label={`Edit ${record.name}`}
                                 >
                                   <Edit className="h-4 w-4" />
                                 </Button>
@@ -540,7 +482,7 @@ const Leprosy = () => {
                               {canDelete("health") && (
                                 <AlertDialog>
                                   <AlertDialogTrigger asChild>
-                                    <Button variant="ghost" size="sm">
+                                    <Button variant="ghost" size="sm" aria-label={`Delete ${record.name}`}>
                                       <Trash2 className="h-4 w-4" />
                                     </Button>
                                   </AlertDialogTrigger>
@@ -570,8 +512,7 @@ const Leprosy = () => {
                             </div>
                           </TableCell>
                         </TableRow>
-                      ))
-                    )}
+                      ))}
                   </TableBody>
                 </Table>
               </div>
@@ -661,7 +602,7 @@ const Leprosy = () => {
                     setFormData((prev) => ({ ...prev, gender: value }))
                   }
                 >
-                  <SelectTrigger>
+                  <SelectTrigger id="gender">
                     <SelectValue placeholder="Select gender" />
                   </SelectTrigger>
                   <SelectContent>
@@ -724,6 +665,27 @@ const Leprosy = () => {
                 />
               </div>
               <div>
+                <Label htmlFor="nameOfRespondant">Name of Respondent</Label>
+                <Input
+                  id="nameOfRespondant"
+                  name="nameOfRespondant"
+                  value={formData.nameOfRespondant}
+                  onChange={handleInputChange}
+                />
+              </div>
+              <div>
+                <Label htmlFor="contactNoOfRespondant">
+                  Contact of Respondent
+                </Label>
+                <Input
+                  id="contactNoOfRespondant"
+                  name="contactNoOfRespondant"
+                  value={formData.contactNoOfRespondant}
+                  onChange={handleInputChange}
+                  pattern="[6-9][0-9]{9}"
+                />
+              </div>
+              <div>
                 <Label htmlFor="wardNo">Ward No *</Label>
                 <Select
                   value={formData.wardNo}
@@ -735,16 +697,11 @@ const Leprosy = () => {
                     <SelectValue placeholder="Select ward" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Ward 1">Ward 1</SelectItem>
-                    <SelectItem value="Ward 2">Ward 2</SelectItem>
-                    <SelectItem value="Ward 3">Ward 3</SelectItem>
-                    <SelectItem value="Ward 4">Ward 4</SelectItem>
-                    <SelectItem value="Ward 5">Ward 5</SelectItem>
-                    <SelectItem value="Ward 6">Ward 6</SelectItem>
-                    <SelectItem value="Ward 7">Ward 7</SelectItem>
-                    <SelectItem value="Ward 8">Ward 8</SelectItem>
-                    <SelectItem value="Ward 9">Ward 9</SelectItem>
-                    <SelectItem value="Ward 10">Ward 10</SelectItem>
+                    {WARD_OPTIONS.map((ward) => (
+                      <SelectItem key={ward.value} value={ward.value}>
+                        {ward.label}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -799,7 +756,7 @@ const Leprosy = () => {
                     setFormData((prev) => ({ ...prev, typeOfLeprosy: value }))
                   }
                 >
-                  <SelectTrigger>
+                  <SelectTrigger id="typeOfLeprosy">
                     <SelectValue placeholder="Select type" />
                   </SelectTrigger>
                   <SelectContent>
@@ -834,7 +791,7 @@ const Leprosy = () => {
                     setFormData((prev) => ({ ...prev, nutritionStatus: value }))
                   }
                 >
-                  <SelectTrigger>
+                  <SelectTrigger id="nutritionStatus">
                     <SelectValue placeholder="Select status" />
                   </SelectTrigger>
                   <SelectContent>
@@ -859,7 +816,7 @@ const Leprosy = () => {
                     }))
                   }
                 >
-                  <SelectTrigger>
+                  <SelectTrigger id="statusOfTreatment">
                     <SelectValue placeholder="Select status" />
                   </SelectTrigger>
                   <SelectContent>
@@ -883,7 +840,7 @@ const Leprosy = () => {
                     setFormData((prev) => ({ ...prev, overallStatus: value }))
                   }
                 >
-                  <SelectTrigger>
+                  <SelectTrigger id="overallStatus">
                     <SelectValue placeholder="Select status" />
                   </SelectTrigger>
                   <SelectContent>
@@ -901,13 +858,21 @@ const Leprosy = () => {
                 </Select>
               </div>
               <div className="md:col-span-3">
-                <Label htmlFor="diagnosticDetails">
-                  Diagnostic Details/Comorbidities
-                </Label>
+                <Label htmlFor="diagnosticDetails">Diagnostic Details</Label>
                 <Textarea
                   id="diagnosticDetails"
                   name="diagnosticDetails"
                   value={formData.diagnosticDetails}
+                  onChange={handleInputChange}
+                  rows={2}
+                />
+              </div>
+              <div className="md:col-span-3">
+                <Label htmlFor="comorbidities">Comorbidities</Label>
+                <Textarea
+                  id="comorbidities"
+                  name="comorbidities"
+                  value={formData.comorbidities}
                   onChange={handleInputChange}
                   rows={2}
                 />
@@ -997,7 +962,7 @@ const Leprosy = () => {
                   </div>
                   <div>
                     <Label className="font-semibold">Ward No</Label>
-                    <p>{selectedRecord.wardNo}</p>
+                    <p>{formatWard(selectedRecord.wardNo)}</p>
                   </div>
                   <div>
                     <Label className="font-semibold">Habitation</Label>
@@ -1019,11 +984,7 @@ const Leprosy = () => {
                   <div>
                     <Label className="font-semibold">Date of Reporting</Label>
                     <p>
-                      {selectedRecord.dateOfReporting
-                        ? new Date(
-                            selectedRecord.dateOfReporting
-                          ).toLocaleDateString()
-                        : "N/A"}
+                      {formatDate(selectedRecord.dateOfReporting)}
                     </p>
                   </div>
                   <div>
@@ -1045,15 +1006,19 @@ const Leprosy = () => {
                   </div>
                   <div>
                     <Label className="font-semibold">Duration of Illness</Label>
-                    <p>{selectedRecord.durationOfIllness || "N/A"}</p>
+                    <p>
+                      {selectedRecord.durationOfIllness || selectedRecord.durationOfIllness === 0
+                        ? `${selectedRecord.durationOfIllness} months`
+                        : "N/A"}
+                    </p>
                   </div>
                   <div>
                     <Label className="font-semibold">Status of Treatment</Label>
-                    <Badge>{selectedRecord.statusOfTreatment || "N/A"}</Badge>
+                    <StatusBadge value={selectedRecord.statusOfTreatment} />
                   </div>
                   <div>
                     <Label className="font-semibold">Overall Status</Label>
-                    <Badge>{selectedRecord.overallStatus || "N/A"}</Badge>
+                    <StatusBadge value={selectedRecord.overallStatus} />
                   </div>
                 </div>
                 {selectedRecord.diagnosticDetails && (

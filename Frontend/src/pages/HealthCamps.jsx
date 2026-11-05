@@ -57,14 +57,23 @@ import {
   Eye,
   Download,
   RefreshCw,
-  Menu,
-  FileSpreadsheet,
 } from "lucide-react";
 import { healthCampAPI } from "../services/api";
 import Sidebar from "../components/Sidebar";
 import usePermissions from "../hooks/usePermissions";
 import GuidelinesCard from "../components/GuidelinesCard";
-import ExcelBulkImportButton from "../components/ExcelBulkImportButton";
+import ExcelImportPanel from "../components/ExcelImportPanel";
+import healthCampImportTemplate from "../lib/excelImport/templates/healthCamp";
+import {
+  ModulePageHeader,
+  tableState,
+  formatDate,
+  formatWard,
+  toDateInput,
+} from "../components/module/ModuleKit";
+import { getWardOptions } from "../lib/formOptions";
+
+const WARD_OPTIONS = getWardOptions();
 
 const HealthCamps = () => {
   const { canCreate, canEdit, canDelete, canExport } = usePermissions();
@@ -200,9 +209,7 @@ const HealthCamps = () => {
   const handleEdit = (camp) => {
     setSelectedCamp(camp);
     setFormData({
-      dateOfCamp: camp.dateOfCamp
-        ? new Date(camp.dateOfCamp).toISOString().split("T")[0]
-        : "",
+      dateOfCamp: toDateInput(camp.dateOfCamp),
       targetGroup: camp.targetGroup || "",
       wardNo: camp.wardNo || "",
       habitation: camp.habitation || "",
@@ -212,13 +219,11 @@ const HealthCamps = () => {
       medicineType: camp.medicineType || "",
       specialisation: camp.specialisation || "",
       organiser: camp.organiser || "",
-      numberOfDoctors: camp.numberOfDoctors || "",
-      numberOfGDA: camp.numberOfGDA || "",
-      totalBeneficiaries: camp.totalBeneficiaries || "",
+      numberOfDoctors: camp.numberOfDoctors ?? "",
+      numberOfGDA: camp.numberOfGDA ?? "",
+      totalBeneficiaries: camp.totalBeneficiaries ?? "",
       majorFindings: camp.majorFindings || "",
-      followUpDate: camp.followUpDate
-        ? new Date(camp.followUpDate).toISOString().split("T")[0]
-        : "",
+      followUpDate: toDateInput(camp.followUpDate),
       progressReporting: camp.progressReporting || {},
     });
     setIsEditModalOpen(true);
@@ -268,33 +273,21 @@ const HealthCamps = () => {
       <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
 
       <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Header */}
-        <header className="bg-background shadow-sm border-b border-border">
-          <div className="flex items-center justify-between px-6 py-4">
-            <div className="flex items-center space-x-4">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setSidebarOpen(!sidebarOpen)}
-                className="lg:hidden"
-              >
-                <Menu className="h-6 w-6" />
-              </Button>
-              <div className="flex items-center space-x-2">
-                <Heart className="h-6 w-6 text-red-600" />
-                <h1 className="text-2xl font-bold text-foreground">
-                  Health Camps
-                </h1>
-              </div>
-            </div>
-            {canCreate("health") && (
+        <ModulePageHeader
+          icon={Heart}
+          accent="text-red-600"
+          title="Health Camps"
+          subtitle="Community health camps, services delivered and beneficiaries reached"
+          onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
+          actions={
+            canCreate("health") && (
               <Button onClick={() => setIsCreateModalOpen(true)}>
                 <Plus className="h-4 w-4 mr-2" />
                 Add Health Camp
               </Button>
-            )}
-          </div>
-        </header>
+            )
+          }
+        />
 
         {/* Main Content */}
         <main className="flex-1 overflow-auto p-6">
@@ -423,15 +416,25 @@ const HealthCamps = () => {
                   />
                 </div>
                 <div>
-                  <Label htmlFor="wardNo">Ward No</Label>
-                  <Input
-                    id="wardNo"
-                    placeholder="Filter by ward"
+                  <Label htmlFor="filter-wardNo">Ward No</Label>
+                  <Select
                     value={filters.wardNo}
-                    onChange={(e) =>
-                      handleFilterChange("wardNo", e.target.value)
+                    onValueChange={(value) =>
+                      handleFilterChange("wardNo", value)
                     }
-                  />
+                  >
+                    <SelectTrigger id="filter-wardNo">
+                      <SelectValue placeholder="All Wards" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Wards</SelectItem>
+                      {WARD_OPTIONS.map((ward) => (
+                        <SelectItem key={ward.value} value={ward.value}>
+                          {ward.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div>
                   <Label htmlFor="habitation">Habitation</Label>
@@ -457,61 +460,13 @@ const HealthCamps = () => {
             </CardContent>
           </Card>
 
-          {/* Bulk Import Card */}
+          {/* Bulk Import */}
           {canCreate("health") && (
-            <Card className="border border-muted bg-card shadow-sm mb-6">
-              <CardContent className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4">
-                <div className="space-y-1">
-                  <h3 className="font-semibold text-foreground flex items-center gap-2">
-                    <FileSpreadsheet className="h-5 w-5 text-green-600" />
-                    Bulk Import Health Camps
-                  </h3>
-                  <p className="text-xs text-muted-foreground">
-                    Download the template, fill it in, and upload it to import records in bulk.
-                  </p>
-                </div>
-                <ExcelBulkImportButton
-                  label="Import Excel"
-                  description=""
-                  templateFields={[
-                    { label: "Date of Camp", key: "dateOfCamp" },
-                    { label: "Target Group", key: "targetGroup" },
-                    { label: "Ward Number", key: "wardNo" },
-                    { label: "Habitation", key: "habitation" },
-                    { label: "Village", key: "village" },
-                    { label: "Project Responsible", key: "projectResponsible" },
-                    { label: "Type of Health Camp", key: "typeOfHealthCamp", options: ["General", "Eye Camp", "Dental", "Maternal", "Pediatric", "Specialist Consultation", "Other"] },
-                    { label: "Medicine Type", key: "medicineType", options: ["Allopathy", "Ayurveda", "Homeopathy", "Unani", "Combination", "Other"] },
-                    { label: "Specialisation", key: "specialisation" },
-                    { label: "Male Count", key: "maleCount" },
-                    { label: "Female Count", key: "femaleCount" },
-                    { label: "Other Count", key: "otherCount" },
-                    { label: "Total Beneficiaries", key: "totalBeneficiaries" },
-                    { label: "Remarks", key: "remarks" },
-                  ]}
-                  sampleRow={{
-                    dateOfCamp: "2024-02-10",
-                    targetGroup: "Elderly & Children",
-                    wardNo: "8",
-                    habitation: "Barabazar",
-                    village: "Kolkata Central",
-                    projectResponsible: "Dr. R. K. Das",
-                    typeOfHealthCamp: "General",
-                    medicineType: "Allopathy",
-                    specialisation: "General Medicine",
-                    maleCount: "30",
-                    femaleCount: "45",
-                    otherCount: "0",
-                    totalBeneficiaries: "75",
-                    remarks: "Free health checkup camp",
-                  }}
-                  createRecord={async (payload) => {
-                    await healthCampAPI.create(payload);
-                  }}
-                  onImported={fetchHealthCamps}
-                />
-              </CardContent>
-            </Card>
+            <ExcelImportPanel
+              template={healthCampImportTemplate}
+              createRecord={healthCampAPI.create}
+              onImported={fetchHealthCamps}
+            />
           )}
 
           {/* Health Camps Table */}
@@ -549,26 +504,19 @@ const HealthCamps = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {loading ? (
-                      <TableRow>
-                        <TableCell colSpan={8} className="text-center py-4">
-                          <RefreshCw className="h-4 w-4 animate-spin mx-auto" />
-                        </TableCell>
-                      </TableRow>
-                    ) : healthCamps.length === 0 ? (
-                      <TableRow>
-                        <TableCell
-                          colSpan={8}
-                          className="text-center py-4 text-muted-foreground"
-                        >
-                          No health camps found
-                        </TableCell>
-                      </TableRow>
-                    ) : (
+                    {tableState({
+                      loading,
+                      count: healthCamps.length,
+                      colSpan: 8,
+                      filtered:
+                        Boolean(searchTerm) ||
+                        Object.values(filters).some((v) => v && v !== "all"),
+                    })}
+                    {!loading &&
                       healthCamps.map((camp) => (
                         <TableRow key={camp._id}>
                           <TableCell>
-                            {new Date(camp.dateOfCamp).toLocaleDateString()}
+                            {formatDate(camp.dateOfCamp)}
                           </TableCell>
                           <TableCell>{camp.targetGroup}</TableCell>
                           <TableCell>
@@ -578,7 +526,7 @@ const HealthCamps = () => {
                           </TableCell>
                           <TableCell>{camp.village}</TableCell>
                           <TableCell>
-                            Ward {camp.wardNo}, {camp.habitation}
+                            {formatWard(camp.wardNo)}, {camp.habitation}
                           </TableCell>
                           <TableCell>
                             <Badge variant="outline">{camp.medicineType}</Badge>
@@ -592,6 +540,7 @@ const HealthCamps = () => {
                                 variant="ghost"
                                 size="sm"
                                 onClick={() => handleView(camp)}
+                                aria-label="View health camp"
                               >
                                 <Eye className="h-4 w-4" />
                               </Button>
@@ -600,6 +549,7 @@ const HealthCamps = () => {
                                   variant="ghost"
                                   size="sm"
                                   onClick={() => handleEdit(camp)}
+                                  aria-label="Edit health camp"
                                 >
                                   <Edit className="h-4 w-4" />
                                 </Button>
@@ -607,7 +557,11 @@ const HealthCamps = () => {
                               {canDelete("health") && (
                                 <AlertDialog>
                                   <AlertDialogTrigger asChild>
-                                    <Button variant="ghost" size="sm">
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      aria-label="Delete health camp"
+                                    >
                                       <Trash2 className="h-4 w-4" />
                                     </Button>
                                   </AlertDialogTrigger>
@@ -637,8 +591,7 @@ const HealthCamps = () => {
                             </div>
                           </TableCell>
                         </TableRow>
-                      ))
-                    )}
+                      ))}
                   </TableBody>
                 </Table>
               </div>
@@ -753,16 +706,11 @@ const HealthCamps = () => {
                     <SelectValue placeholder="Select ward" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Ward 1">Ward 1</SelectItem>
-                    <SelectItem value="Ward 2">Ward 2</SelectItem>
-                    <SelectItem value="Ward 3">Ward 3</SelectItem>
-                    <SelectItem value="Ward 4">Ward 4</SelectItem>
-                    <SelectItem value="Ward 5">Ward 5</SelectItem>
-                    <SelectItem value="Ward 6">Ward 6</SelectItem>
-                    <SelectItem value="Ward 7">Ward 7</SelectItem>
-                    <SelectItem value="Ward 8">Ward 8</SelectItem>
-                    <SelectItem value="Ward 9">Ward 9</SelectItem>
-                    <SelectItem value="Ward 10">Ward 10</SelectItem>
+                    {WARD_OPTIONS.map((ward) => (
+                      <SelectItem key={ward.value} value={ward.value}>
+                        {ward.label}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -919,12 +867,13 @@ const HealthCamps = () => {
               </div>
             </div>
             <div>
-              <Label htmlFor="majorFindings">Major Findings</Label>
+              <Label htmlFor="majorFindings">Major Findings *</Label>
               <Textarea
                 id="majorFindings"
                 name="majorFindings"
                 value={formData.majorFindings}
                 onChange={handleInputChange}
+                required
                 placeholder="Describe major findings from the health camp"
               />
             </div>
@@ -1011,16 +960,11 @@ const HealthCamps = () => {
                     <SelectValue placeholder="Select ward" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Ward 1">Ward 1</SelectItem>
-                    <SelectItem value="Ward 2">Ward 2</SelectItem>
-                    <SelectItem value="Ward 3">Ward 3</SelectItem>
-                    <SelectItem value="Ward 4">Ward 4</SelectItem>
-                    <SelectItem value="Ward 5">Ward 5</SelectItem>
-                    <SelectItem value="Ward 6">Ward 6</SelectItem>
-                    <SelectItem value="Ward 7">Ward 7</SelectItem>
-                    <SelectItem value="Ward 8">Ward 8</SelectItem>
-                    <SelectItem value="Ward 9">Ward 9</SelectItem>
-                    <SelectItem value="Ward 10">Ward 10</SelectItem>
+                    {WARD_OPTIONS.map((ward) => (
+                      <SelectItem key={ward.value} value={ward.value}>
+                        {ward.label}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -1181,12 +1125,13 @@ const HealthCamps = () => {
               </div>
             </div>
             <div>
-              <Label htmlFor="edit-majorFindings">Major Findings</Label>
+              <Label htmlFor="edit-majorFindings">Major Findings *</Label>
               <Textarea
                 id="edit-majorFindings"
                 name="majorFindings"
                 value={formData.majorFindings}
                 onChange={handleInputChange}
+                required
                 placeholder="Describe major findings from the health camp"
               />
             </div>
@@ -1226,7 +1171,7 @@ const HealthCamps = () => {
                 <div>
                   <Label className="font-semibold">Date of Camp</Label>
                   <p>
-                    {new Date(selectedCamp.dateOfCamp).toLocaleDateString()}
+                    {formatDate(selectedCamp.dateOfCamp)}
                   </p>
                 </div>
                 <div>
@@ -1235,7 +1180,7 @@ const HealthCamps = () => {
                 </div>
                 <div>
                   <Label className="font-semibold">Ward No</Label>
-                  <p>{selectedCamp.wardNo}</p>
+                  <p>{formatWard(selectedCamp.wardNo)}</p>
                 </div>
                 <div>
                   <Label className="font-semibold">Habitation</Label>
@@ -1292,7 +1237,7 @@ const HealthCamps = () => {
                 <div>
                   <Label className="font-semibold">Follow Up Date</Label>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    {new Date(selectedCamp.followUpDate).toLocaleDateString()}
+                    {formatDate(selectedCamp.followUpDate)}
                   </p>
                 </div>
               )}

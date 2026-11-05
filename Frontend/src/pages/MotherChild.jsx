@@ -57,14 +57,24 @@ import {
   Eye,
   Download,
   RefreshCw,
-  Menu,
-  FileSpreadsheet,
 } from "lucide-react";
 import { motherChildAPI } from "../services/api";
 import Sidebar from "../components/Sidebar";
 import usePermissions from "../hooks/usePermissions";
 import GuidelinesCard from "../components/GuidelinesCard";
-import ExcelBulkImportButton from "../components/ExcelBulkImportButton";
+import ExcelImportPanel from "../components/ExcelImportPanel";
+import motherChildImportTemplate from "../lib/excelImport/templates/motherChild";
+import {
+  ModulePageHeader,
+  StatusBadge,
+  tableState,
+  formatDate,
+  formatWard,
+  toDateInput,
+} from "../components/module/ModuleKit";
+import { getWardOptions } from "../lib/formOptions";
+
+const WARD_OPTIONS = getWardOptions();
 
 const MotherChild = () => {
   const { canCreate, canEdit, canDelete, canExport } = usePermissions();
@@ -154,12 +164,25 @@ const MotherChild = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
+      // Optional enums: Mongoose rejects "" as a value, so omit them when unset.
+      const payload = { ...formData };
+      [
+        "deliveryArea",
+        "birthCertificate",
+        "immunizationStatus",
+        "nutritionalStatus",
+        "childImmunizationStatus",
+        "childNutritionalStatus",
+      ].forEach((key) => {
+        if (!payload[key]) payload[key] = undefined;
+      });
+
       if (selectedRecord) {
-        await motherChildAPI.update(selectedRecord._id, formData);
+        await motherChildAPI.update(selectedRecord._id, payload);
         toast.success("Mother child record updated successfully");
         setIsEditModalOpen(false);
       } else {
-        await motherChildAPI.create(formData);
+        await motherChildAPI.create(payload);
         toast.success("Mother child record created successfully");
         setIsCreateModalOpen(false);
       }
@@ -234,7 +257,7 @@ const MotherChild = () => {
       nameOfMother: record.nameOfMother || "",
       uniqueId: record.uniqueId || "",
       gender: record.gender || "",
-      ageOfMother: record.ageOfMother || "",
+      ageOfMother: record.ageOfMother ?? "",
       contactNo: record.contactNo || "",
       headOfHousehold: record.headOfHousehold || "",
       wardNo: record.wardNo || "",
@@ -243,10 +266,8 @@ const MotherChild = () => {
       district: record.district || "",
       state: record.state || "",
       nameOfChild: record.nameOfChild || "",
-      ageOfChild: record.ageOfChild || "",
-      dateOfReporting: record.dateOfReporting
-        ? new Date(record.dateOfReporting).toISOString().split("T")[0]
-        : "",
+      ageOfChild: record.ageOfChild ?? "",
+      dateOfReporting: toDateInput(record.dateOfReporting),
       reportedBy: record.reportedBy || "",
       pregnantOrLactatingMother: record.pregnantOrLactatingMother || "",
       antenatalCareDetails: record.antenatalCareDetails || "",
@@ -309,33 +330,21 @@ const MotherChild = () => {
       <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
 
       <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Header */}
-        <header className="bg-background shadow-md border-b border-border">
-          <div className="flex items-center justify-between px-6 py-4">
-            <div className="flex items-center space-x-4">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setSidebarOpen(!sidebarOpen)}
-                className="lg:hidden"
-              >
-                <Menu className="h-6 w-6" />
-              </Button>
-              <div className="flex items-center space-x-2">
-                <Baby className="h-6 w-6 text-pink-600" />
-                <h1 className="text-2xl font-bold text-foreground">
-                  Mother & Child
-                </h1>
-              </div>
-            </div>
-            {canCreate("health") && (
+        <ModulePageHeader
+          icon={Baby}
+          accent="text-pink-600"
+          title="Mother & Child"
+          subtitle="Maternal and child health: ANC/PNC, immunization and nutrition"
+          onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
+          actions={
+            canCreate("health") && (
               <Button onClick={() => setIsCreateModalOpen(true)}>
                 <Plus className="h-4 w-4 mr-2" />
                 Add Mother & Child Record
               </Button>
-            )}
-          </div>
-        </header>
+            )
+          }
+        />
 
         {/* Main Content */}
         <main className="flex-1 overflow-auto p-6">
@@ -370,9 +379,12 @@ const MotherChild = () => {
                   />
                 </div>
                 <div>
-                  {/* <Label htmlFor="gender">Gender</Label>
-                  <Select value={filters.gender} onValueChange={(value) => handleFilterChange("gender", value)}>
-                    <SelectTrigger>
+                  <Label htmlFor="filter-gender">Gender</Label>
+                  <Select
+                    value={filters.gender}
+                    onValueChange={(value) => handleFilterChange("gender", value)}
+                  >
+                    <SelectTrigger id="filter-gender">
                       <SelectValue placeholder="All Genders" />
                     </SelectTrigger>
                     <SelectContent>
@@ -381,12 +393,15 @@ const MotherChild = () => {
                       <SelectItem value="Female">Female</SelectItem>
                       <SelectItem value="Other">Other</SelectItem>
                     </SelectContent>
-                  </Select> */}
+                  </Select>
                 </div>
                 <div>
-                  {/* <Label htmlFor="immunizationStatus">Immunization Status</Label>
-                  <Select value={filters.immunizationStatus} onValueChange={(value) => handleFilterChange("immunizationStatus", value)}>
-                    <SelectTrigger>
+                  <Label htmlFor="filter-immunizationStatus">Immunization (Mother)</Label>
+                  <Select
+                    value={filters.immunizationStatus}
+                    onValueChange={(value) => handleFilterChange("immunizationStatus", value)}
+                  >
+                    <SelectTrigger id="filter-immunizationStatus">
                       <SelectValue placeholder="All Statuses" />
                     </SelectTrigger>
                     <SelectContent>
@@ -395,13 +410,17 @@ const MotherChild = () => {
                       <SelectItem value="Incomplete">Incomplete</SelectItem>
                       <SelectItem value="Not Started">Not Started</SelectItem>
                       <SelectItem value="In Progress">In Progress</SelectItem>
+                      <SelectItem value="Unknown">Unknown</SelectItem>
                     </SelectContent>
-                  </Select> */}
+                  </Select>
                 </div>
                 <div>
-                  {/* <Label htmlFor="nutritionalStatus">Nutritional Status</Label>
-                  <Select value={filters.nutritionalStatus} onValueChange={(value) => handleFilterChange("nutritionalStatus", value)}>
-                    <SelectTrigger>
+                  <Label htmlFor="filter-nutritionalStatus">Nutrition (Mother)</Label>
+                  <Select
+                    value={filters.nutritionalStatus}
+                    onValueChange={(value) => handleFilterChange("nutritionalStatus", value)}
+                  >
+                    <SelectTrigger id="filter-nutritionalStatus">
                       <SelectValue placeholder="All Statuses" />
                     </SelectTrigger>
                     <SelectContent>
@@ -410,84 +429,45 @@ const MotherChild = () => {
                       <SelectItem value="Underweight">Underweight</SelectItem>
                       <SelectItem value="Overweight">Overweight</SelectItem>
                       <SelectItem value="Malnourished">Malnourished</SelectItem>
+                      <SelectItem value="Severely Malnourished">Severely Malnourished</SelectItem>
                     </SelectContent>
-                  </Select> */}
+                  </Select>
                 </div>
                 <div>
-                  {/* <Label htmlFor="wardNo">Ward No</Label>
-                  <Input
-                    id="wardNo"
-                    placeholder="Filter by ward"
+                  <Label htmlFor="filter-wardNo">Ward No</Label>
+                  <Select
                     value={filters.wardNo}
-                    onChange={(e) => handleFilterChange("wardNo", e.target.value)}
-                  /> */}
+                    onValueChange={(value) => handleFilterChange("wardNo", value)}
+                  >
+                    <SelectTrigger id="filter-wardNo">
+                      <SelectValue placeholder="All Wards" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Wards</SelectItem>
+                      {WARD_OPTIONS.map((ward) => (
+                        <SelectItem key={ward.value} value={ward.value}>
+                          {ward.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="flex items-end">
-                  {/* <Button variant="outline" onClick={clearFilters} className="w-full">
+                  <Button variant="outline" onClick={clearFilters} className="w-full">
                     Clear Filters
-                  </Button> */}
+                  </Button>
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          {/* Bulk Import Card */}
+          {/* Bulk Import */}
           {canCreate("health") && (
-            <Card className="border border-muted bg-card shadow-sm mb-6">
-              <CardContent className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4">
-                <div className="space-y-1">
-                  <h3 className="font-semibold text-foreground flex items-center gap-2">
-                    <FileSpreadsheet className="h-5 w-5 text-green-600" />
-                    Bulk Import Mother &amp; Child Records
-                  </h3>
-                  <p className="text-xs text-muted-foreground">
-                    Download the template, fill it in, and upload it to import records in bulk.
-                  </p>
-                </div>
-                <ExcelBulkImportButton
-                  label="Import Excel"
-                  description=""
-                  templateFields={[
-                    { label: "Household Code", key: "householdCode" },
-                    { label: "Name of Mother", key: "nameOfMother" },
-                    { label: "Unique ID", key: "uniqueId" },
-                    { label: "Gender", key: "gender", options: ["Male", "Female", "Other"] },
-                    { label: "Age of Mother", key: "ageOfMother" },
-                    { label: "Head of Household", key: "headOfHousehold" },
-                    { label: "Contact Number", key: "contactNo" },
-                    { label: "Ward Number", key: "wardNo" },
-                    { label: "Habitation", key: "habitation" },
-                    { label: "Project Responsible", key: "projectResponsible" },
-                    { label: "Date of Reporting", key: "dateOfReporting" },
-                    { label: "Reported By", key: "reportedBy" },
-                    { label: "Immunization Status", key: "immunizationStatus", options: ["Complete", "Incomplete", "Not Started"] },
-                    { label: "Nutritional Status", key: "nutritionalStatus", options: ["Normal", "Underweight", "Overweight", "Malnourished"] },
-                    { label: "Remarks", key: "remarks" },
-                  ]}
-                  sampleRow={{
-                    householdCode: "HH-201",
-                    nameOfMother: "Rina Devi",
-                    uniqueId: "MC-001",
-                    gender: "Female",
-                    ageOfMother: "28",
-                    headOfHousehold: "Ratan Mondal",
-                    contactNo: "9876543210",
-                    wardNo: "5",
-                    habitation: "Rajabagan",
-                    projectResponsible: "Dr. Priya Sen",
-                    dateOfReporting: "2024-01-15",
-                    reportedBy: "ASHA Worker",
-                    immunizationStatus: "Complete",
-                    nutritionalStatus: "Normal",
-                    remarks: "Regular antenatal check-up",
-                  }}
-                  createRecord={async (payload) => {
-                    await motherChildAPI.create(payload);
-                  }}
-                  onImported={fetchMotherChild}
-                />
-              </CardContent>
-            </Card>
+            <ExcelImportPanel
+              template={motherChildImportTemplate}
+              createRecord={motherChildAPI.create}
+              onImported={fetchMotherChild}
+            />
           )}
 
           {/* Records Table */}
@@ -525,22 +505,15 @@ const MotherChild = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {loading ? (
-                      <TableRow>
-                        <TableCell colSpan={8} className="text-center py-4">
-                          <RefreshCw className="h-4 w-4 animate-spin mx-auto" />
-                        </TableCell>
-                      </TableRow>
-                    ) : motherChild.length === 0 ? (
-                      <TableRow>
-                        <TableCell
-                          colSpan={8}
-                          className="text-center py-4 text-muted-foreground"
-                        >
-                          No mother child records found
-                        </TableCell>
-                      </TableRow>
-                    ) : (
+                    {tableState({
+                      loading,
+                      count: motherChild.length,
+                      colSpan: 8,
+                      filtered:
+                        Boolean(searchTerm) ||
+                        Object.values(filters).some((v) => v && v !== "all"),
+                    })}
+                    {!loading &&
                       motherChild.map((record) => (
                         <TableRow key={record._id}>
                           <TableCell className="font-medium">
@@ -551,30 +524,14 @@ const MotherChild = () => {
                             M: {record.ageOfMother}, C: {record.ageOfChild}
                           </TableCell>
                           <TableCell>
-                            Ward {record.wardNo}, {record.habitation}
+                            {formatWard(record.wardNo)}, {record.habitation}
                           </TableCell>
                           <TableCell>{record.contactNo}</TableCell>
                           <TableCell>
-                            <Badge
-                              variant={
-                                record.immunizationStatus === "Complete"
-                                  ? "default"
-                                  : "secondary"
-                              }
-                            >
-                              {record.immunizationStatus}
-                            </Badge>
+                            <StatusBadge value={record.immunizationStatus} />
                           </TableCell>
                           <TableCell>
-                            <Badge
-                              variant={
-                                record.nutritionalStatus === "Normal"
-                                  ? "default"
-                                  : "secondary"
-                              }
-                            >
-                              {record.nutritionalStatus}
-                            </Badge>
+                            <StatusBadge value={record.nutritionalStatus} />
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center space-x-2">
@@ -582,6 +539,7 @@ const MotherChild = () => {
                                 variant="ghost"
                                 size="sm"
                                 onClick={() => handleView(record)}
+                                aria-label="View record"
                               >
                                 <Eye className="h-4 w-4" />
                               </Button>
@@ -590,6 +548,7 @@ const MotherChild = () => {
                                   variant="ghost"
                                   size="sm"
                                   onClick={() => handleEdit(record)}
+                                  aria-label="Edit record"
                                 >
                                   <Edit className="h-4 w-4" />
                                 </Button>
@@ -597,7 +556,11 @@ const MotherChild = () => {
                               {canDelete("health") && (
                                 <AlertDialog>
                                   <AlertDialogTrigger asChild>
-                                    <Button variant="ghost" size="sm">
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      aria-label="Delete record"
+                                    >
                                       <Trash2 className="h-4 w-4" />
                                     </Button>
                                   </AlertDialogTrigger>
@@ -627,8 +590,7 @@ const MotherChild = () => {
                             </div>
                           </TableCell>
                         </TableRow>
-                      ))
-                    )}
+                      ))}
                   </TableBody>
                 </Table>
               </div>
@@ -812,16 +774,11 @@ const MotherChild = () => {
                     <SelectValue placeholder="Select ward" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Ward 1">Ward 1</SelectItem>
-                    <SelectItem value="Ward 2">Ward 2</SelectItem>
-                    <SelectItem value="Ward 3">Ward 3</SelectItem>
-                    <SelectItem value="Ward 4">Ward 4</SelectItem>
-                    <SelectItem value="Ward 5">Ward 5</SelectItem>
-                    <SelectItem value="Ward 6">Ward 6</SelectItem>
-                    <SelectItem value="Ward 7">Ward 7</SelectItem>
-                    <SelectItem value="Ward 8">Ward 8</SelectItem>
-                    <SelectItem value="Ward 9">Ward 9</SelectItem>
-                    <SelectItem value="Ward 10">Ward 10</SelectItem>
+                    {WARD_OPTIONS.map((ward) => (
+                      <SelectItem key={ward.value} value={ward.value}>
+                        {ward.label}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -915,6 +872,26 @@ const MotherChild = () => {
                 </Select>
               </div>
               <div>
+                <Label htmlFor="antenatalCareDetails">Antenatal Care Details</Label>
+                <Textarea
+                  id="antenatalCareDetails"
+                  name="antenatalCareDetails"
+                  value={formData.antenatalCareDetails}
+                  onChange={handleInputChange}
+                  placeholder="Details about antenatal care"
+                />
+              </div>
+              <div>
+                <Label htmlFor="deliveryDetails">Delivery Details</Label>
+                <Textarea
+                  id="deliveryDetails"
+                  name="deliveryDetails"
+                  value={formData.deliveryDetails}
+                  onChange={handleInputChange}
+                  placeholder="Details about delivery"
+                />
+              </div>
+              <div>
                 <Label htmlFor="deliveryArea">Delivery Area</Label>
                 <Select
                   value={formData.deliveryArea}
@@ -966,6 +943,16 @@ const MotherChild = () => {
                 </Select>
               </div>
               <div>
+                <Label htmlFor="postnatalCareDetails">Postnatal Care Details</Label>
+                <Textarea
+                  id="postnatalCareDetails"
+                  name="postnatalCareDetails"
+                  value={formData.postnatalCareDetails}
+                  onChange={handleInputChange}
+                  placeholder="Details about postnatal care"
+                />
+              </div>
+              <div>
                 <Label htmlFor="healthCheckups">Health Checkups</Label>
                 <Textarea
                   id="healthCheckups"
@@ -1004,6 +991,7 @@ const MotherChild = () => {
                     <SelectItem value="Incomplete">Incomplete</SelectItem>
                     <SelectItem value="Not Started">Not Started</SelectItem>
                     <SelectItem value="In Progress">In Progress</SelectItem>
+                    <SelectItem value="Unknown">Unknown</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -1053,9 +1041,7 @@ const MotherChild = () => {
                     <SelectItem value="Incomplete">Incomplete</SelectItem>
                     <SelectItem value="Not Started">Not Started</SelectItem>
                     <SelectItem value="In Progress">In Progress</SelectItem>
-                    <SelectItem value="Age Appropriate">
-                      Age Appropriate
-                    </SelectItem>
+                    <SelectItem value="Unknown">Unknown</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -1085,6 +1071,36 @@ const MotherChild = () => {
                     </SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+              <div>
+                <Label htmlFor="childDevelopmentMilestones">Child Development Milestones</Label>
+                <Textarea
+                  id="childDevelopmentMilestones"
+                  name="childDevelopmentMilestones"
+                  value={formData.childDevelopmentMilestones}
+                  onChange={handleInputChange}
+                  placeholder="Details about child development milestones"
+                />
+              </div>
+              <div>
+                <Label htmlFor="servicesProvided">Services Provided</Label>
+                <Textarea
+                  id="servicesProvided"
+                  name="servicesProvided"
+                  value={formData.servicesProvided}
+                  onChange={handleInputChange}
+                  placeholder="Details about services provided"
+                />
+              </div>
+              <div>
+                <Label htmlFor="referralsGiven">Referrals Given</Label>
+                <Textarea
+                  id="referralsGiven"
+                  name="referralsGiven"
+                  value={formData.referralsGiven}
+                  onChange={handleInputChange}
+                  placeholder="Details about referrals given"
+                />
               </div>
             </div>
             <DialogFooter>
@@ -1229,16 +1245,11 @@ const MotherChild = () => {
                     <SelectValue placeholder="Select ward" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Ward 1">Ward 1</SelectItem>
-                    <SelectItem value="Ward 2">Ward 2</SelectItem>
-                    <SelectItem value="Ward 3">Ward 3</SelectItem>
-                    <SelectItem value="Ward 4">Ward 4</SelectItem>
-                    <SelectItem value="Ward 5">Ward 5</SelectItem>
-                    <SelectItem value="Ward 6">Ward 6</SelectItem>
-                    <SelectItem value="Ward 7">Ward 7</SelectItem>
-                    <SelectItem value="Ward 8">Ward 8</SelectItem>
-                    <SelectItem value="Ward 9">Ward 9</SelectItem>
-                    <SelectItem value="Ward 10">Ward 10</SelectItem>
+                    {WARD_OPTIONS.map((ward) => (
+                      <SelectItem key={ward.value} value={ward.value}>
+                        {ward.label}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -1447,6 +1458,7 @@ const MotherChild = () => {
                     <SelectItem value="Incomplete">Incomplete</SelectItem>
                     <SelectItem value="Not Started">Not Started</SelectItem>
                     <SelectItem value="In Progress">In Progress</SelectItem>
+                    <SelectItem value="Unknown">Unknown</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -1498,9 +1510,7 @@ const MotherChild = () => {
                     <SelectItem value="Incomplete">Incomplete</SelectItem>
                     <SelectItem value="Not Started">Not Started</SelectItem>
                     <SelectItem value="In Progress">In Progress</SelectItem>
-                    <SelectItem value="Age Appropriate">
-                      Age Appropriate
-                    </SelectItem>
+                    <SelectItem value="Unknown">Unknown</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -1611,12 +1621,55 @@ const MotherChild = () => {
                   <p>{selectedRecord.ageOfChild}</p>
                 </div>
                 <div>
+                  <Label className="font-semibold">Ward / Habitation</Label>
+                  <p>
+                    {formatWard(selectedRecord.wardNo)},{" "}
+                    {selectedRecord.habitation}
+                  </p>
+                </div>
+                <div>
+                  <Label className="font-semibold">Date of Reporting</Label>
+                  <p>{formatDate(selectedRecord.dateOfReporting)}</p>
+                </div>
+                <div>
+                  <Label className="font-semibold">
+                    Pregnant or Lactating Mother
+                  </Label>
+                  <p>{selectedRecord.pregnantOrLactatingMother || "—"}</p>
+                </div>
+                <div>
+                  <Label className="font-semibold">Delivery Area</Label>
+                  <p>{selectedRecord.deliveryArea || "—"}</p>
+                </div>
+                <div>
                   <Label className="font-semibold">Immunization Status</Label>
-                  <Badge>{selectedRecord.immunizationStatus}</Badge>
+                  <div>
+                    <StatusBadge value={selectedRecord.immunizationStatus} />
+                  </div>
                 </div>
                 <div>
                   <Label className="font-semibold">Nutritional Status</Label>
-                  <Badge>{selectedRecord.nutritionalStatus}</Badge>
+                  <div>
+                    <StatusBadge value={selectedRecord.nutritionalStatus} />
+                  </div>
+                </div>
+                <div>
+                  <Label className="font-semibold">
+                    Child Immunization Status
+                  </Label>
+                  <div>
+                    <StatusBadge
+                      value={selectedRecord.childImmunizationStatus}
+                    />
+                  </div>
+                </div>
+                <div>
+                  <Label className="font-semibold">
+                    Child Nutritional Status
+                  </Label>
+                  <div>
+                    <StatusBadge value={selectedRecord.childNutritionalStatus} />
+                  </div>
                 </div>
               </div>
             </div>

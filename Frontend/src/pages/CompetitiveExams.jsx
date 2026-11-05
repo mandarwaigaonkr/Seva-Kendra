@@ -71,43 +71,45 @@ import {
   Edit,
   Trash2,
   Eye,
-  RefreshCw,
-  Menu,
-  FileSpreadsheet,
 } from "lucide-react";
 import { competitiveExamAPI, scStudentAPI } from "../services/api";
 import Sidebar from "../components/Sidebar";
 import usePermissions from "../hooks/usePermissions";
 import { getWardOptions } from "../lib/formOptions";
 import GuidelinesCard from "../components/GuidelinesCard";
-import ExcelBulkImportButton from "../components/ExcelBulkImportButton";
+import ExcelImportPanel from "../components/ExcelImportPanel";
+import competitiveExamImportTemplate, {
+  CATEGORY,
+  SOCIAL_STATUS,
+  EXAM_TYPES,
+  EXAM_STATUS,
+  EXAM_RESULT,
+} from "../lib/excelImport/templates/competitiveExam";
+import {
+  ModulePageHeader,
+  tableState,
+  StatusBadge,
+  formatWard,
+  formatDate,
+  toDateInput,
+} from "../components/module/ModuleKit";
 
-const EXAM_TYPE_OPTIONS = [
-  "JEE Main",
-  "JEE Advanced",
-  "NEET",
-  "UPSC",
-  "SSC",
-  "Bank PO",
-  "Bank Clerk",
-  "Railway",
-  "Police",
-  "Teaching",
-  "State PSC",
-  "Other",
-];
+const EXAM_TYPE_OPTIONS = EXAM_TYPES;
 
-const CATEGORY_SOCIAL_OPTIONS = [
-  "SC",
-  "ST",
-  "OBC",
-  "Muslim",
-  "General",
-  "EWS",
-  "Other",
-];
+// One "Category / Social Status" picker feeds both schema fields (category has
+// Muslim/Other, socialStatus has EWS) — each only receives values its enum allows.
+const CATEGORY_SOCIAL_OPTIONS = [...new Set([...CATEGORY, ...SOCIAL_STATUS])];
 
-const SOCIAL_STATUS_ALLOWED_VALUES = ["SC", "ST", "OBC", "General", "EWS"];
+// SC Student records use Boy/Girl; this model uses Male/Female.
+const SC_GENDER_TO_EXAM = { Boy: "Male", Girl: "Female", Other: "Other" };
+
+// Mongoose rejects "" for enum / ObjectId fields: drop blanks on create, clear them on update.
+const toApiPayload = (data, isUpdate) =>
+  Object.fromEntries(
+    Object.entries(data).flatMap(([key, value]) =>
+      value === "" ? (isUpdate ? [[key, null]] : []) : [[key, value]]
+    )
+  );
 
 const WardCombobox = ({ id, value, onChange, options, placeholder }) => {
   const [open, setOpen] = useState(false);
@@ -415,15 +417,30 @@ const CompetitiveExams = () => {
   // Handle form submission
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!formData.gender) {
+      toast.error("Gender is required");
+      return;
+    }
+    if (!formData.wardNo) {
+      toast.error("Ward number is required");
+      return;
+    }
+    if (!formData.typeOfExam?.length) {
+      toast.error("Select at least one type of exam");
+      return;
+    }
     try {
       const { socialCategory, ...restFormData } = formData;
-      const payload = {
-        ...restFormData,
-        category: socialCategory || "",
-        socialStatus: SOCIAL_STATUS_ALLOWED_VALUES.includes(socialCategory)
-          ? socialCategory
-          : "",
-      };
+      const payload = toApiPayload(
+        {
+          ...restFormData,
+          category: CATEGORY.includes(socialCategory) ? socialCategory : "",
+          socialStatus: SOCIAL_STATUS.includes(socialCategory)
+            ? socialCategory
+            : "",
+        },
+        Boolean(selectedExam)
+      );
 
       if (selectedExam) {
         await competitiveExamAPI.update(selectedExam._id, payload);
@@ -438,7 +455,7 @@ const CompetitiveExams = () => {
       fetchExams();
       resetForm();
     } catch (error) {
-      toast.error(error.response?.data?.message || "An error occurred");
+      toast.error(error?.message || "An error occurred");
     }
   };
 
@@ -499,21 +516,11 @@ const CompetitiveExams = () => {
         : exam.typeOfExam
         ? [exam.typeOfExam]
         : [],
-      dateOfEnrollment: exam.dateOfEnrollment
-        ? new Date(exam.dateOfEnrollment).toISOString().split("T")[0]
-        : "",
-      dateOfEducationalAssessment: exam.dateOfEducationalAssessment
-        ? new Date(exam.dateOfEducationalAssessment).toISOString().split("T")[0]
-        : "",
-      dateOfCareerCounselling: exam.dateOfCareerCounselling
-        ? new Date(exam.dateOfCareerCounselling).toISOString().split("T")[0]
-        : "",
-      applicationDate: exam.applicationDate
-        ? new Date(exam.applicationDate).toISOString().split("T")[0]
-        : "",
-      examDate: exam.examDate
-        ? new Date(exam.examDate).toISOString().split("T")[0]
-        : "",
+      dateOfEnrollment: toDateInput(exam.dateOfEnrollment),
+      dateOfEducationalAssessment: toDateInput(exam.dateOfEducationalAssessment),
+      dateOfCareerCounselling: toDateInput(exam.dateOfCareerCounselling),
+      applicationDate: toDateInput(exam.applicationDate),
+      examDate: toDateInput(exam.examDate),
     });
     setIsEditModalOpen(true);
   };
@@ -524,7 +531,7 @@ const CompetitiveExams = () => {
       scStudentId: student._id,
       householdCode: student.householdCode || prev.householdCode,
       name: student.name || prev.name,
-      gender: student.gender || prev.gender,
+      gender: SC_GENDER_TO_EXAM[student.gender] || prev.gender,
       age: student.age?.toString() || prev.age,
       contactNo: student.contactNo || prev.contactNo,
       headOfHousehold: student.headOfHousehold || prev.headOfHousehold,
@@ -552,40 +559,24 @@ const CompetitiveExams = () => {
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden lg:ml-0">
-        {/* Mobile Header */}
-        <div className="lg:hidden bg-card shadow-sm p-4 flex items-center">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setSidebarOpen(true)}
-            className="mr-2"
-          >
-            <Menu className="h-5 w-5" />
-          </Button>
-          <h1 className="text-lg font-semibold">Competitive Exams</h1>
-        </div>
+        <ModulePageHeader
+          icon={BookOpen}
+          title="Competitive Exams"
+          subtitle="Support aspirants from enrolment and counselling to exam results"
+          onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
+          actions={
+            canCreate("education") && (
+              <Button onClick={() => setIsCreateModalOpen(true)}>
+                <Plus className="h-4 w-4 mr-2" />
+                Add Exam Record
+              </Button>
+            )
+          }
+        />
 
         {/* Scrollable Content */}
         <div className="flex-1 overflow-y-auto">
           <div className="container mx-auto p-6 space-y-6">
-            {/* Header */}
-            <div className="flex justify-between items-center">
-              <div>
-                <h1 className="text-3xl font-bold text-foreground">
-                  Competitive Exams
-                </h1>
-                <p className="text-muted-foreground">
-                  Manage competitive exam aspirants
-                </p>
-              </div>
-              {canCreate("education") && (
-                <Button onClick={() => setIsCreateModalOpen(true)}>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add Exam Record
-                </Button>
-              )}
-            </div>
-
             <GuidelinesCard
               title="Competitive Exam Tracking Guidelines"
               description="Help aspirants navigate through various competitive exams effectively."
@@ -624,7 +615,7 @@ const CompetitiveExams = () => {
                         setFilters({ ...filters, wardNo: value })
                       }
                     >
-                      <SelectTrigger>
+                      <SelectTrigger aria-label="Filter by ward">
                         <SelectValue placeholder="Filter by Ward" />
                       </SelectTrigger>
                       <SelectContent>
@@ -638,57 +629,44 @@ const CompetitiveExams = () => {
                     </Select>
                   </div>
                   <div>
-                    {/* <Select
+                    <Select
                       value={filters.typeOfExam}
                       onValueChange={(value) =>
                         setFilters({ ...filters, typeOfExam: value })
                       }
                     >
-                      <SelectTrigger>
+                      <SelectTrigger aria-label="Filter by exam type">
                         <SelectValue placeholder="Filter by Exam Type" />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="all">All Exams</SelectItem>
-                        <SelectItem value="JEE Main">JEE Main</SelectItem>
-                        <SelectItem value="JEE Advanced">
-                          JEE Advanced
-                        </SelectItem>
-                        <SelectItem value="NEET">NEET</SelectItem>
-                        <SelectItem value="UPSC">UPSC</SelectItem>
-                        <SelectItem value="SSC">SSC</SelectItem>
-                        <SelectItem value="Bank PO">Bank PO</SelectItem>
-                        <SelectItem value="Bank Clerk">Bank Clerk</SelectItem>
-                        <SelectItem value="Railway">Railway</SelectItem>
-                        <SelectItem value="Police">Police</SelectItem>
-                        <SelectItem value="Teaching">Teaching</SelectItem>
-                        <SelectItem value="State PSC">State PSC</SelectItem>
-                        <SelectItem value="Other">Other</SelectItem>
+                        {EXAM_TYPES.map((option) => (
+                          <SelectItem key={option} value={option}>
+                            {option}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
-                    </Select> */}
+                    </Select>
                   </div>
                   <div>
-                    {/* <Select
+                    <Select
                       value={filters.status}
                       onValueChange={(value) =>
                         setFilters({ ...filters, status: value })
                       }
                     >
-                      <SelectTrigger>
+                      <SelectTrigger aria-label="Filter by status">
                         <SelectValue placeholder="Filter by Status" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="all">All Status</SelectItem>
-                        <SelectItem value="Preparing">Preparing</SelectItem>
-                        <SelectItem value="Appeared">Appeared</SelectItem>
-                        <SelectItem value="Qualified">Qualified</SelectItem>
-                        <SelectItem value="Not Qualified">
-                          Not Qualified
-                        </SelectItem>
-                        <SelectItem value="Discontinued">
-                          Discontinued
-                        </SelectItem>
+                        <SelectItem value="all">All Statuses</SelectItem>
+                        {EXAM_STATUS.map((option) => (
+                          <SelectItem key={option} value={option}>
+                            {option}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
-                    </Select> */}
+                    </Select>
                   </div>
                 </div>
               </CardContent>
@@ -696,65 +674,11 @@ const CompetitiveExams = () => {
 
             {/* Bulk Import Card */}
             {canCreate("education") && (
-              <Card className="border border-muted bg-card shadow-sm mb-6">
-                <CardContent className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4">
-                  <div className="space-y-1">
-                    <h3 className="font-semibold text-foreground flex items-center gap-2">
-                      <FileSpreadsheet className="h-5 w-5 text-green-600" />
-                      Bulk Import Competitive Exams
-                    </h3>
-                    <p className="text-xs text-muted-foreground">
-                      Download the template, fill it in, and upload it to import records in bulk.
-                    </p>
-                  </div>
-                  <ExcelBulkImportButton
-                    label="Import Excel"
-                    description=""
-                    templateFields={[
-                      { label: "Household Code", key: "householdCode" },
-                      { label: "ID Code", key: "idCode" },
-                      { label: "Name", key: "name" },
-                      { label: "Gender", key: "gender", options: ["Male", "Female", "Other"] },
-                      { label: "Age", key: "age" },
-                      { label: "Head of Household", key: "headOfHousehold" },
-                      { label: "Contact Number", key: "contactNo" },
-                      { label: "Ward Number", key: "wardNo" },
-                      { label: "Habitation", key: "habitation" },
-                      { label: "Project Responsible", key: "projectResponsible" },
-                      { label: "Date of Reporting", key: "dateOfReporting" },
-                      { label: "Reported By", key: "reportedBy" },
-                      { label: "Type of Exam", key: "typeOfExam", options: ["JEE Main", "JEE Advanced", "NEET", "UPSC", "SSC", "Bank PO", "Bank Clerk", "Railway", "Police", "Teaching", "State PSC", "Other"] },
-                      { label: "Target Exam Year", key: "targetExamYear" },
-                      { label: "Coaching Institute", key: "coachingInstitute" },
-                      { label: "Status", key: "status", options: ["Preparing", "Appeared", "Qualified", "Not Qualified", "Discontinued"] },
-                      { label: "Remarks", key: "remarks" },
-                    ]}
-                    sampleRow={{
-                      householdCode: "HH-301",
-                      idCode: "EXAM-001",
-                      name: "Amit Ghosh",
-                      gender: "Male",
-                      age: "19",
-                      headOfHousehold: "Tapan Ghosh",
-                      contactNo: "9876543210",
-                      wardNo: "11",
-                      habitation: "Salt Lake",
-                      projectResponsible: "Sneha Roy",
-                      dateOfReporting: "2024-02-01",
-                      reportedBy: "Coordinator Subhash",
-                      typeOfExam: "JEE Main",
-                      targetExamYear: "2024",
-                      coachingInstitute: "Apex Academy",
-                      status: "Preparing",
-                      remarks: "Enrolled in weekend batch",
-                    }}
-                    createRecord={async (payload) => {
-                      await competitiveExamAPI.create(payload);
-                    }}
-                    onImported={fetchExams}
-                  />
-                </CardContent>
-              </Card>
+              <ExcelImportPanel
+                template={competitiveExamImportTemplate}
+                createRecord={competitiveExamAPI.create}
+                onImported={fetchExams}
+              />
             )}
 
             {/* Exams Table */}
@@ -766,25 +690,29 @@ const CompetitiveExams = () => {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                {loading ? (
-                  <div className="flex justify-center items-center h-64">
-                    <RefreshCw className="h-8 w-8 animate-spin" />
-                  </div>
-                ) : (
-                  <Table>
+                <Table>
                     <TableHeader>
                       <TableRow>
                         <TableHead>Household Code</TableHead>
                         <TableHead>Name</TableHead>
                         <TableHead>Gender</TableHead>
                         <TableHead>Age</TableHead>
+                        <TableHead>Ward</TableHead>
                         <TableHead>Exam Type</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead>Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {exams.map((exam) => (
+                      {tableState({
+                        loading,
+                        count: exams.length,
+                        colSpan: 8,
+                        filtered:
+                          Boolean(searchTerm) ||
+                          Object.values(filters).some((v) => v !== "all"),
+                      })}
+                      {!loading && exams.map((exam) => (
                         <TableRow key={exam._id}>
                           <TableCell className="font-medium">
                             {exam.householdCode}
@@ -794,6 +722,7 @@ const CompetitiveExams = () => {
                             <Badge variant="secondary">{exam.gender}</Badge>
                           </TableCell>
                           <TableCell>{exam.age}</TableCell>
+                          <TableCell>{formatWard(exam.wardNo)}</TableCell>
                           <TableCell>
                             <Badge variant="outline">
                               {Array.isArray(exam.typeOfExam)
@@ -802,19 +731,7 @@ const CompetitiveExams = () => {
                             </Badge>
                           </TableCell>
                           <TableCell>
-                            <Badge
-                              variant={
-                                exam.status === "Qualified"
-                                  ? "default"
-                                  : exam.status === "Preparing"
-                                  ? "secondary"
-                                  : exam.status === "Appeared"
-                                  ? "outline"
-                                  : "destructive"
-                              }
-                            >
-                              {exam.status}
-                            </Badge>
+                            <StatusBadge value={exam.status} />
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center gap-2">
@@ -822,6 +739,7 @@ const CompetitiveExams = () => {
                                 variant="ghost"
                                 size="sm"
                                 onClick={() => openViewModal(exam)}
+                                aria-label={`View ${exam.name}`}
                               >
                                 <Eye className="h-4 w-4" />
                               </Button>
@@ -830,6 +748,7 @@ const CompetitiveExams = () => {
                                   variant="ghost"
                                   size="sm"
                                   onClick={() => openEditModal(exam)}
+                                  aria-label={`Edit ${exam.name}`}
                                 >
                                   <Edit className="h-4 w-4" />
                                 </Button>
@@ -837,7 +756,11 @@ const CompetitiveExams = () => {
                               {canDelete("education") && (
                                 <AlertDialog>
                                   <AlertDialogTrigger asChild>
-                                    <Button variant="ghost" size="sm">
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      aria-label={`Delete ${exam.name}`}
+                                    >
                                       <Trash2 className="h-4 w-4" />
                                     </Button>
                                   </AlertDialogTrigger>
@@ -870,7 +793,6 @@ const CompetitiveExams = () => {
                       ))}
                     </TableBody>
                   </Table>
-                )}
 
                 {/* Pagination */}
                 <div className="flex items-center justify-between space-x-2 py-4">
@@ -975,7 +897,7 @@ const CompetitiveExams = () => {
                           setFormData({ ...formData, gender: value })
                         }
                       >
-                        <SelectTrigger>
+                        <SelectTrigger id="gender">
                           <SelectValue placeholder="Select gender" />
                         </SelectTrigger>
                         <SelectContent>
@@ -986,16 +908,19 @@ const CompetitiveExams = () => {
                       </Select>
                     </div>
                     <div>
-                      <Label htmlFor="age">Age</Label>
+                      <Label htmlFor="age">Age *</Label>
                       <Input
                         id="age"
                         type="number"
+                        min={0}
+                        max={120}
                         value={formData.age}
                         onChange={(e) =>
                           setFormData({ ...formData, age: e.target.value })
                         }
                         min="0"
                         max="120"
+                        required
                       />
                     </div>
                     <div>
@@ -1013,7 +938,7 @@ const CompetitiveExams = () => {
                     </div>
                     <div>
                       <Label htmlFor="headOfHousehold">
-                        Head of Household
+                        Head of Household *
                       </Label>
                       <Input
                         id="headOfHousehold"
@@ -1024,6 +949,7 @@ const CompetitiveExams = () => {
                             headOfHousehold: e.target.value,
                           })
                         }
+                        required
                       />
                     </div>
                     <div>
@@ -1039,7 +965,7 @@ const CompetitiveExams = () => {
                       />
                     </div>
                     <div>
-                      <Label htmlFor="habitation">Habitation</Label>
+                      <Label htmlFor="habitation">Habitation *</Label>
                       <Input
                         id="habitation"
                         value={formData.habitation}
@@ -1049,6 +975,7 @@ const CompetitiveExams = () => {
                             habitation: e.target.value,
                           })
                         }
+                        required
                       />
                     </div>
                     <div>
@@ -1107,25 +1034,21 @@ const CompetitiveExams = () => {
                           setFormData({ ...formData, status: value })
                         }
                       >
-                        <SelectTrigger>
+                        <SelectTrigger id="status">
                           <SelectValue placeholder="Select status" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="Preparing">Preparing</SelectItem>
-                          <SelectItem value="Appeared">Appeared</SelectItem>
-                          <SelectItem value="Qualified">Qualified</SelectItem>
-                          <SelectItem value="Not Qualified">
-                            Not Qualified
-                          </SelectItem>
-                          <SelectItem value="Discontinued">
-                            Discontinued
-                          </SelectItem>
+                          {EXAM_STATUS.map((option) => (
+                            <SelectItem key={option} value={option}>
+                              {option}
+                            </SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                     </div>
                     <div>
                       <Label htmlFor="dateOfEnrollment">
-                        Date of Enrollment
+                        Date of Enrollment *
                       </Label>
                       <Input
                         id="dateOfEnrollment"
@@ -1137,10 +1060,11 @@ const CompetitiveExams = () => {
                             dateOfEnrollment: e.target.value,
                           })
                         }
+                        required
                       />
                     </div>
                     <div>
-                      <Label htmlFor="enrolledBy">Enrolled By</Label>
+                      <Label htmlFor="enrolledBy">Enrolled By *</Label>
                       <Input
                         id="enrolledBy"
                         value={formData.enrolledBy}
@@ -1150,11 +1074,12 @@ const CompetitiveExams = () => {
                             enrolledBy: e.target.value,
                           })
                         }
+                        required
                       />
                     </div>
                     <div className="md:col-span-2">
                       <Label htmlFor="educationalStatus">
-                        Educational Status
+                        Educational Status *
                       </Label>
                       <Input
                         id="educationalStatus"
@@ -1164,6 +1089,101 @@ const CompetitiveExams = () => {
                             ...formData,
                             educationalStatus: e.target.value,
                           })
+                        }
+                        required
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="applicationDate">Application Date</Label>
+                      <Input
+                        id="applicationDate"
+                        type="date"
+                        value={formData.applicationDate || ""}
+                        onChange={(e) =>
+                          setFormData({ ...formData, applicationDate: e.target.value })
+                        }
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="examDate">Exam Date</Label>
+                      <Input
+                        id="examDate"
+                        type="date"
+                        value={formData.examDate || ""}
+                        onChange={(e) =>
+                          setFormData({ ...formData, examDate: e.target.value })
+                        }
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="result">Result</Label>
+                      <Select
+                        value={formData.result || "Pending"}
+                        onValueChange={(value) =>
+                          setFormData({ ...formData, result: value })
+                        }
+                      >
+                        <SelectTrigger id="result">
+                          <SelectValue placeholder="Select result" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {EXAM_RESULT.map((option) => (
+                            <SelectItem key={option} value={option}>
+                              {option}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label htmlFor="dateOfEducationalAssessment">Date of Educational Assessment</Label>
+                      <Input
+                        id="dateOfEducationalAssessment"
+                        type="date"
+                        value={formData.dateOfEducationalAssessment || ""}
+                        onChange={(e) =>
+                          setFormData({ ...formData, dateOfEducationalAssessment: e.target.value })
+                        }
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="educationalScreeningResults">Educational Screening Results</Label>
+                      <Input
+                        id="educationalScreeningResults"
+                        value={formData.educationalScreeningResults || ""}
+                        onChange={(e) =>
+                          setFormData({ ...formData, educationalScreeningResults: e.target.value })
+                        }
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="dateOfCareerCounselling">Date of Career Counselling</Label>
+                      <Input
+                        id="dateOfCareerCounselling"
+                        type="date"
+                        value={formData.dateOfCareerCounselling || ""}
+                        onChange={(e) =>
+                          setFormData({ ...formData, dateOfCareerCounselling: e.target.value })
+                        }
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="counselingReport">Counselling Report</Label>
+                      <Input
+                        id="counselingReport"
+                        value={formData.counselingReport || ""}
+                        onChange={(e) =>
+                          setFormData({ ...formData, counselingReport: e.target.value })
+                        }
+                      />
+                    </div>
+                    <div className="md:col-span-2">
+                      <Label htmlFor="individualCarePlan">Individual Care Plan</Label>
+                      <Textarea
+                        id="individualCarePlan"
+                        value={formData.individualCarePlan || ""}
+                        onChange={(e) =>
+                          setFormData({ ...formData, individualCarePlan: e.target.value })
                         }
                       />
                     </div>
@@ -1237,7 +1257,7 @@ const CompetitiveExams = () => {
                           setFormData({ ...formData, gender: value })
                         }
                       >
-                        <SelectTrigger>
+                        <SelectTrigger id="editGender">
                           <SelectValue placeholder="Select gender" />
                         </SelectTrigger>
                         <SelectContent>
@@ -1248,16 +1268,19 @@ const CompetitiveExams = () => {
                       </Select>
                     </div>
                     <div>
-                      <Label htmlFor="editAge">Age</Label>
+                      <Label htmlFor="editAge">Age *</Label>
                       <Input
                         id="editAge"
                         type="number"
+                        min={0}
+                        max={120}
                         value={formData.age}
                         onChange={(e) =>
                           setFormData({ ...formData, age: e.target.value })
                         }
                         min="0"
                         max="120"
+                        required
                       />
                     </div>
                     <div>
@@ -1275,7 +1298,7 @@ const CompetitiveExams = () => {
                     </div>
                     <div>
                       <Label htmlFor="editHeadOfHousehold">
-                        Head of Household
+                        Head of Household *
                       </Label>
                       <Input
                         id="editHeadOfHousehold"
@@ -1286,6 +1309,7 @@ const CompetitiveExams = () => {
                             headOfHousehold: e.target.value,
                           })
                         }
+                        required
                       />
                     </div>
                     <div>
@@ -1301,7 +1325,7 @@ const CompetitiveExams = () => {
                       />
                     </div>
                     <div>
-                      <Label htmlFor="editHabitation">Habitation</Label>
+                      <Label htmlFor="editHabitation">Habitation *</Label>
                       <Input
                         id="editHabitation"
                         value={formData.habitation}
@@ -1311,6 +1335,7 @@ const CompetitiveExams = () => {
                             habitation: e.target.value,
                           })
                         }
+                        required
                       />
                     </div>
                     <div>
@@ -1369,19 +1394,15 @@ const CompetitiveExams = () => {
                           setFormData({ ...formData, status: value })
                         }
                       >
-                        <SelectTrigger>
+                        <SelectTrigger id="editStatus">
                           <SelectValue placeholder="Select status" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="Preparing">Preparing</SelectItem>
-                          <SelectItem value="Appeared">Appeared</SelectItem>
-                          <SelectItem value="Qualified">Qualified</SelectItem>
-                          <SelectItem value="Not Qualified">
-                            Not Qualified
-                          </SelectItem>
-                          <SelectItem value="Discontinued">
-                            Discontinued
-                          </SelectItem>
+                          {EXAM_STATUS.map((option) => (
+                            <SelectItem key={option} value={option}>
+                              {option}
+                            </SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                     </div>
@@ -1430,6 +1451,100 @@ const CompetitiveExams = () => {
                           })
                         }
                         required
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="editApplicationDate">Application Date</Label>
+                      <Input
+                        id="editApplicationDate"
+                        type="date"
+                        value={formData.applicationDate || ""}
+                        onChange={(e) =>
+                          setFormData({ ...formData, applicationDate: e.target.value })
+                        }
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="editExamDate">Exam Date</Label>
+                      <Input
+                        id="editExamDate"
+                        type="date"
+                        value={formData.examDate || ""}
+                        onChange={(e) =>
+                          setFormData({ ...formData, examDate: e.target.value })
+                        }
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="editResult">Result</Label>
+                      <Select
+                        value={formData.result || "Pending"}
+                        onValueChange={(value) =>
+                          setFormData({ ...formData, result: value })
+                        }
+                      >
+                        <SelectTrigger id="editResult">
+                          <SelectValue placeholder="Select result" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {EXAM_RESULT.map((option) => (
+                            <SelectItem key={option} value={option}>
+                              {option}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label htmlFor="editDateOfEducationalAssessment">Date of Educational Assessment</Label>
+                      <Input
+                        id="editDateOfEducationalAssessment"
+                        type="date"
+                        value={formData.dateOfEducationalAssessment || ""}
+                        onChange={(e) =>
+                          setFormData({ ...formData, dateOfEducationalAssessment: e.target.value })
+                        }
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="editEducationalScreeningResults">Educational Screening Results</Label>
+                      <Input
+                        id="editEducationalScreeningResults"
+                        value={formData.educationalScreeningResults || ""}
+                        onChange={(e) =>
+                          setFormData({ ...formData, educationalScreeningResults: e.target.value })
+                        }
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="editDateOfCareerCounselling">Date of Career Counselling</Label>
+                      <Input
+                        id="editDateOfCareerCounselling"
+                        type="date"
+                        value={formData.dateOfCareerCounselling || ""}
+                        onChange={(e) =>
+                          setFormData({ ...formData, dateOfCareerCounselling: e.target.value })
+                        }
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="editCounselingReport">Counselling Report</Label>
+                      <Input
+                        id="editCounselingReport"
+                        value={formData.counselingReport || ""}
+                        onChange={(e) =>
+                          setFormData({ ...formData, counselingReport: e.target.value })
+                        }
+                      />
+                    </div>
+                    <div className="md:col-span-2">
+                      <Label htmlFor="editIndividualCarePlan">Individual Care Plan</Label>
+                      <Textarea
+                        id="editIndividualCarePlan"
+                        value={formData.individualCarePlan || ""}
+                        onChange={(e) =>
+                          setFormData({ ...formData, individualCarePlan: e.target.value })
+                        }
                       />
                     </div>
                   </div>
@@ -1494,7 +1609,7 @@ const CompetitiveExams = () => {
                         </div>
                         <div>
                           <Label className="font-semibold">Ward No</Label>
-                          <p>{selectedExam.wardNo}</p>
+                          <p>{formatWard(selectedExam.wardNo)}</p>
                         </div>
                         <div>
                           <Label className="font-semibold">Habitation</Label>
@@ -1537,18 +1652,14 @@ const CompetitiveExams = () => {
                         </div>
                         <div>
                           <Label className="font-semibold">Status</Label>
-                          <Badge>{selectedExam.status}</Badge>
+                          <div><StatusBadge value={selectedExam.status} /></div>
                         </div>
                         <div>
                           <Label className="font-semibold">
                             Date of Enrollment
                           </Label>
                           <p>
-                            {selectedExam.dateOfEnrollment
-                              ? new Date(
-                                  selectedExam.dateOfEnrollment
-                                ).toLocaleDateString()
-                              : "N/A"}
+                            {formatDate(selectedExam.dateOfEnrollment, "N/A")}
                           </p>
                         </div>
                         <div>
@@ -1560,26 +1671,18 @@ const CompetitiveExams = () => {
                             Application Date
                           </Label>
                           <p>
-                            {selectedExam.applicationDate
-                              ? new Date(
-                                  selectedExam.applicationDate
-                                ).toLocaleDateString()
-                              : "N/A"}
+                            {formatDate(selectedExam.applicationDate, "N/A")}
                           </p>
                         </div>
                         <div>
                           <Label className="font-semibold">Exam Date</Label>
                           <p>
-                            {selectedExam.examDate
-                              ? new Date(
-                                  selectedExam.examDate
-                                ).toLocaleDateString()
-                              : "N/A"}
+                            {formatDate(selectedExam.examDate, "N/A")}
                           </p>
                         </div>
                         <div>
                           <Label className="font-semibold">Result</Label>
-                          <Badge>{selectedExam.result}</Badge>
+                          <div><StatusBadge value={selectedExam.result} /></div>
                         </div>
                       </div>
                     </div>
@@ -1595,11 +1698,7 @@ const CompetitiveExams = () => {
                             Date of Educational Assessment
                           </Label>
                           <p>
-                            {selectedExam.dateOfEducationalAssessment
-                              ? new Date(
-                                  selectedExam.dateOfEducationalAssessment
-                                ).toLocaleDateString()
-                              : "N/A"}
+                            {formatDate(selectedExam.dateOfEducationalAssessment, "N/A")}
                           </p>
                         </div>
                         <div>
@@ -1607,11 +1706,7 @@ const CompetitiveExams = () => {
                             Date of Career Counselling
                           </Label>
                           <p>
-                            {selectedExam.dateOfCareerCounselling
-                              ? new Date(
-                                  selectedExam.dateOfCareerCounselling
-                                ).toLocaleDateString()
-                              : "N/A"}
+                            {formatDate(selectedExam.dateOfCareerCounselling, "N/A")}
                           </p>
                         </div>
                       </div>

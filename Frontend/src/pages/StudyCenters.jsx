@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import {
   Card,
@@ -61,7 +61,6 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
 import {
   Tooltip,
   TooltipTrigger,
@@ -81,15 +80,21 @@ import {
   Eye,
   Download,
   RefreshCw,
-  Menu,
-  FileSpreadsheet,
 } from "lucide-react";
 import { studyCenterAPI, teacherAPI, groupLeaderAPI } from "../services/api";
 import Sidebar from "../components/Sidebar";
 import usePermissions from "../hooks/usePermissions";
 import { getWardOptions } from "../lib/formOptions";
 import GuidelinesCard from "../components/GuidelinesCard";
-import ExcelBulkImportButton from "../components/ExcelBulkImportButton";
+import ExcelImportPanel from "../components/ExcelImportPanel";
+import studyCenterImportTemplate from "../lib/excelImport/templates/studyCenter";
+import {
+  ModulePageHeader,
+  formatDate,
+  formatWard,
+  tableState,
+  toDateInput,
+} from "../components/module/ModuleKit";
 
 const WardCombobox = ({ id, value, onChange, options, placeholder }) => {
   const [open, setOpen] = useState(false);
@@ -235,14 +240,14 @@ const StudyCenters = () => {
     return `9${suffix}`;
   };
 
-  const createGroupLeaderFromManual = async (name) => {
+  const createGroupLeaderFromManual = async (name, phoneNumber) => {
     const { firstName, lastName } = splitName(name);
     const baseName = normalizeToken(firstName);
     const payload = {
       leaderId: `GL-${uniqueSuffix()}`,
       firstName,
       lastName,
-      phoneNumber: buildPhoneNumber(),
+      phoneNumber: phoneNumber || buildPhoneNumber(),
       qualifications: "Other",
       status: "Active",
       experience: {
@@ -256,7 +261,7 @@ const StudyCenters = () => {
     return response?.data?.data?._id || response?.data?._id;
   };
 
-  const createTeacherFromManual = async (name) => {
+  const createTeacherFromManual = async (name, phoneNumber) => {
     const { firstName, lastName } = splitName(name);
     const baseName = normalizeToken(firstName);
     const payload = {
@@ -264,7 +269,7 @@ const StudyCenters = () => {
       firstName,
       lastName,
       email: buildEmailAddress(baseName),
-      phoneNumber: buildPhoneNumber(),
+      phoneNumber: phoneNumber || buildPhoneNumber(),
       specialization: ["General"],
       experience: 0,
       qualifications: [],
@@ -273,6 +278,98 @@ const StudyCenters = () => {
 
     const response = await teacherAPI.create(payload);
     return response?.data?.data?._id || response?.data?._id;
+  };
+
+  /* ---------------- Bulk import ----------------
+   * The sheet carries group leader / teacher names (+ optional phones) because the model
+   * needs GroupLeader / Teacher ids. Each name is matched to an existing record (phone first,
+   * then full name) or created, exactly like a manually typed name in the form. Lookups are
+   * cached as promises so concurrent rows that share a new name create it only once.
+   */
+  const importPeople = useRef(null);
+
+  const dropdownList = (response) => {
+    if (Array.isArray(response?.data)) return response.data;
+    if (Array.isArray(response?.data?.data)) return response.data.data;
+    return [];
+  };
+
+  const personKey = (name) => (name || "").trim().replace(/\s+/g, " ").toLowerCase();
+
+  const loadImportPeople = async () => {
+    if (!importPeople.current) {
+      importPeople.current = Promise.all([
+        groupLeaderAPI.getDropdown(),
+        teacherAPI.getDropdown(),
+      ]).then(([leaderRes, teacherRes]) => ({
+        leaders: dropdownList(leaderRes),
+        teachers: dropdownList(teacherRes),
+        created: { leaders: new Map(), teachers: new Map() },
+      }));
+      importPeople.current.catch(() => {
+        importPeople.current = null;
+      });
+    }
+    return importPeople.current;
+  };
+
+  const resolveImportPerson = async (kind, name, phone) => {
+    const people = await loadImportPeople();
+    const list = people[kind];
+    const key = personKey(name);
+    const existing =
+      (phone && list.find((person) => person.phoneNumber === phone)) ||
+      list.find((person) => personKey(`${person.firstName} ${person.lastName}`) === key);
+    if (existing) return existing.id || existing._id || existing.value;
+
+    // Already being created by another row? Match by phone first, then by name.
+    const created = people.created[kind];
+    const pendingHit = (phone && created.get(`phone:${phone}`)) || created.get(`name:${key}`);
+    if (pendingHit) return pendingHit;
+
+    const create = kind === "leaders" ? createGroupLeaderFromManual : createTeacherFromManual;
+    const pending = create(name, phone);
+    const keys = [`name:${key}`, ...(phone ? [`phone:${phone}`] : [])];
+    keys.forEach((k) => created.set(k, pending));
+    pending.catch(() => keys.forEach((k) => created.delete(k)));
+    return pending;
+  };
+
+  const isMobile = (value) => /^[6-9]\d{9}$/.test(value || "");
+
+  const importStudyCenter = async (row) => {
+    const {
+      groupLeaderName,
+      groupLeaderContact,
+      teacherNames = [],
+      teacherContacts = [],
+      ...center
+    } = row;
+
+    if (!groupLeaderName?.trim()) throw new Error("Group Leader Name is required");
+    const groupLeader = await resolveImportPerson("leaders", groupLeaderName, groupLeaderContact);
+    if (!groupLeader) throw new Error(`Could not create group leader "${groupLeaderName}"`);
+
+    const teacherIds = [];
+    for (let index = 0; index < teacherNames.length; index += 1) {
+      const contact = teacherContacts[index] || "";
+      if (contact && !isMobile(contact)) {
+        throw new Error(`Teacher contact "${contact}" is not a valid 10-digit mobile number`);
+      }
+      const id = await resolveImportPerson("teachers", teacherNames[index], contact || undefined);
+      if (!id) throw new Error(`Could not create teacher "${teacherNames[index]}"`);
+      if (!teacherIds.includes(id)) teacherIds.push(id);
+    }
+
+    await studyCenterAPI.create({ ...center, groupLeader, teachers: teacherIds });
+  };
+
+  const handleImported = () => {
+    importPeople.current = null;
+    fetchStudyCenters();
+    fetchFilterOptions();
+    fetchTeachers();
+    fetchGroupLeaders();
   };
 
   // Fetch study centers
@@ -352,6 +449,11 @@ const StudyCenters = () => {
     try {
       if (!formData.timing?.trim()) {
         toast.error("Timing is required");
+        return;
+      }
+
+      if (!formData.studentsLevelOfEducation?.length) {
+        toast.error("Select at least one students level of education");
         return;
       }
 
@@ -470,9 +572,7 @@ const StudyCenters = () => {
     setSelectedCenter(center);
     setFormData({
       ...center,
-      dateOfEstablishment: center.dateOfEstablishment
-        ? new Date(center.dateOfEstablishment).toISOString().split("T")[0]
-        : "",
+      dateOfEstablishment: toDateInput(center.dateOfEstablishment),
       functionalAspects: center.functionalAspects || {
         infrastructureQuality: "",
         teacherAttendance: "",
@@ -537,47 +637,27 @@ const StudyCenters = () => {
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden lg:ml-0">
-        {/* Mobile Header */}
-        <div className="lg:hidden bg-card shadow-md p-4 flex items-center border-b border-border">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setSidebarOpen(true)}
-            className="mr-2"
-          >
-            <Menu className="h-5 w-5" />
-          </Button>
-          <h1 className="text-lg font-semibold">Study Centers</h1>
-        </div>
+        <ModulePageHeader
+          icon={Building2}
+          title="Study Centers"
+          subtitle="After-school learning centres, their leaders, teachers and functioning"
+          onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
+          actions={
+            canCreate("education") && (
+              <Button
+                onClick={() => setIsCreateModalOpen(true)}
+                className="gap-2 shadow-sm focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <Plus className="h-4 w-4" aria-hidden="true" />
+                Add Study Center
+              </Button>
+            )
+          }
+        />
 
         {/* Scrollable Content */}
         <div className="flex-1 overflow-y-auto">
           <div className="container mx-auto p-6 space-y-5">
-            {/* Header */}
-            <div className="flex flex-wrap gap-3 justify-between items-center">
-              <div>
-                <h1 className="text-2xl md:text-3xl font-extrabold text-foreground tracking-tight">
-                  Study Centers
-                  <span className="ml-2 text-base md:text-lg font-semibold text-muted-foreground align-middle">
-                    ({pagination.total})
-                  </span>
-                </h1>
-                <p className="text-sm md:text-base text-muted-foreground mt-0.5">
-                  Manage education study centers
-                </p>
-              </div>
-              {canCreate("education") && (
-                <Button
-                  onClick={() => setIsCreateModalOpen(true)}
-                  className="gap-2 shadow-sm focus-visible:ring-2 focus-visible:ring-ring"
-                  aria-label="Add Study Center"
-                >
-                  <Plus className="h-4 w-4" aria-hidden="true" />
-                  Add Study Center
-                </Button>
-              )}
-            </div>
-
             <GuidelinesCard
               title="Study Center Entry Guidelines"
               description="Maintain high standards of documentation for all study centers."
@@ -639,7 +719,7 @@ const StudyCenters = () => {
                       <SelectItem value="all">All Wards</SelectItem>
                       {filterOptions.wardNumbers.map((ward) => (
                         <SelectItem key={ward} value={ward}>
-                          Ward {ward}
+                          {formatWard(ward)}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -694,49 +774,14 @@ const StudyCenters = () => {
               </CardContent>
             </Card>
 
-            {/* Bulk Import Card */}
+            {/* Bulk Import */}
             {canCreate("education") && (
-              <Card className="border border-muted bg-card shadow-sm mb-6">
-                <CardContent className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4">
-                  <div className="space-y-1">
-                    <h3 className="font-semibold text-foreground flex items-center gap-2">
-                      <FileSpreadsheet className="h-5 w-5 text-green-600" />
-                      Bulk Import Study Centers
-                    </h3>
-                    <p className="text-xs text-muted-foreground">
-                      Download the template, fill it in, and upload it to import records in bulk.
-                    </p>
-                  </div>
-                  <ExcelBulkImportButton
-                    label="Import Excel"
-                    description=""
-                    templateFields={[
-                      { label: "Center Name", key: "centerName" },
-                      { label: "Ward Number", key: "wardNo" },
-                      { label: "Habitation", key: "habitation" },
-                      { label: "Group Leader Name", key: "groupLeaderName" },
-                      { label: "Project Responsible", key: "projectResponsible" },
-                      { label: "Timing", key: "timing" },
-                      { label: "Address", key: "address" },
-                      { label: "Total Students", key: "totalStudents" },
-                    ]}
-                    sampleRow={{
-                      centerName: "Vivekananda Study Center",
-                      wardNo: "12",
-                      habitation: "Kalyani Basti",
-                      groupLeaderName: "Sujata Roy",
-                      projectResponsible: "Amit Sen",
-                      timing: "4:00 PM - 6:00 PM",
-                      address: "Block B, Ward 12",
-                      totalStudents: "25",
-                    }}
-                    createRecord={async (payload) => {
-                      await studyCenterAPI.create(payload);
-                    }}
-                    onImported={fetchStudyCenters}
-                  />
-                </CardContent>
-              </Card>
+              <ExcelImportPanel
+                template={studyCenterImportTemplate}
+                createRecord={importStudyCenter}
+                onImported={handleImported}
+                description="Download the template, fill one centre per row, then upload. Group leaders and teachers are matched by phone or name, and created if they don't exist yet."
+              />
             )}
 
             {/* Study Centers Table */}
@@ -750,277 +795,222 @@ const StudyCenters = () => {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                {loading ? (
-                  <div>
-                    <div className="mb-2 h-6 w-40">
-                      <Skeleton className="h-6 w-32" />
-                    </div>
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead className="text-xs uppercase tracking-wide text-muted-foreground">
-                            Center Name
-                          </TableHead>
-                          <TableHead className="text-xs uppercase tracking-wide text-muted-foreground">
-                            Ward No
-                          </TableHead>
-                          <TableHead className="text-xs uppercase tracking-wide text-muted-foreground">
-                            Habitation
-                          </TableHead>
-                          <TableHead className="text-xs uppercase tracking-wide text-muted-foreground text-right">
-                            Total Students
-                          </TableHead>
-                          <TableHead className="text-xs uppercase tracking-wide text-muted-foreground">
-                            Group Leader
-                          </TableHead>
-                          <TableHead className="text-xs uppercase tracking-wide text-muted-foreground">
-                            Project Responsible
-                          </TableHead>
-                          <TableHead className="text-xs uppercase tracking-wide text-muted-foreground">
-                            Actions
-                          </TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {[...Array(6)].map((_, i) => (
-                          <TableRow key={i} className="even:bg-muted/30">
-                            {[...Array(7)].map((__, j) => (
-                              <TableCell key={j} className="py-3">
-                                <Skeleton className="h-4 w-[70%]" />
-                              </TableCell>
-                            ))}
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
-                ) : studyCenters.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-16 text-center">
-                    <Building2
-                      className="h-12 w-12 text-muted-foreground mb-3"
-                      aria-hidden="true"
-                    />
-                    <h3 className="text-lg font-semibold">
-                      No study centers yet
-                    </h3>
-                    <p className="text-sm text-muted-foreground mt-1 mb-4">
-                      Get started by adding your first center.
-                    </p>
-                    {canCreate("education") && (
-                      <Button
-                        onClick={() => setIsCreateModalOpen(true)}
-                        className="gap-2"
-                      >
-                        <Plus className="h-4 w-4" aria-hidden="true" />
-                        Add Study Center
-                      </Button>
-                    )}
-                  </div>
-                ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="text-xs uppercase tracking-wide text-muted-foreground">
-                          Center Name
-                        </TableHead>
-                        <TableHead className="text-xs uppercase tracking-wide text-muted-foreground">
-                          Ward No
-                        </TableHead>
-                        <TableHead className="text-xs uppercase tracking-wide text-muted-foreground">
-                          Habitation
-                        </TableHead>
-                        <TableHead className="text-xs uppercase tracking-wide text-muted-foreground text-right">
-                          Total Students
-                        </TableHead>
-                        <TableHead className="text-xs uppercase tracking-wide text-muted-foreground">
-                          Group Leader
-                        </TableHead>
-                        <TableHead className="text-xs uppercase tracking-wide text-muted-foreground">
-                          Project Responsible
-                        </TableHead>
-                        <TableHead className="text-xs uppercase tracking-wide text-muted-foreground">
-                          Actions
-                        </TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {studyCenters.map((center) => (
-                        <TableRow key={center._id} className="even:bg-muted/30">
-                          <TableCell className="py-3 font-medium max-w-[220px]">
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <span
-                                  className="block truncate"
-                                  title={center.centreName}
-                                >
-                                  {center.centreName}
-                                </span>
-                              </TooltipTrigger>
-                              <TooltipContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="text-xs uppercase tracking-wide text-muted-foreground">
+                        Center Name
+                      </TableHead>
+                      <TableHead className="text-xs uppercase tracking-wide text-muted-foreground">
+                        Ward No
+                      </TableHead>
+                      <TableHead className="text-xs uppercase tracking-wide text-muted-foreground">
+                        Habitation
+                      </TableHead>
+                      <TableHead className="text-xs uppercase tracking-wide text-muted-foreground text-right">
+                        Total Students
+                      </TableHead>
+                      <TableHead className="text-xs uppercase tracking-wide text-muted-foreground">
+                        Group Leader
+                      </TableHead>
+                      <TableHead className="text-xs uppercase tracking-wide text-muted-foreground">
+                        Project Responsible
+                      </TableHead>
+                      <TableHead className="text-xs uppercase tracking-wide text-muted-foreground">
+                        Actions
+                      </TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {tableState({
+                      loading,
+                      count: studyCenters.length,
+                      colSpan: 7,
+                      filtered: Boolean(searchTerm || filters.wardNo || filters.projectResponsible),
+                      emptyTitle: "No study centers yet",
+                      emptyAction: canCreate("education") ? (
+                        <Button onClick={() => setIsCreateModalOpen(true)} className="gap-2">
+                          <Plus className="h-4 w-4" aria-hidden="true" />
+                          Add Study Center
+                        </Button>
+                      ) : null,
+                    })}
+                    {!loading && studyCenters.map((center) => (
+                      <TableRow key={center._id} className="even:bg-muted/30">
+                        <TableCell className="py-3 font-medium max-w-[220px]">
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span
+                                className="block truncate"
+                                title={center.centreName}
+                              >
                                 {center.centreName}
-                              </TooltipContent>
-                            </Tooltip>
-                          </TableCell>
-                          <TableCell className="py-3">
-                            <Badge
-                              variant="secondary"
-                              className="rounded-full px-2.5 py-0.5"
-                            >
-                              {center.wardNo}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="py-3 max-w-[220px]">
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <span
-                                  className="block truncate"
-                                  title={center.habitation}
-                                >
-                                  {center.habitation}
-                                </span>
-                              </TooltipTrigger>
-                              <TooltipContent>
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              {center.centreName}
+                            </TooltipContent>
+                          </Tooltip>
+                        </TableCell>
+                        <TableCell className="py-3">
+                          <Badge
+                            variant="secondary"
+                            className="rounded-full px-2.5 py-0.5"
+                          >
+                            {formatWard(center.wardNo)}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="py-3 max-w-[220px]">
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span
+                                className="block truncate"
+                                title={center.habitation}
+                              >
                                 {center.habitation}
-                              </TooltipContent>
-                            </Tooltip>
-                          </TableCell>
-                          <TableCell className="py-3 text-right">
-                            <Badge
-                              variant="outline"
-                              className="rounded-full px-2.5 py-0.5 font-semibold"
-                            >
-                              {center.totalStudents}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="py-3 max-w-[200px]">
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <span
-                                  className="block truncate"
-                                  title={
-                                    center.groupLeader?.firstName
-                                      ? `${center.groupLeader.firstName} ${center.groupLeader.lastName}`
-                                      : center.groupLeaderName || "N/A"
-                                  }
-                                >
-                                  {center.groupLeader?.firstName
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              {center.habitation}
+                            </TooltipContent>
+                          </Tooltip>
+                        </TableCell>
+                        <TableCell className="py-3 text-right">
+                          <Badge
+                            variant="outline"
+                            className="rounded-full px-2.5 py-0.5 font-semibold"
+                          >
+                            {center.totalStudents}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="py-3 max-w-[200px]">
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span
+                                className="block truncate"
+                                title={
+                                  center.groupLeader?.firstName
                                     ? `${center.groupLeader.firstName} ${center.groupLeader.lastName}`
-                                    : center.groupLeaderName || "N/A"}
-                                </span>
-                              </TooltipTrigger>
-                              <TooltipContent>
+                                    : center.groupLeaderName || "N/A"
+                                }
+                              >
                                 {center.groupLeader?.firstName
                                   ? `${center.groupLeader.firstName} ${center.groupLeader.lastName}`
                                   : center.groupLeaderName || "N/A"}
-                              </TooltipContent>
-                            </Tooltip>
-                          </TableCell>
-                          <TableCell className="py-3 max-w-[220px]">
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              {center.groupLeader?.firstName
+                                ? `${center.groupLeader.firstName} ${center.groupLeader.lastName}`
+                                : center.groupLeaderName || "N/A"}
+                            </TooltipContent>
+                          </Tooltip>
+                        </TableCell>
+                        <TableCell className="py-3 max-w-[220px]">
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span
+                                className="block truncate"
+                                title={center.projectResponsible}
+                              >
+                                {center.projectResponsible}
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              {center.projectResponsible}
+                            </TooltipContent>
+                          </Tooltip>
+                        </TableCell>
+                        <TableCell className="py-3">
+                          <div className="flex items-center gap-1.5">
                             <Tooltip>
                               <TooltipTrigger asChild>
-                                <span
-                                  className="block truncate"
-                                  title={center.projectResponsible}
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => openViewModal(center)}
+                                  aria-label="View Center"
+                                  className="text-foreground/80 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
                                 >
-                                  {center.projectResponsible}
-                                </span>
+                                  <Eye
+                                    className="h-4 w-4"
+                                    aria-hidden="true"
+                                  />
+                                </Button>
                               </TooltipTrigger>
-                              <TooltipContent>
-                                {center.projectResponsible}
-                              </TooltipContent>
+                              <TooltipContent>View Center</TooltipContent>
                             </Tooltip>
-                          </TableCell>
-                          <TableCell className="py-3">
-                            <div className="flex items-center gap-1.5">
+                            {canEdit("education") && (
                               <Tooltip>
                                 <TooltipTrigger asChild>
                                   <Button
                                     variant="ghost"
                                     size="sm"
-                                    onClick={() => openViewModal(center)}
-                                    aria-label="View Center"
-                                    className="text-foreground/80 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+                                    onClick={() => openEditModal(center)}
+                                    aria-label="Edit Center"
+                                    className="text-primary hover:text-primary focus-visible:ring-2 focus-visible:ring-ring"
                                   >
-                                    <Eye
+                                    <Edit
                                       className="h-4 w-4"
                                       aria-hidden="true"
                                     />
                                   </Button>
                                 </TooltipTrigger>
-                                <TooltipContent>View Center</TooltipContent>
+                                <TooltipContent>Edit Center</TooltipContent>
                               </Tooltip>
-                              {canEdit("education") && (
+                            )}
+                            {canDelete("education") && (
+                              <AlertDialog>
                                 <Tooltip>
                                   <TooltipTrigger asChild>
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      onClick={() => openEditModal(center)}
-                                      aria-label="Edit Center"
-                                      className="text-primary hover:text-primary focus-visible:ring-2 focus-visible:ring-ring"
-                                    >
-                                      <Edit
-                                        className="h-4 w-4"
-                                        aria-hidden="true"
-                                      />
-                                    </Button>
+                                    <span>
+                                      <AlertDialogTrigger asChild>
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          aria-label="Delete Center"
+                                          className="text-destructive hover:text-destructive focus-visible:ring-2 focus-visible:ring-destructive/30"
+                                        >
+                                          <Trash2
+                                            className="h-4 w-4"
+                                            aria-hidden="true"
+                                          />
+                                        </Button>
+                                      </AlertDialogTrigger>
+                                    </span>
                                   </TooltipTrigger>
-                                  <TooltipContent>Edit Center</TooltipContent>
+                                  <TooltipContent>Delete Center</TooltipContent>
                                 </Tooltip>
-                              )}
-                              {canDelete("education") && (
-                                <AlertDialog>
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
-                                      <span>
-                                        <AlertDialogTrigger asChild>
-                                          <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            aria-label="Delete Center"
-                                            className="text-destructive hover:text-destructive focus-visible:ring-2 focus-visible:ring-destructive/30"
-                                          >
-                                            <Trash2
-                                              className="h-4 w-4"
-                                              aria-hidden="true"
-                                            />
-                                          </Button>
-                                        </AlertDialogTrigger>
-                                      </span>
-                                    </TooltipTrigger>
-                                    <TooltipContent>Delete Center</TooltipContent>
-                                  </Tooltip>
-                                  <AlertDialogContent>
-                                    <AlertDialogHeader>
-                                      <AlertDialogTitle>
-                                        Delete Center
-                                      </AlertDialogTitle>
-                                      <AlertDialogDescription>
-                                        This action cannot be undone. This will
-                                        permanently delete the study center
-                                        record.
-                                      </AlertDialogDescription>
-                                    </AlertDialogHeader>
-                                    <AlertDialogFooter>
-                                      <AlertDialogCancel>
-                                        Cancel
-                                      </AlertDialogCancel>
-                                      <AlertDialogAction
-                                        onClick={() => handleDelete(center._id)}
-                                      >
-                                        Delete
-                                      </AlertDialogAction>
-                                    </AlertDialogFooter>
-                                  </AlertDialogContent>
-                                </AlertDialog>
-                              )}
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                )}
+                                <AlertDialogContent>
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle>
+                                      Delete Center
+                                    </AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                      This action cannot be undone. This will
+                                      permanently delete the study center
+                                      record.
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel>
+                                      Cancel
+                                    </AlertDialogCancel>
+                                    <AlertDialogAction
+                                      onClick={() => handleDelete(center._id)}
+                                    >
+                                      Delete
+                                    </AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
+                            )}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
 
                 {/* Pagination */}
                 {pagination.pages > 1 && (
@@ -2091,16 +2081,12 @@ const StudyCenters = () => {
                             Date of Establishment
                           </Label>
                           <p>
-                            {selectedCenter.dateOfEstablishment
-                              ? new Date(
-                                  selectedCenter.dateOfEstablishment
-                                ).toLocaleDateString()
-                              : "N/A"}
+                            {formatDate(selectedCenter.dateOfEstablishment, "N/A")}
                           </p>
                         </div>
                         <div>
                           <Label className="font-semibold">Ward No</Label>
-                          <p>{selectedCenter.wardNo}</p>
+                          <p>{formatWard(selectedCenter.wardNo)}</p>
                         </div>
                         <div>
                           <Label className="font-semibold">Habitation</Label>

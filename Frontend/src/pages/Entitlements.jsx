@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -48,21 +49,14 @@ import {
 import { Badge } from "@/components/ui/badge";
 import {
   Award,
-  FileSpreadsheet,
   Plus,
   Search,
   Filter,
   Edit,
   Trash2,
   Eye,
-  RefreshCw,
-  Menu,
   Calendar,
-  User,
-  FileText,
-  CheckCircle,
-  Clock,
-  XCircle,
+  MapPin,
   Check,
   ChevronsUpDown,
 } from "lucide-react";
@@ -85,7 +79,20 @@ import Sidebar from "../components/Sidebar";
 import usePermissions from "../hooks/usePermissions";
 import { getWardOptions } from "../lib/formOptions";
 import GuidelinesCard from "../components/GuidelinesCard";
-import ExcelBulkImportButton from "../components/ExcelBulkImportButton";
+import ExcelImportPanel from "../components/ExcelImportPanel";
+import entitlementsImportTemplate, {
+  ENTITLEMENT_GENDER,
+  ENTITLEMENT_STATUS,
+  ENTITLEMENT_DOCUMENT_TYPES,
+} from "../lib/excelImport/templates/entitlements";
+import {
+  ModulePageHeader,
+  tableState,
+  StatusBadge,
+  formatWard,
+  formatDate,
+  toDateInput,
+} from "../components/module/ModuleKit";
 
 const WardCombobox = ({ id, value, onChange, options, placeholder }) => {
   const [open, setOpen] = useState(false);
@@ -102,7 +109,7 @@ const WardCombobox = ({ id, value, onChange, options, placeholder }) => {
           aria-controls={`${id}-list`}
           className="h-9 w-full justify-between bg-input px-3 text-left text-sm font-normal text-foreground"
         >
-          {selectedWard ? selectedWard.label : placeholder}
+          {selectedWard ? selectedWard.label : value || placeholder}
           <ChevronsUpDown className="ml-2 h-4 w-4 opacity-50 shrink-0" />
         </Button>
       </PopoverTrigger>
@@ -149,29 +156,93 @@ const WardCombobox = ({ id, value, onChange, options, placeholder }) => {
   );
 };
 
+// Suggestions for schemes.eligibleSchemes (free text in the model) and the type filter.
+const ENTITLEMENT_TYPES = [
+  "Pension",
+  "Ration Card",
+  "Voter ID",
+  "Aadhaar Card",
+  "PAN Card",
+  "Disability Certificate",
+  "Caste Certificate",
+  "Income Certificate",
+  "Birth Certificate",
+  "Death Certificate",
+  "Widow Pension",
+  "Old Age Pension",
+  "Disability Pension",
+  "Labour Card",
+  "Health Insurance",
+  "Education Scholarship",
+  "Housing Scheme",
+  "Other",
+];
+
+// documentation.* and governmentSchemes.* boolean flags in entitlements.model.js
+const DOCUMENT_FLAGS = [
+  ["aadhaar", "Aadhaar"],
+  ["voterId", "Voter ID"],
+  ["rationCard", "Ration Card"],
+  ["birthCertificate", "Birth Certificate"],
+  ["casteCertificate", "Caste Certificate"],
+  ["incomeCertificate", "Income Certificate"],
+];
+const SCHEME_FLAGS = [
+  ["oldAgePension", "Old Age Pension"],
+  ["widowPension", "Widow Pension"],
+  ["disabilityPension", "Disability Pension"],
+  ["healthScheme", "Health Scheme"],
+  ["pdsFoodSecurity", "PDS / Food Security"],
+  ["housingScheme", "Housing Scheme"],
+];
+
+const emptyForm = () => ({
+  householdCode: "",
+  idCode: "",
+  status: "Applied",
+  name: "",
+  gender: "",
+  age: "",
+  headOfHousehold: "",
+  contactNo: "",
+  wardNo: "",
+  habitation: "",
+  projectResponsible: "",
+  dateOfReporting: "",
+  reportedBy: "",
+  applicationDate: "",
+  idProofAndDomicile: {
+    typeOfDocument: "",
+    natureOfIssue: "",
+    status: "Pending",
+    dateOfReporting: "",
+  },
+  schemes: {
+    eligibleSchemes: "",
+    natureOfIssue: "",
+    status: "Pending",
+  },
+  documentation: {
+    ...Object.fromEntries(DOCUMENT_FLAGS.map(([key]) => [key, false])),
+    other: "",
+  },
+  governmentSchemes: {
+    ...Object.fromEntries(SCHEME_FLAGS.map(([key]) => [key, false])),
+    other: "",
+  },
+  progressReporting: {},
+  remarks: "",
+  followUpRequired: false,
+  followUpDate: "",
+});
+
 const Entitlements = () => {
   const wardOptions = getWardOptions();
-  const { canCreate, canEdit, canDelete, canExport } = usePermissions();
-  const entitlementTypes = [
-    "Pension",
-    "Ration Card",
-    "Voter ID",
-    "Aadhaar Card",
-    "PAN Card",
-    "Disability Certificate",
-    "Caste Certificate",
-    "Income Certificate",
-    "Birth Certificate",
-    "Death Certificate",
-    "Widow Pension",
-    "Old Age Pension",
-    "Disability Pension",
-    "Labour Card",
-    "Health Insurance",
-    "Education Scholarship",
-    "Housing Scheme",
-    "Other",
-  ];
+  const { canCreate, canEdit, canDelete } = usePermissions();
+  const entitlementTypes = ENTITLEMENT_TYPES;
+  const documentTypes = ENTITLEMENT_DOCUMENT_TYPES;
+  const statusOptions = ENTITLEMENT_STATUS;
+  const genderOptions = ENTITLEMENT_GENDER;
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [entitlements, setEntitlements] = useState([]);
@@ -191,121 +262,12 @@ const Entitlements = () => {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
-  const [formData, setFormData] = useState({
-    householdCode: "",
-    idCode: "",
-    beneficiaryId: "",
-    beneficiaryName: "",
-    name: "",
-    gender: "",
-    age: "",
-    headOfHousehold: "",
-    contactNo: "",
-    wardNo: "",
-    habitation: "",
-    projectResponsible: "",
-    dateOfReporting: "",
-    reportedBy: "",
-    entitlementType: "",
-    applicationDate: "",
-    documentation: {
-      typeOfDocument: "",
-      natureOfIssue: "",
-      status: "Pending",
-      dateOfReporting: "",
-    },
-    governmentSchemes: {
-      eligibleSchemes: "",
-      natureOfIssue: "",
-      status: "Pending",
-    },
-    idProofAndDomicile: {
-      typeOfDocument: "",
-      natureOfIssue: "",
-      status: "Pending",
-      dateOfReporting: "",
-    },
-    schemes: {
-      eligibleSchemes: "",
-      natureOfIssue: "",
-      status: "Pending",
-    },
-    progressReporting: {},
-    remarks: "",
-    followUpRequired: false,
-    followUpDate: "",
-  });
+  const [formData, setFormData] = useState(emptyForm());
 
-  const documentTypes = [
-    "Aadhar Card",
-    "Voter ID",
-    "Passport",
-    "Driving License",
-    "PAN Card",
-    "Ration Card",
-    "Birth Certificate",
-    "Domicile Certificate",
-    "Other",
-  ];
-
-  const statusOptions = [
-    "Applied",
-    "Approved",
-    "Disbursed",
-    "Rejected",
-    "Pending",
-    "In Progress",
-    "Resolved",
-    "Under Verification",
-    "On Hold",
-  ];
-
-  const genderOptions = ["Male", "Female", "Other"];
-
-  // Wrapper for Excel import – normalizes flat Excel data into nested structure the backend expects
-  const createEntitlementRecord = async (data) => {
-    const entitlementType = data.entitlementType || "";
-    const docType = data["documentation.typeOfDocument"] || data.documentation?.typeOfDocument || "";
-    const docStatus = data["documentation.status"] || data.documentation?.status || "Pending";
-    const docNature = data["documentation.natureOfIssue"] || data.documentation?.natureOfIssue || "";
-    const schemeNature = data["governmentSchemes.natureOfIssue"] || data.governmentSchemes?.natureOfIssue || "";
-
-    const payload = {
-      status: "Pending",
-      progressReporting: {},
-      followUpRequired: false,
-      ...data,
-      documentation: {
-        typeOfDocument: docType,
-        natureOfIssue: docNature,
-        status: docStatus,
-        dateOfReporting: data.dateOfReporting || "",
-      },
-      governmentSchemes: {
-        eligibleSchemes: entitlementType,
-        natureOfIssue: schemeNature,
-        status: "Pending",
-      },
-      idProofAndDomicile: {
-        typeOfDocument: docType,
-        natureOfIssue: docNature,
-        status: docStatus,
-        dateOfReporting: data.dateOfReporting || "",
-      },
-      schemes: {
-        eligibleSchemes: entitlementType,
-        natureOfIssue: schemeNature,
-        status: "Pending",
-      },
-    };
-    // Remove flat dotted keys that were expanded above
-    delete payload["documentation.typeOfDocument"];
-    delete payload["documentation.status"];
-    delete payload["documentation.natureOfIssue"];
-    delete payload["governmentSchemes.natureOfIssue"];
-    return entitlementsAPI.create(payload);
-  };
-
+  const hasFilters =
+    Boolean(searchTerm) ||
+    filters.status !== "all" ||
+    filters.entitlementType !== "all";
 
   const fetchEntitlements = async () => {
     setLoading(true);
@@ -358,48 +320,35 @@ const Entitlements = () => {
     fetchEntitlements();
   }, [searchTerm, filters]);
 
+  // Form state mirrors the model; only strip blanks the schema would reject.
   const buildEntitlementPayload = () => {
-    const {
-      entitlementType,
-      documentation,
-      governmentSchemes,
-      idProofAndDomicile,
-      schemes,
-      ...rest
-    } = formData;
-
-    const normalizedDocumentation = {
-      ...(documentation || idProofAndDomicile || {}),
+    const payload = {
+      ...formData,
+      age: formData.age === "" ? "" : Number(formData.age),
+      idProofAndDomicile: { ...formData.idProofAndDomicile },
+      schemes: { ...formData.schemes },
     };
-    const normalizedGovernmentSchemes = {
-      ...(governmentSchemes || schemes || {}),
-      eligibleSchemes:
-        entitlementType ||
-        governmentSchemes?.eligibleSchemes ||
-        schemes?.eligibleSchemes ||
-        "",
-    };
-
-    const normalizedSchemes = {
-      ...(schemes || {}),
-      eligibleSchemes: normalizedGovernmentSchemes.eligibleSchemes || "",
-      natureOfIssue:
-        normalizedGovernmentSchemes.natureOfIssue || schemes?.natureOfIssue || "",
-      status: normalizedGovernmentSchemes.status || schemes?.status || "Pending",
-    };
-
-    return {
-      ...rest,
-      documentation: normalizedDocumentation,
-      governmentSchemes: normalizedGovernmentSchemes,
-      idProofAndDomicile: normalizedDocumentation,
-      schemes: normalizedSchemes,
-    };
+    if (!payload.contactNo || payload.contactNo.trim() === "") {
+      delete payload.contactNo;
+    }
+    if (!payload.idProofAndDomicile.typeOfDocument) {
+      delete payload.idProofAndDomicile.typeOfDocument;
+    }
+    if (!payload.idProofAndDomicile.dateOfReporting) {
+      delete payload.idProofAndDomicile.dateOfReporting;
+    }
+    if (!payload.applicationDate) delete payload.applicationDate;
+    if (!payload.followUpDate) delete payload.followUpDate;
+    return payload;
   };
 
   // Handle form submission
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!formData.gender || !formData.wardNo) {
+      toast.error("Please select Gender and Ward");
+      return;
+    }
     try {
       const payload = buildEntitlementPayload();
 
@@ -426,50 +375,7 @@ const Entitlements = () => {
 
   // Reset form
   const resetForm = () => {
-    setFormData({
-      householdCode: "",
-      idCode: "",
-      beneficiaryId: "",
-      beneficiaryName: "",
-      name: "",
-      gender: "",
-      age: "",
-      headOfHousehold: "",
-      contactNo: "",
-      wardNo: "",
-      habitation: "",
-      projectResponsible: "",
-      dateOfReporting: "",
-      reportedBy: "",
-      entitlementType: "",
-      applicationDate: "",
-      documentation: {
-        typeOfDocument: "",
-        natureOfIssue: "",
-        status: "Pending",
-        dateOfReporting: "",
-      },
-      governmentSchemes: {
-        eligibleSchemes: "",
-        natureOfIssue: "",
-        status: "Pending",
-      },
-      idProofAndDomicile: {
-        typeOfDocument: "",
-        natureOfIssue: "",
-        status: "Pending",
-        dateOfReporting: "",
-      },
-      schemes: {
-        eligibleSchemes: "",
-        natureOfIssue: "",
-        status: "Pending",
-      },
-      progressReporting: {},
-      remarks: "",
-      followUpRequired: false,
-      followUpDate: "",
-    });
+    setFormData(emptyForm());
     setSelectedEntitlement(null);
   };
 
@@ -485,55 +391,461 @@ const Entitlements = () => {
     }
   };
 
-  // Get status badge color
-  const getStatusColor = (status) => {
-    switch (status) {
-      case "Disbursed":
-      case "Resolved":
-        return "bg-green-100 text-green-800 hover:bg-green-200";
-      case "Approved":
-        return "bg-blue-100 text-blue-800 hover:bg-blue-200";
-      case "Applied":
-      case "Pending":
-        return "bg-yellow-100 text-yellow-800 hover:bg-yellow-200";
-      case "In Progress":
-      case "Under Verification":
-        return "bg-purple-100 text-purple-800 hover:bg-purple-200";
-      case "Rejected":
-        return "bg-red-100 text-red-800 hover:bg-red-200";
-      case "On Hold":
-        return "bg-secondary text-foreground hover:bg-secondary";
-      default:
-        return "bg-secondary text-foreground hover:bg-secondary";
-    }
-  };
-
-  // Get status icon
-  const getStatusIcon = (status) => {
-    switch (status) {
-      case "Disbursed":
-      case "Resolved":
-        return <CheckCircle className="h-3 w-3" />;
-      case "Approved":
-        return <CheckCircle className="h-3 w-3" />;
-      case "Applied":
-      case "Pending":
-      case "In Progress":
-      case "Under Verification":
-      case "On Hold":
-        return <Clock className="h-3 w-3" />;
-      case "Rejected":
-        return <XCircle className="h-3 w-3" />;
-      default:
-        return <Clock className="h-3 w-3" />;
-    }
+  const openEdit = (entitlement) => {
+    const base = emptyForm();
+    setSelectedEntitlement(entitlement);
+    setFormData({
+      ...base,
+      householdCode: entitlement.householdCode || "",
+      idCode: entitlement.idCode || "",
+      status: entitlement.status || "Applied",
+      name: entitlement.name || "",
+      gender: entitlement.gender || "",
+      age: entitlement.age ?? "",
+      headOfHousehold: entitlement.headOfHousehold || "",
+      contactNo: entitlement.contactNo || "",
+      wardNo: entitlement.wardNo || "",
+      habitation: entitlement.habitation || "",
+      projectResponsible: entitlement.projectResponsible || "",
+      dateOfReporting: toDateInput(entitlement.dateOfReporting),
+      reportedBy: entitlement.reportedBy || "",
+      applicationDate: toDateInput(entitlement.applicationDate),
+      idProofAndDomicile: {
+        typeOfDocument: entitlement.idProofAndDomicile?.typeOfDocument || "",
+        natureOfIssue: entitlement.idProofAndDomicile?.natureOfIssue || "",
+        status: entitlement.idProofAndDomicile?.status || "Pending",
+        dateOfReporting: toDateInput(
+          entitlement.idProofAndDomicile?.dateOfReporting
+        ),
+      },
+      schemes: {
+        eligibleSchemes: entitlement.schemes?.eligibleSchemes || "",
+        natureOfIssue: entitlement.schemes?.natureOfIssue || "",
+        status: entitlement.schemes?.status || "Pending",
+      },
+      documentation: {
+        ...base.documentation,
+        ...(entitlement.documentation || {}),
+      },
+      governmentSchemes: {
+        ...base.governmentSchemes,
+        ...(entitlement.governmentSchemes || {}),
+      },
+      progressReporting: entitlement.progressReporting || {},
+      remarks: entitlement.remarks || "",
+      followUpRequired: entitlement.followUpRequired || false,
+      followUpDate: toDateInput(entitlement.followUpDate),
+    });
+    setIsEditModalOpen(true);
   };
 
   const getEntitlementTypeLabel = (entitlement) =>
-    entitlement?.entitlementType ||
     entitlement?.schemes?.eligibleSchemes ||
     entitlement?.idProofAndDomicile?.typeOfDocument ||
     "N/A";
+
+  const setField = (key) => (e) =>
+    setFormData((prev) => ({ ...prev, [key]: e.target.value }));
+
+  const setNested = (group, key, value) =>
+    setFormData((prev) => ({
+      ...prev,
+      [group]: { ...prev[group], [key]: value },
+    }));
+
+  const renderSelect = (id, value, onChange, options, placeholder) => (
+    <Select value={value} onValueChange={onChange}>
+      <SelectTrigger id={id}>
+        <SelectValue placeholder={placeholder} />
+      </SelectTrigger>
+      <SelectContent>
+        {options.map((option) => (
+          <SelectItem key={option} value={option}>
+            {option}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+
+  const renderFlags = (prefix, group, flags) => (
+    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+      {flags.map(([key, label]) => (
+        <div key={key} className="flex items-center gap-2">
+          <Checkbox
+            id={`${prefix}${group}-${key}`}
+            checked={Boolean(formData[group]?.[key])}
+            onCheckedChange={(checked) =>
+              setNested(group, key, checked === true)
+            }
+          />
+          <Label htmlFor={`${prefix}${group}-${key}`} className="font-normal">
+            {label}
+          </Label>
+        </div>
+      ))}
+    </div>
+  );
+
+  // Shared create / edit fields — mirror entitlements.model.js
+  const renderFormFields = (prefix) => {
+    const id = (name) => `${prefix}${name}`;
+    return (
+      <div className="space-y-6">
+        <section className="space-y-4">
+          <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+            Beneficiary
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor={id("householdCode")}>Household Code</Label>
+              <Input
+                id={id("householdCode")}
+                value={formData.householdCode}
+                onChange={setField("householdCode")}
+                placeholder="Enter household code"
+              />
+            </div>
+            <div>
+              <Label htmlFor={id("idCode")}>ID Code</Label>
+              <Input
+                id={id("idCode")}
+                value={formData.idCode}
+                onChange={setField("idCode")}
+                placeholder="Unique, e.g. ENT-001"
+              />
+            </div>
+            <div>
+              <Label htmlFor={id("name")}>Name *</Label>
+              <Input
+                id={id("name")}
+                value={formData.name}
+                onChange={setField("name")}
+                placeholder="Enter name"
+                required
+              />
+            </div>
+            <div>
+              <Label htmlFor={id("gender")}>Gender *</Label>
+              {renderSelect(
+                id("gender"),
+                formData.gender,
+                (value) => setFormData((prev) => ({ ...prev, gender: value })),
+                genderOptions,
+                "Select gender"
+              )}
+            </div>
+            <div>
+              <Label htmlFor={id("age")}>Age *</Label>
+              <Input
+                id={id("age")}
+                type="number"
+                min="0"
+                max="120"
+                step="1"
+                value={formData.age}
+                onChange={setField("age")}
+                placeholder="Enter age"
+                required
+              />
+            </div>
+            <div>
+              <Label htmlFor={id("headOfHousehold")}>Head of Household *</Label>
+              <Input
+                id={id("headOfHousehold")}
+                value={formData.headOfHousehold}
+                onChange={setField("headOfHousehold")}
+                placeholder="Enter head of household"
+                required
+              />
+            </div>
+            <div>
+              <Label htmlFor={id("contactNo")}>Contact Number</Label>
+              <Input
+                id={id("contactNo")}
+                type="tel"
+                value={formData.contactNo}
+                onChange={setField("contactNo")}
+                placeholder="10-digit mobile number"
+                pattern="[6-9][0-9]{9}"
+                title="10-digit mobile number starting with 6-9"
+              />
+            </div>
+            <div>
+              <Label htmlFor={id("wardNo")}>Ward Number *</Label>
+              <WardCombobox
+                id={id("wardNo")}
+                value={formData.wardNo}
+                onChange={(value) =>
+                  setFormData((prev) => ({ ...prev, wardNo: value }))
+                }
+                options={wardOptions}
+                placeholder="Select ward"
+              />
+            </div>
+            <div>
+              <Label htmlFor={id("habitation")}>Habitation *</Label>
+              <Input
+                id={id("habitation")}
+                value={formData.habitation}
+                onChange={setField("habitation")}
+                placeholder="Enter habitation"
+                required
+              />
+            </div>
+            <div>
+              <Label htmlFor={id("projectResponsible")}>
+                Project Responsible *
+              </Label>
+              <Input
+                id={id("projectResponsible")}
+                value={formData.projectResponsible}
+                onChange={setField("projectResponsible")}
+                placeholder="Enter project responsible"
+                required
+              />
+            </div>
+          </div>
+        </section>
+
+        <section className="space-y-4">
+          <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+            Reporting
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor={id("dateOfReporting")}>Date of Reporting *</Label>
+              <Input
+                id={id("dateOfReporting")}
+                type="date"
+                value={formData.dateOfReporting}
+                onChange={setField("dateOfReporting")}
+                required
+              />
+            </div>
+            <div>
+              <Label htmlFor={id("reportedBy")}>Reported By *</Label>
+              <Input
+                id={id("reportedBy")}
+                value={formData.reportedBy}
+                onChange={setField("reportedBy")}
+                placeholder="Enter reported by"
+                required
+              />
+            </div>
+            <div>
+              <Label htmlFor={id("applicationDate")}>Application Date</Label>
+              <Input
+                id={id("applicationDate")}
+                type="date"
+                value={formData.applicationDate}
+                onChange={setField("applicationDate")}
+              />
+            </div>
+            <div>
+              <Label htmlFor={id("status")}>Overall Status</Label>
+              {renderSelect(
+                id("status"),
+                formData.status,
+                (value) => setFormData((prev) => ({ ...prev, status: value })),
+                statusOptions,
+                "Select status"
+              )}
+            </div>
+          </div>
+        </section>
+
+        <section className="space-y-4">
+          <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+            ID Proof & Domicile
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor={id("idProofType")}>Type of Document</Label>
+              {renderSelect(
+                id("idProofType"),
+                formData.idProofAndDomicile.typeOfDocument,
+                (value) =>
+                  setNested("idProofAndDomicile", "typeOfDocument", value),
+                documentTypes,
+                "Select document type"
+              )}
+            </div>
+            <div>
+              <Label htmlFor={id("idProofStatus")}>ID Proof Status</Label>
+              {renderSelect(
+                id("idProofStatus"),
+                formData.idProofAndDomicile.status,
+                (value) => setNested("idProofAndDomicile", "status", value),
+                statusOptions,
+                "Select status"
+              )}
+            </div>
+            <div>
+              <Label htmlFor={id("idProofDate")}>Date of Reporting</Label>
+              <Input
+                id={id("idProofDate")}
+                type="date"
+                value={formData.idProofAndDomicile.dateOfReporting}
+                onChange={(e) =>
+                  setNested(
+                    "idProofAndDomicile",
+                    "dateOfReporting",
+                    e.target.value
+                  )
+                }
+              />
+            </div>
+            <div className="md:col-span-2">
+              <Label htmlFor={id("idProofIssue")}>Nature of Issue</Label>
+              <Textarea
+                id={id("idProofIssue")}
+                value={formData.idProofAndDomicile.natureOfIssue}
+                onChange={(e) =>
+                  setNested("idProofAndDomicile", "natureOfIssue", e.target.value)
+                }
+                placeholder="Describe the documentation issue"
+                rows={2}
+              />
+            </div>
+          </div>
+        </section>
+
+        <section className="space-y-4">
+          <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+            Schemes
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor={id("eligibleSchemes")}>
+                Eligible Schemes / Entitlement Type
+              </Label>
+              <Input
+                id={id("eligibleSchemes")}
+                list={id("entitlementTypeList")}
+                value={formData.schemes.eligibleSchemes}
+                onChange={(e) =>
+                  setNested("schemes", "eligibleSchemes", e.target.value)
+                }
+                placeholder="e.g. Old Age Pension"
+              />
+              <datalist id={id("entitlementTypeList")}>
+                {entitlementTypes.map((type) => (
+                  <option key={type} value={type} />
+                ))}
+              </datalist>
+            </div>
+            <div>
+              <Label htmlFor={id("schemeStatus")}>Scheme Status</Label>
+              {renderSelect(
+                id("schemeStatus"),
+                formData.schemes.status,
+                (value) => setNested("schemes", "status", value),
+                statusOptions,
+                "Select status"
+              )}
+            </div>
+            <div className="md:col-span-2">
+              <Label htmlFor={id("schemeIssue")}>Nature of Issue</Label>
+              <Textarea
+                id={id("schemeIssue")}
+                value={formData.schemes.natureOfIssue}
+                onChange={(e) =>
+                  setNested("schemes", "natureOfIssue", e.target.value)
+                }
+                placeholder="Describe the scheme-related issue"
+                rows={2}
+              />
+            </div>
+          </div>
+        </section>
+
+        <section className="space-y-4">
+          <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+            Documents Held
+          </h3>
+          {renderFlags(prefix, "documentation", DOCUMENT_FLAGS)}
+          <div>
+            <Label htmlFor={id("documentationOther")}>Other Documents</Label>
+            <Input
+              id={id("documentationOther")}
+              value={formData.documentation.other}
+              onChange={(e) =>
+                setNested("documentation", "other", e.target.value)
+              }
+            />
+          </div>
+        </section>
+
+        <section className="space-y-4">
+          <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+            Government Schemes Availed
+          </h3>
+          {renderFlags(prefix, "governmentSchemes", SCHEME_FLAGS)}
+          <div>
+            <Label htmlFor={id("governmentSchemesOther")}>
+              Other Government Schemes
+            </Label>
+            <Input
+              id={id("governmentSchemesOther")}
+              value={formData.governmentSchemes.other}
+              onChange={(e) =>
+                setNested("governmentSchemes", "other", e.target.value)
+              }
+            />
+          </div>
+        </section>
+
+        <section className="space-y-4">
+          <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+            Follow-up
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id={id("followUpRequired")}
+                checked={Boolean(formData.followUpRequired)}
+                onCheckedChange={(checked) =>
+                  setFormData((prev) => ({
+                    ...prev,
+                    followUpRequired: checked === true,
+                  }))
+                }
+              />
+              <Label htmlFor={id("followUpRequired")}>Follow-up required</Label>
+            </div>
+            <div>
+              <Label htmlFor={id("followUpDate")}>Follow-up Date</Label>
+              <Input
+                id={id("followUpDate")}
+                type="date"
+                value={formData.followUpDate}
+                onChange={setField("followUpDate")}
+              />
+            </div>
+            <div className="md:col-span-2">
+              <Label htmlFor={id("remarks")}>Remarks</Label>
+              <Textarea
+                id={id("remarks")}
+                value={formData.remarks}
+                onChange={setField("remarks")}
+                placeholder="Enter remarks"
+                rows={2}
+              />
+            </div>
+          </div>
+        </section>
+      </div>
+    );
+  };
+
+  const renderFlagList = (record, group, flags) => {
+    const held = flags
+      .filter(([key]) => record?.[group]?.[key])
+      .map(([, label]) => label);
+    if (record?.[group]?.other) held.push(record[group].other);
+    return held.length ? held.join(", ") : "None recorded";
+  };
 
   return (
     <div className="flex h-screen bg-background">
@@ -546,113 +858,47 @@ const Entitlements = () => {
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden lg:ml-0">
-        {/* Header */}
-        <header className="bg-background shadow-sm border-b border-border">
-          <div className="flex items-center justify-between px-6 py-4">
-            <div className="flex items-center space-x-4">
+        <ModulePageHeader
+          icon={Award}
+          accent="text-purple-600"
+          title="Entitlements"
+          subtitle="ID proofs, documents and government scheme access for beneficiaries"
+          onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
+          actions={
+            canCreate("socialJustice") && (
               <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setSidebarOpen(!sidebarOpen)}
-                className="lg:hidden"
+                onClick={() => {
+                  resetForm();
+                  setIsCreateModalOpen(true);
+                }}
               >
-                <Menu className="h-6 w-6" />
-              </Button>
-              <div className="flex items-center space-x-2">
-                <Award className="h-6 w-6 text-purple-600" />
-                <h1 className="text-2xl font-bold text-foreground">
-                  Entitlements
-                </h1>
-              </div>
-            </div>
-            {canCreate("socialJustice") && (
-              <Button onClick={() => setIsCreateModalOpen(true)}>
                 <Plus className="h-4 w-4 mr-2" />
                 Add Entitlement
               </Button>
-            )}
-          </div>
-        </header>
+            )
+          }
+        />
 
         {/* Scrollable Content */}
         <div className="flex-1 overflow-y-auto">
           <div className="container mx-auto p-6 space-y-6">
-            {/* Bulk Import Card */}
             {canCreate("socialJustice") && (
-              <Card className="border border-muted bg-card shadow-sm">
-                <CardContent className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4">
-                  <div className="space-y-1">
-                    <h3 className="font-semibold text-foreground flex items-center gap-2">
-                      <FileSpreadsheet className="h-5 w-5 text-green-600" />
-                      Bulk Import Entitlements
-                    </h3>
-                    <p className="text-xs text-muted-foreground">
-                      Download the template, fill it in, and upload it to import records in bulk.
-                    </p>
-                  </div>
-                  <ExcelBulkImportButton
-                    label="Import Excel"
-                    description=""
-                    templateFields={[
-                      { label: "Household Code", key: "householdCode" },
-                      { label: "ID Code", key: "idCode" },
-                      { label: "Name", key: "name" },
-                      { label: "Gender", key: "gender", options: ["Male", "Female", "Other"] },
-                      { label: "Age", key: "age" },
-                      { label: "Head of Household", key: "headOfHousehold" },
-                      { label: "Contact Number", key: "contactNo" },
-                      { label: "Ward Number", key: "wardNo" },
-                      { label: "Habitation", key: "habitation" },
-                      { label: "Project Responsible", key: "projectResponsible" },
-                      { label: "Date of Reporting", key: "dateOfReporting" },
-                      { label: "Reported By", key: "reportedBy" },
-                      { label: "Entitlement Type", key: "entitlementType" },
-                      { label: "Application Date", key: "applicationDate" },
-                      { label: "Document Type", key: "documentation.typeOfDocument", options: ["Aadhar Card", "Voter ID", "Passport", "Driving License", "PAN Card", "Ration Card", "Birth Certificate", "Domicile Certificate", "Other"] },
-                      { label: "Documentation Status", key: "documentation.status", options: ["Applied", "Approved", "Disbursed", "Rejected", "Pending", "In Progress", "Resolved", "Under Verification", "On Hold"] },
-                      { label: "Documentation Nature of Issue", key: "documentation.natureOfIssue" },
-                      { label: "Government Scheme Issue", key: "governmentSchemes.natureOfIssue" },
-                      { label: "Case Status", key: "status", options: ["Applied", "Approved", "Disbursed", "Rejected", "Pending", "In Progress", "Resolved", "Under Verification", "On Hold"] },
-                      { label: "Remarks", key: "remarks" },
-                      { label: "Follow-up Required", key: "followUpRequired" },
-                      { label: "Follow-up Date", key: "followUpDate" },
-                    ]}
-                    sampleRow={{
-                      householdCode: "HH-001",
-                      idCode: "ID-001",
-                      name: "Lakshmi",
-                      gender: "Female",
-                      age: "42",
-                      headOfHousehold: "Lakshmi",
-                      contactNo: "9876543210",
-                      wardNo: "8",
-                      habitation: "East Street",
-                      projectResponsible: "Field Staff",
-                      dateOfReporting: "2026-01-20",
-                      reportedBy: "Volunteer",
-                      entitlementType: "Pension",
-                      applicationDate: "2026-01-21",
-                      status: "Pending",
-                      remarks: "",
-                      followUpRequired: false,
-                      followUpDate: "",
-                    }}
-                    createRecord={createEntitlementRecord}
-                    onImported={fetchEntitlements}
-                  />
-                </CardContent>
-              </Card>
+              <ExcelImportPanel
+                template={entitlementsImportTemplate}
+                createRecord={entitlementsAPI.create}
+                onImported={fetchEntitlements}
+              />
             )}
 
             <GuidelinesCard
               title="Entitlement Guidelines"
               description="Follow these steps to keep entitlement records complete and consistent."
               items={[
-                "Double-check beneficiary ID and household code for consistency.",
-                "Specify the exact type of entitlement being applied for (Pension, Aadhaar, etc.).",
-                "Update application status regularly (Pending, In Progress, Resolved).",
-                "Ensure documentation status is accurate to track pending requirements.",
-                "Record any amount disbursed to beneficiaries once the process is complete.",
+                "Double-check the ID code and household code for consistency.",
+                "Specify the exact scheme or entitlement being applied for (Pension, Ration Card, etc.).",
+                "Update application status regularly (Applied, Under Verification, Approved).",
+                "Keep the ID proof status accurate to track pending documentation.",
+                "Tick the documents the beneficiary already holds and the schemes they already avail.",
               ]}
             />
 
@@ -670,6 +916,7 @@ const Entitlements = () => {
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
                       placeholder="Search beneficiaries..."
+                      aria-label="Search beneficiaries"
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
                       className="pl-10"
@@ -681,7 +928,7 @@ const Entitlements = () => {
                       setFilters({ ...filters, status: value })
                     }
                   >
-                    <SelectTrigger>
+                    <SelectTrigger aria-label="Filter by status">
                       <SelectValue placeholder="Filter by status" />
                     </SelectTrigger>
                     <SelectContent>
@@ -699,7 +946,7 @@ const Entitlements = () => {
                       setFilters({ ...filters, entitlementType: value })
                     }
                   >
-                    <SelectTrigger>
+                    <SelectTrigger aria-label="Filter by entitlement type">
                       <SelectValue placeholder="Filter by type" />
                     </SelectTrigger>
                     <SelectContent>
@@ -724,35 +971,34 @@ const Entitlements = () => {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                {loading ? (
-                  <div className="flex justify-center items-center h-64">
-                    <RefreshCw className="h-8 w-8 animate-spin" />
-                  </div>
-                ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Entitlement ID</TableHead>
-                        <TableHead>Beneficiary Name</TableHead>
-                        <TableHead>Entitlement Type</TableHead>
-                        <TableHead>Application Date</TableHead>
-                        <TableHead>Amount</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead>Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {entitlements.map((entitlement) => (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>ID Code</TableHead>
+                      <TableHead>Beneficiary Name</TableHead>
+                      <TableHead>Entitlement Type</TableHead>
+                      <TableHead>Application Date</TableHead>
+                      <TableHead>Location</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {tableState({
+                      loading,
+                      count: entitlements.length,
+                      colSpan: 7,
+                      filtered: hasFilters,
+                    }) ||
+                      entitlements.map((entitlement) => (
                         <TableRow key={entitlement._id}>
                           <TableCell className="font-medium">
-                            {entitlement.idCode || entitlement._id || "—"}
+                            {entitlement.idCode || "—"}
                           </TableCell>
                           <TableCell>
                             <div>
                               <div className="font-medium">
-                                {entitlement.beneficiaryName ||
-                                  entitlement.name ||
-                                  ""}
+                                {entitlement.name || ""}
                               </div>
                               <div className="text-sm text-muted-foreground">
                                 {entitlement.age} years, {entitlement.gender}
@@ -767,31 +1013,29 @@ const Entitlements = () => {
                           <TableCell>
                             <div className="flex items-center text-sm">
                               <Calendar className="mr-1 h-3 w-3" />
-                              {entitlement.applicationDate
-                                ? new Date(
-                                    entitlement.applicationDate
-                                  ).toLocaleDateString()
-                                : "N/A"}
+                              {formatDate(entitlement.applicationDate, "N/A")}
                             </div>
                           </TableCell>
                           <TableCell>
-                            <div className="font-medium">
-                              ₹{entitlement.amountDisbursed || "0"}
+                            <div className="flex items-center text-sm">
+                              <MapPin className="mr-1 h-3 w-3" />
+                              <span>
+                                {formatWard(entitlement.wardNo)}
+                                {entitlement.habitation
+                                  ? `, ${entitlement.habitation}`
+                                  : ""}
+                              </span>
                             </div>
                           </TableCell>
                           <TableCell>
-                            <Badge
-                              className={getStatusColor(entitlement.status)}
-                            >
-                              {getStatusIcon(entitlement.status)}
-                              <span className="ml-1">{entitlement.status}</span>
-                            </Badge>
+                            <StatusBadge value={entitlement.status} />
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center space-x-2">
                               <Button
                                 variant="ghost"
                                 size="sm"
+                                aria-label={`View ${entitlement.name}`}
                                 onClick={() => {
                                   setSelectedEntitlement(entitlement);
                                   setIsViewModalOpen(true);
@@ -803,138 +1047,8 @@ const Entitlements = () => {
                                 <Button
                                   variant="ghost"
                                   size="sm"
-                                  onClick={() => {
-                                    setSelectedEntitlement(entitlement);
-                                    setFormData({
-                                      householdCode:
-                                        entitlement.householdCode || "",
-                                      idCode: entitlement.idCode || "",
-                                      beneficiaryId:
-                                        entitlement.beneficiaryId || "",
-                                      beneficiaryName:
-                                        entitlement.beneficiaryName ||
-                                        entitlement.name ||
-                                        "",
-                                      name: entitlement.name || "",
-                                      headOfHousehold:
-                                        entitlement.headOfHousehold || "",
-                                      contactNo: entitlement.contactNo || "",
-                                      projectResponsible:
-                                        entitlement.projectResponsible || "",
-                                      dateOfReporting: entitlement.dateOfReporting
-                                        ? entitlement.dateOfReporting.split(
-                                            "T"
-                                          )[0]
-                                        : "",
-                                      reportedBy: entitlement.reportedBy || "",
-                                      age: entitlement.age || "",
-                                      gender: entitlement.gender || "",
-                                      wardNo: entitlement.wardNo || "",
-                                      habitation: entitlement.habitation || "",
-                                      entitlementType:
-                                        entitlement.entitlementType ||
-                                        entitlement.schemes?.eligibleSchemes ||
-                                        "",
-                                      entitlementDetails:
-                                        entitlement.entitlementDetails || "",
-                                      applicationDate: entitlement.applicationDate
-                                        ? entitlement.applicationDate.split(
-                                            "T"
-                                          )[0]
-                                        : "",
-                                      documentation: {
-                                        typeOfDocument:
-                                          entitlement.documentation
-                                            ?.typeOfDocument ||
-                                          entitlement.idProofAndDomicile
-                                            ?.typeOfDocument ||
-                                          "",
-                                        natureOfIssue:
-                                          entitlement.documentation
-                                            ?.natureOfIssue ||
-                                          entitlement.idProofAndDomicile
-                                            ?.natureOfIssue ||
-                                          "",
-                                        status:
-                                          entitlement.documentation?.status ||
-                                          entitlement.idProofAndDomicile
-                                            ?.status ||
-                                          "Pending",
-                                        dateOfReporting:
-                                          entitlement.documentation
-                                            ?.dateOfReporting
-                                            ? entitlement.documentation.dateOfReporting.split(
-                                                "T"
-                                              )[0]
-                                            : entitlement.idProofAndDomicile
-                                                ?.dateOfReporting
-                                            ? entitlement.idProofAndDomicile.dateOfReporting.split(
-                                                "T"
-                                              )[0]
-                                            : "",
-                                      },
-                                      governmentSchemes: {
-                                        eligibleSchemes:
-                                          entitlement.governmentSchemes
-                                            ?.eligibleSchemes ||
-                                          entitlement.entitlementType ||
-                                          entitlement.schemes
-                                            ?.eligibleSchemes ||
-                                          "",
-                                        natureOfIssue:
-                                          entitlement.governmentSchemes
-                                            ?.natureOfIssue ||
-                                          entitlement.schemes?.natureOfIssue ||
-                                          "",
-                                        status:
-                                          entitlement.governmentSchemes
-                                            ?.status ||
-                                          entitlement.schemes?.status ||
-                                          "Pending",
-                                      },
-                                      documentsSubmitted:
-                                        entitlement.documentsSubmitted || "",
-                                      verificationStatus:
-                                        entitlement.verificationStatus || "",
-                                      approvalDate: entitlement.approvalDate
-                                        ? entitlement.approvalDate.split("T")[0]
-                                        : "",
-                                      disbursementDate:
-                                        entitlement.disbursementDate
-                                          ? entitlement.disbursementDate.split(
-                                              "T"
-                                            )[0]
-                                          : "",
-                                      amountDisbursed:
-                                        entitlement.amountDisbursed || "",
-                                      status: entitlement.status || "Applied",
-                                      remarks: entitlement.remarks || "",
-                                      followUpRequired:
-                                        entitlement.followUpRequired || false,
-                                      nextFollowUpDate:
-                                        entitlement.nextFollowUpDate
-                                          ? entitlement.nextFollowUpDate.split(
-                                              "T"
-                                            )[0]
-                                          : "",
-                                      contactNumber:
-                                        entitlement.contactNumber || "",
-                                      address: entitlement.address || "",
-                                      schemes: {
-                                        eligibleSchemes:
-                                          entitlement.entitlementType ||
-                                          entitlement.schemes?.eligibleSchemes ||
-                                          "",
-                                        natureOfIssue:
-                                          entitlement.schemes?.natureOfIssue ||
-                                          "",
-                                        status:
-                                          entitlement.schemes?.status ||
-                                          "Pending",
-                                      },
-                                    });
-                                    setIsEditModalOpen(true);
-                                  }}
+                                  aria-label={`Edit ${entitlement.name}`}
+                                  onClick={() => openEdit(entitlement)}
                                 >
                                   <Edit className="h-4 w-4" />
                                 </Button>
@@ -945,6 +1059,7 @@ const Entitlements = () => {
                                     <Button
                                       variant="ghost"
                                       size="sm"
+                                      aria-label={`Delete ${entitlement.name}`}
                                       className="text-red-600 hover:text-red-700"
                                     >
                                       <Trash2 className="h-4 w-4" />
@@ -980,9 +1095,8 @@ const Entitlements = () => {
                           </TableCell>
                         </TableRow>
                       ))}
-                    </TableBody>
-                  </Table>
-                )}
+                  </TableBody>
+                </Table>
 
                 {/* Pagination */}
                 {pagination.pages > 1 && (
@@ -1036,318 +1150,7 @@ const Entitlements = () => {
                   </DialogDescription>
                 </DialogHeader>
                 <form onSubmit={handleSubmit} className="space-y-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor="householdCode">Household Code</Label>
-                      <Input
-                        id="householdCode"
-                        value={formData.householdCode}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            householdCode: e.target.value,
-                          })
-                        }
-                        placeholder="Enter household code"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="idCode">ID Code</Label>
-                      <Input
-                        id="idCode"
-                        value={formData.idCode}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            idCode: e.target.value,
-                          })
-                        }
-                        placeholder="Enter ID code"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="name">Name *</Label>
-                      <Input
-                        id="name"
-                        value={formData.name}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            name: e.target.value,
-                          })
-                        }
-                        placeholder="Enter name"
-                        required
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="gender">Gender</Label>
-                      <Select
-                        value={formData.gender}
-                        onValueChange={(value) =>
-                          setFormData({ ...formData, gender: value })
-                        }
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select gender" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {genderOptions.map((gender) => (
-                            <SelectItem key={gender} value={gender}>
-                              {gender}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <Label htmlFor="age">Age</Label>
-                      <Input
-                        id="age"
-                        type="number"
-                        min="0"
-                        max="120"
-                        value={formData.age}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            age: e.target.value,
-                          })
-                        }
-                        placeholder="Enter age"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="headOfHousehold">
-                        Head of Household
-                      </Label>
-                      <Input
-                        id="headOfHousehold"
-                        value={formData.headOfHousehold}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            headOfHousehold: e.target.value,
-                          })
-                        }
-                        placeholder="Enter head of household"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="contactNo">Contact Number</Label>
-                      <Input
-                        id="contactNo"
-                        value={formData.contactNo}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            contactNo: e.target.value,
-                          })
-                        }
-                        placeholder="Enter contact number"
-                        pattern="[6-9][0-9]{9}"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="wardNo">Ward Number *</Label>
-                      <WardCombobox
-                        id="wardNo"
-                        value={formData.wardNo}
-                        onChange={(value) =>
-                          setFormData({ ...formData, wardNo: value })
-                        }
-                        options={wardOptions}
-                        placeholder="Select ward"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="habitation">Habitation</Label>
-                      <Input
-                        id="habitation"
-                        value={formData.habitation}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            habitation: e.target.value,
-                          })
-                        }
-                        placeholder="Enter habitation"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="projectResponsible">
-                        Project Responsible *
-                      </Label>
-                      <Input
-                        id="projectResponsible"
-                        value={formData.projectResponsible}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            projectResponsible: e.target.value,
-                          })
-                        }
-                        placeholder="Enter project responsible"
-                        required
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="dateOfReporting">
-                        Date of Reporting
-                      </Label>
-                      <Input
-                        id="dateOfReporting"
-                        type="date"
-                        value={formData.dateOfReporting}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            dateOfReporting: e.target.value,
-                          })
-                        }
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="reportedBy">Reported By</Label>
-                      <Input
-                        id="reportedBy"
-                        value={formData.reportedBy}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            reportedBy: e.target.value,
-                          })
-                        }
-                        placeholder="Enter reported by"
-                      />
-                    </div>
-
-                    <div>
-                      <Label htmlFor="entitlementType">Entitlement Type</Label>
-                      <Select
-                        value={formData.entitlementType}
-                        onValueChange={(value) =>
-                          setFormData({ ...formData, entitlementType: value })
-                        }
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select entitlement type" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {entitlementTypes.map((type) => (
-                            <SelectItem key={type} value={type}>
-                              {type}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <Label htmlFor="applicationDate">Application Date</Label>
-                      <Input
-                        id="applicationDate"
-                        type="date"
-                        value={formData.applicationDate}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            applicationDate: e.target.value,
-                          })
-                        }
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="documentationType">Document Type</Label>
-                      <Select
-                        value={formData.documentation?.typeOfDocument || ""}
-                        onValueChange={(value) =>
-                          setFormData({
-                            ...formData,
-                            documentation: {
-                              ...formData.documentation,
-                              typeOfDocument: value,
-                            },
-                          })
-                        }
-                      >
-                        <SelectTrigger id="documentationType">
-                          <SelectValue placeholder="Select document type" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {documentTypes.map((docType) => (
-                            <SelectItem key={docType} value={docType}>
-                              {docType}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <Label htmlFor="documentationStatus">
-                        Documentation Status
-                      </Label>
-                      <Select
-                        value={formData.documentation?.status || "Pending"}
-                        onValueChange={(value) =>
-                          setFormData({
-                            ...formData,
-                            documentation: {
-                              ...formData.documentation,
-                              status: value,
-                            },
-                          })
-                        }
-                      >
-                        <SelectTrigger id="documentationStatus">
-                          <SelectValue placeholder="Select status" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {statusOptions.map((status) => (
-                            <SelectItem key={status} value={status}>
-                              {status}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="md:col-span-2">
-                      <Label htmlFor="documentationIssue">
-                        Documentation Nature of Issue
-                      </Label>
-                      <Textarea
-                        id="documentationIssue"
-                        value={formData.documentation?.natureOfIssue || ""}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            documentation: {
-                              ...formData.documentation,
-                              natureOfIssue: e.target.value,
-                            },
-                          })
-                        }
-                        placeholder="Describe documentation issue"
-                      />
-                    </div>
-                    <div className="md:col-span-2">
-                      <Label htmlFor="schemeIssue">Government Scheme Issue</Label>
-                      <Textarea
-                        id="schemeIssue"
-                        value={formData.governmentSchemes?.natureOfIssue || ""}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            governmentSchemes: {
-                              ...formData.governmentSchemes,
-                              natureOfIssue: e.target.value,
-                            },
-                          })
-                        }
-                        placeholder="Describe scheme-related issue"
-                      />
-                    </div>
-                  </div>
-
+                  {renderFormFields("")}
                   <DialogFooter>
                     <Button
                       type="button"
@@ -1372,211 +1175,7 @@ const Entitlements = () => {
                   </DialogDescription>
                 </DialogHeader>
                 <form onSubmit={handleSubmit} className="space-y-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor="edit-householdCode">Household Code</Label>
-                      <Input
-                        id="edit-householdCode"
-                        value={formData.householdCode}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            householdCode: e.target.value,
-                          })
-                        }
-                        placeholder="Enter household code"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="edit-idCode">ID Code</Label>
-                      <Input
-                        id="edit-idCode"
-                        value={formData.idCode}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            idCode: e.target.value,
-                          })
-                        }
-                        placeholder="Enter ID code"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="edit-name">Name *</Label>
-                      <Input
-                        id="edit-name"
-                        value={formData.name}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            name: e.target.value,
-                          })
-                        }
-                        placeholder="Enter name"
-                        required
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="edit-gender">Gender</Label>
-                      <Select
-                        value={formData.gender}
-                        onValueChange={(value) =>
-                          setFormData({ ...formData, gender: value })
-                        }
-                      >
-                        <SelectTrigger id="edit-gender">
-                          <SelectValue placeholder="Select gender" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {genderOptions.map((gender) => (
-                            <SelectItem key={gender} value={gender}>
-                              {gender}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <Label htmlFor="edit-age">Age</Label>
-                      <Input
-                        id="edit-age"
-                        type="number"
-                        min="0"
-                        max="120"
-                        value={formData.age}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            age: e.target.value,
-                          })
-                        }
-                        placeholder="Enter age"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="edit-headOfHousehold">
-                        Head of Household
-                      </Label>
-                      <Input
-                        id="edit-headOfHousehold"
-                        value={formData.headOfHousehold}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            headOfHousehold: e.target.value,
-                          })
-                        }
-                        placeholder="Enter head of household"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="edit-contactNo">Contact Number</Label>
-                      <Input
-                        id="edit-contactNo"
-                        value={formData.contactNo}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            contactNo: e.target.value,
-                          })
-                        }
-                        placeholder="Enter contact number"
-                        pattern="[6-9][0-9]{9}"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="edit-wardNo">Ward Number *</Label>
-                      <WardCombobox
-                        id="edit-wardNo"
-                        value={formData.wardNo}
-                        onChange={(value) =>
-                          setFormData({ ...formData, wardNo: value })
-                        }
-                        options={wardOptions}
-                        placeholder="Select ward"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="edit-habitation">Habitation</Label>
-                      <Input
-                        id="edit-habitation"
-                        value={formData.habitation}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            habitation: e.target.value,
-                          })
-                        }
-                        placeholder="Enter habitation"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="edit-status">Overall Status</Label>
-                      <Select
-                        value={formData.status}
-                        onValueChange={(value) =>
-                          setFormData({ ...formData, status: value })
-                        }
-                      >
-                        <SelectTrigger id="edit-status">
-                          <SelectValue placeholder="Select status" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {statusOptions.map((status) => (
-                            <SelectItem key={status} value={status}>
-                              {status}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <Label htmlFor="edit-entitlementType">Entitlement Type</Label>
-                      <Select
-                        value={formData.entitlementType}
-                        onValueChange={(value) =>
-                          setFormData({ ...formData, entitlementType: value })
-                        }
-                      >
-                        <SelectTrigger id="edit-entitlementType">
-                          <SelectValue placeholder="Select entitlement type" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {entitlementTypes.map((type) => (
-                            <SelectItem key={type} value={type}>
-                              {type}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <Label htmlFor="edit-applicationDate">Application Date</Label>
-                      <Input
-                        id="edit-applicationDate"
-                        type="date"
-                        value={formData.applicationDate}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            applicationDate: e.target.value,
-                          })
-                        }
-                      />
-                    </div>
-                    <div className="md:col-span-2">
-                      <Label htmlFor="edit-remarks">Remarks</Label>
-                      <Textarea
-                        id="edit-remarks"
-                        value={formData.remarks}
-                        onChange={(e) =>
-                          setFormData({ ...formData, remarks: e.target.value })
-                        }
-                        placeholder="Enter remarks"
-                      />
-                    </div>
-                  </div>
-
+                  {renderFormFields("edit-")}
                   <DialogFooter>
                     <Button
                       type="button"
@@ -1612,11 +1211,11 @@ const Entitlements = () => {
                           <Label className="font-semibold">
                             Household Code
                           </Label>
-                          <p>{selectedEntitlement.householdCode}</p>
+                          <p>{selectedEntitlement.householdCode || "N/A"}</p>
                         </div>
                         <div>
                           <Label className="font-semibold">ID Code</Label>
-                          <p>{selectedEntitlement.idCode}</p>
+                          <p>{selectedEntitlement.idCode || "N/A"}</p>
                         </div>
                         <div>
                           <Label className="font-semibold">Name</Label>
@@ -1624,9 +1223,11 @@ const Entitlements = () => {
                         </div>
                         <div>
                           <Label className="font-semibold">Gender</Label>
-                          <Badge variant="outline">
-                            {selectedEntitlement.gender}
-                          </Badge>
+                          <div>
+                            <Badge variant="outline">
+                              {selectedEntitlement.gender}
+                            </Badge>
+                          </div>
                         </div>
                         <div>
                           <Label className="font-semibold">Age</Label>
@@ -1642,11 +1243,11 @@ const Entitlements = () => {
                           <Label className="font-semibold">
                             Contact Number
                           </Label>
-                          <p>{selectedEntitlement.contactNo}</p>
+                          <p>{selectedEntitlement.contactNo || "N/A"}</p>
                         </div>
                         <div>
                           <Label className="font-semibold">Ward No</Label>
-                          <p>{selectedEntitlement.wardNo}</p>
+                          <p>{formatWard(selectedEntitlement.wardNo)}</p>
                         </div>
                         <div>
                           <Label className="font-semibold">Habitation</Label>
@@ -1660,14 +1261,9 @@ const Entitlements = () => {
                         </div>
                         <div>
                           <Label className="font-semibold">Overall Status</Label>
-                          <Badge
-                            className={getStatusColor(selectedEntitlement.status)}
-                          >
-                            {getStatusIcon(selectedEntitlement.status)}
-                            <span className="ml-1">
-                              {selectedEntitlement.status}
-                            </span>
-                          </Badge>
+                          <div>
+                            <StatusBadge value={selectedEntitlement.status} />
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -1677,22 +1273,22 @@ const Entitlements = () => {
                       <h3 className="text-lg font-semibold border-b pb-2">
                         Reporting Details
                       </h3>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div>
                           <Label className="font-semibold">
                             Date of Reporting
                           </Label>
-                          <p>
-                            {selectedEntitlement.dateOfReporting
-                              ? new Date(
-                                  selectedEntitlement.dateOfReporting
-                                ).toLocaleDateString()
-                              : "N/A"}
-                          </p>
+                          <p>{formatDate(selectedEntitlement.dateOfReporting, "N/A")}</p>
                         </div>
                         <div>
                           <Label className="font-semibold">Reported By</Label>
                           <p>{selectedEntitlement.reportedBy}</p>
+                        </div>
+                        <div>
+                          <Label className="font-semibold">
+                            Application Date
+                          </Label>
+                          <p>{formatDate(selectedEntitlement.applicationDate, "N/A")}</p>
                         </div>
                       </div>
                     </div>
@@ -1703,7 +1299,7 @@ const Entitlements = () => {
                         <h3 className="text-lg font-semibold border-b pb-2">
                           ID Proof & Domicile
                         </h3>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                           <div>
                             <Label className="font-semibold">
                               Type of Document
@@ -1713,19 +1309,26 @@ const Entitlements = () => {
                                 .typeOfDocument || "N/A"}
                             </p>
                           </div>
-                          {selectedEntitlement.idProofAndDomicile
-                            .dateOfReporting && (
+                          <div>
+                            <Label className="font-semibold">Status</Label>
                             <div>
-                              <Label className="font-semibold">
-                                Date of Reporting
-                              </Label>
-                              <p>
-                                {new Date(
-                                  selectedEntitlement.idProofAndDomicile.dateOfReporting
-                                ).toLocaleDateString()}
-                              </p>
+                              <StatusBadge
+                                value={selectedEntitlement.idProofAndDomicile.status}
+                              />
                             </div>
-                          )}
+                          </div>
+                          <div>
+                            <Label className="font-semibold">
+                              Date of Reporting
+                            </Label>
+                            <p>
+                              {formatDate(
+                                selectedEntitlement.idProofAndDomicile
+                                  .dateOfReporting,
+                                "N/A"
+                              )}
+                            </p>
+                          </div>
                         </div>
                         {selectedEntitlement.idProofAndDomicile
                           .natureOfIssue && (
@@ -1751,17 +1354,24 @@ const Entitlements = () => {
                           Schemes
                         </h3>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        </div>
-                        {selectedEntitlement.schemes.eligibleSchemes && (
                           <div>
                             <Label className="font-semibold">
                               Eligible Schemes
                             </Label>
-                            <p className="mt-1 text-sm text-muted-foreground">
-                              {selectedEntitlement.schemes.eligibleSchemes}
+                            <p>
+                              {selectedEntitlement.schemes.eligibleSchemes ||
+                                "N/A"}
                             </p>
                           </div>
-                        )}
+                          <div>
+                            <Label className="font-semibold">Status</Label>
+                            <div>
+                              <StatusBadge
+                                value={selectedEntitlement.schemes.status}
+                              />
+                            </div>
+                          </div>
+                        </div>
                         {selectedEntitlement.schemes.natureOfIssue && (
                           <div>
                             <Label className="font-semibold">
@@ -1775,6 +1385,37 @@ const Entitlements = () => {
                       </div>
                     )}
 
+                    {/* Documents & schemes held */}
+                    <div className="space-y-4">
+                      <h3 className="text-lg font-semibold border-b pb-2">
+                        Documents & Schemes Availed
+                      </h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <Label className="font-semibold">Documents Held</Label>
+                          <p className="mt-1 text-sm text-muted-foreground">
+                            {renderFlagList(
+                              selectedEntitlement,
+                              "documentation",
+                              DOCUMENT_FLAGS
+                            )}
+                          </p>
+                        </div>
+                        <div>
+                          <Label className="font-semibold">
+                            Government Schemes Availed
+                          </Label>
+                          <p className="mt-1 text-sm text-muted-foreground">
+                            {renderFlagList(
+                              selectedEntitlement,
+                              "governmentSchemes",
+                              SCHEME_FLAGS
+                            )}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
                     {/* Follow-up */}
                     <div className="space-y-4">
                       <h3 className="text-lg font-semibold border-b pb-2">
@@ -1785,28 +1426,26 @@ const Entitlements = () => {
                           <Label className="font-semibold">
                             Follow-up Required
                           </Label>
-                          <Badge
-                            variant={
-                              selectedEntitlement.followUpRequired
-                                ? "default"
-                                : "secondary"
-                            }
-                          >
-                            {selectedEntitlement.followUpRequired
-                              ? "Yes"
-                              : "No"}
-                          </Badge>
+                          <div>
+                            <Badge
+                              variant={
+                                selectedEntitlement.followUpRequired
+                                  ? "default"
+                                  : "secondary"
+                              }
+                            >
+                              {selectedEntitlement.followUpRequired
+                                ? "Yes"
+                                : "No"}
+                            </Badge>
+                          </div>
                         </div>
                         {selectedEntitlement.followUpDate && (
                           <div>
                             <Label className="font-semibold">
                               Follow-up Date
                             </Label>
-                            <p>
-                              {new Date(
-                                selectedEntitlement.followUpDate
-                              ).toLocaleDateString()}
-                            </p>
+                            <p>{formatDate(selectedEntitlement.followUpDate)}</p>
                           </div>
                         )}
                       </div>
@@ -1836,6 +1475,3 @@ const Entitlements = () => {
 };
 
 export default Entitlements;
-
-
-

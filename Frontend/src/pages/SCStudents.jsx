@@ -61,7 +61,6 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import {
-  Users,
   Check,
   ChevronsUpDown,
   Plus,
@@ -70,19 +69,33 @@ import {
   Edit,
   Trash2,
   Eye,
-  RefreshCw,
-  Menu,
   GraduationCap,
-  BookOpen,
-  Home,
-  FileSpreadsheet,
 } from "lucide-react";
 import { scStudentAPI } from "../services/api";
 import Sidebar from "../components/Sidebar";
 import usePermissions from "../hooks/usePermissions";
 import { getWardOptions } from "../lib/formOptions";
 import GuidelinesCard from "../components/GuidelinesCard";
-import ExcelBulkImportButton from "../components/ExcelBulkImportButton";
+import ExcelImportPanel from "../components/ExcelImportPanel";
+import scStudentImportTemplate, {
+  CLASS_GRADES,
+} from "../lib/excelImport/templates/scStudent";
+import {
+  ModulePageHeader,
+  tableState,
+  StatusBadge,
+  formatWard,
+  formatDate,
+  toDateInput,
+} from "../components/module/ModuleKit";
+
+// Mongoose rejects "" for enum / ObjectId fields: drop blanks on create, clear them on update.
+const toApiPayload = (data, isUpdate) =>
+  Object.fromEntries(
+    Object.entries(data).flatMap(([key, value]) =>
+      value === "" ? (isUpdate ? [[key, null]] : []) : [[key, value]]
+    )
+  );
 
 const WardCombobox = ({ id, value, onChange, options, placeholder }) => {
   const [open, setOpen] = useState(false);
@@ -177,6 +190,7 @@ const SCStudents = () => {
     householdCode: "",
     name: "",
     gender: "",
+    dateOfBirth: "",
     age: "",
     classGrade: "",
     studentStatus: "",
@@ -295,11 +309,14 @@ const SCStudents = () => {
       }
 
       if (selectedStudent) {
-        await scStudentAPI.update(selectedStudent._id, formData);
+        await scStudentAPI.update(
+          selectedStudent._id,
+          toApiPayload(formData, true)
+        );
         toast.success("SC student updated successfully");
         setIsEditModalOpen(false);
       } else {
-        await scStudentAPI.create(formData);
+        await scStudentAPI.create(toApiPayload(formData, false));
         toast.success("SC student created successfully");
         setIsCreateModalOpen(false);
       }
@@ -328,6 +345,7 @@ const SCStudents = () => {
       householdCode: "",
       name: "",
       gender: "",
+      dateOfBirth: "",
       age: "",
       classGrade: "",
       studentStatus: "",
@@ -341,6 +359,7 @@ const SCStudents = () => {
       wardNo: "",
       habitation: "",
       projectResponsible: "",
+      category: "",
       dateOfReporting: "",
       reportedBy: "",
       natureOfIssue: "",
@@ -362,17 +381,12 @@ const SCStudents = () => {
     setSelectedStudent(student);
     setFormData({
       ...student,
-      dateOfReporting: student.dateOfReporting
-        ? new Date(student.dateOfReporting).toISOString().split("T")[0]
-        : "",
-      dateOfEducationalAssessment: student.dateOfEducationalAssessment
-        ? new Date(student.dateOfEducationalAssessment)
-          .toISOString()
-          .split("T")[0]
-        : "",
-      dateOfCareerCounselling: student.dateOfCareerCounselling
-        ? new Date(student.dateOfCareerCounselling).toISOString().split("T")[0]
-        : "",
+      dateOfBirth: toDateInput(student.dateOfBirth),
+      dateOfReporting: toDateInput(student.dateOfReporting),
+      dateOfEducationalAssessment: toDateInput(
+        student.dateOfEducationalAssessment
+      ),
+      dateOfCareerCounselling: toDateInput(student.dateOfCareerCounselling),
     });
     setIsEditModalOpen(true);
   };
@@ -394,40 +408,24 @@ const SCStudents = () => {
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden lg:ml-0">
-        {/* Mobile Header */}
-        <div className="lg:hidden bg-card shadow-md p-4 flex items-center border-b border-border">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setSidebarOpen(true)}
-            className="mr-2"
-          >
-            <Menu className="h-5 w-5" />
-          </Button>
-          <h1 className="text-lg font-semibold">SC Students</h1>
-        </div>
+        <ModulePageHeader
+          icon={GraduationCap}
+          title={`SC Students (${pagination.total})`}
+          subtitle="Track schooling, assessments and counselling of SC students"
+          onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
+          actions={
+            canCreate("education") && (
+              <Button onClick={() => setIsCreateModalOpen(true)}>
+                <Plus className="h-4 w-4 mr-2" />
+                Add SC Student
+              </Button>
+            )
+          }
+        />
 
         {/* Scrollable Content */}
         <div className="flex-1 overflow-y-auto">
           <div className="container mx-auto p-6 space-y-6">
-            {/* Header */}
-            <div className="flex justify-between items-center">
-              <div>
-                <h1 className="text-3xl font-bold text-foreground">
-                  SC Students
-                  <span className="ml-2 text-lg font-semibold text-muted-foreground align-middle">
-                    ({pagination.total})
-                  </span>
-                </h1>
-                <p className="text-muted-foreground">Manage SC student records</p>
-              </div>
-              {canCreate("education") && (
-                <Button onClick={() => setIsCreateModalOpen(true)}>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add SC Student
-                </Button>
-              )}
-            </div>
             <GuidelinesCard
               title="SC Student Data Guidelines"
               description="Monitor the educational progress and welfare of SC students effectively."
@@ -490,7 +488,7 @@ const SCStudents = () => {
                         <SelectItem value="all">All Wards</SelectItem>
                         {filterOptions.wardNumbers?.map((ward) => (
                           <SelectItem key={ward} value={ward}>
-                            Ward {ward}
+                            {formatWard(ward)}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -502,65 +500,11 @@ const SCStudents = () => {
 
             {/* Bulk Import Card */}
             {canCreate("education") && (
-              <Card className="border border-muted bg-card shadow-sm mb-6">
-                <CardContent className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4">
-                  <div className="space-y-1">
-                    <h3 className="font-semibold text-foreground flex items-center gap-2">
-                      <FileSpreadsheet className="h-5 w-5 text-green-600" />
-                      Bulk Import SC Students
-                    </h3>
-                    <p className="text-xs text-muted-foreground">
-                      Download the template, fill it in, and upload it to import records in bulk.
-                    </p>
-                  </div>
-                  <ExcelBulkImportButton
-                    label="Import Excel"
-                    description=""
-                    templateFields={[
-                      { label: "Household Code", key: "householdCode" },
-                      { label: "ID Code", key: "idCode" },
-                      { label: "Name", key: "name" },
-                      { label: "Gender", key: "gender", options: ["Male", "Female", "Other"] },
-                      { label: "Age", key: "age" },
-                      { label: "Head of Household", key: "headOfHousehold" },
-                      { label: "Contact Number", key: "contactNo" },
-                      { label: "Ward Number", key: "wardNo" },
-                      { label: "Habitation", key: "habitation" },
-                      { label: "Project Responsible", key: "projectResponsible" },
-                      { label: "Date of Reporting", key: "dateOfReporting" },
-                      { label: "Reported By", key: "reportedBy" },
-                      { label: "Study Center Name", key: "studyCenterName" },
-                      { label: "Class / Grade", key: "classGrade" },
-                      { label: "School Name", key: "schoolName" },
-                      { label: "Student Status", key: "studentStatus", options: ["Enrolled", "Attending", "Irregular", "Dropped Out"] },
-                      { label: "Remarks", key: "remarks" },
-                    ]}
-                    sampleRow={{
-                      householdCode: "HH-101",
-                      idCode: "STU-001",
-                      name: "Rahul Das",
-                      gender: "Male",
-                      age: "14",
-                      headOfHousehold: "Ramesh Das",
-                      contactNo: "9876543210",
-                      wardNo: "14",
-                      habitation: "Subhash Nagar",
-                      projectResponsible: "Priya Sharma",
-                      dateOfReporting: "2024-02-15",
-                      reportedBy: "Teacher Anita",
-                      studyCenterName: "Vivekananda Center",
-                      classGrade: "8th Standard",
-                      schoolName: "Kolkata High School",
-                      studentStatus: "Enrolled",
-                      remarks: "Regular student",
-                    }}
-                    createRecord={async (payload) => {
-                      await scStudentAPI.create(payload);
-                    }}
-                    onImported={fetchStudents}
-                  />
-                </CardContent>
-              </Card>
+              <ExcelImportPanel
+                template={scStudentImportTemplate}
+                createRecord={scStudentAPI.create}
+                onImported={fetchStudents}
+              />
             )}
 
             {/* SC Students Table */}
@@ -572,12 +516,7 @@ const SCStudents = () => {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                {loading ? (
-                  <div className="flex justify-center items-center h-64">
-                    <RefreshCw className="h-8 w-8 animate-spin" />
-                  </div>
-                ) : (
-                  <Table>
+                <Table>
                     <TableHeader>
                       <TableRow>
                         <TableHead>Household Code</TableHead>
@@ -592,27 +531,34 @@ const SCStudents = () => {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {scStudents.map((student) => (
+                      {tableState({
+                        loading,
+                        count: scStudents.length,
+                        colSpan: 9,
+                        filtered:
+                          Boolean(searchTerm) ||
+                          statusFilter !== "all" ||
+                          wardFilter !== "all",
+                      })}
+                      {!loading && scStudents.map((student) => (
                         <TableRow key={student._id}>
                           <TableCell className="font-medium">
                             {student.householdCode}
                           </TableCell>
                           <TableCell>{student.name}</TableCell>
                           <TableCell>
-                            <Badge variant="secondary">{student.gender}</Badge>
-                          </TableCell>
-                          <TableCell>{student.age}</TableCell>
-                          <TableCell>
-                            <Badge variant="outline">{student.wardNo}</Badge>
-                          </TableCell>
-                          <TableCell>
-                            {student.studentStatus ? (
-                              <Badge variant="secondary">
-                                {student.studentStatus}
-                              </Badge>
+                            {student.gender ? (
+                              <Badge variant="secondary">{student.gender}</Badge>
                             ) : (
                               "-"
                             )}
+                          </TableCell>
+                          <TableCell>{student.age}</TableCell>
+                          <TableCell>
+                            <Badge variant="outline">{formatWard(student.wardNo)}</Badge>
+                          </TableCell>
+                          <TableCell>
+                            <StatusBadge value={student.studentStatus} />
                           </TableCell>
                           <TableCell>{student.classGrade || "-"}</TableCell>
                           <TableCell>{student.contactNo}</TableCell>
@@ -622,6 +568,7 @@ const SCStudents = () => {
                                 variant="ghost"
                                 size="sm"
                                 onClick={() => openViewModal(student)}
+                                aria-label={`View ${student.name}`}
                               >
                                 <Eye className="h-4 w-4" />
                               </Button>
@@ -630,6 +577,7 @@ const SCStudents = () => {
                                   variant="ghost"
                                   size="sm"
                                   onClick={() => openEditModal(student)}
+                                  aria-label={`Edit ${student.name}`}
                                 >
                                   <Edit className="h-4 w-4" />
                                 </Button>
@@ -637,7 +585,11 @@ const SCStudents = () => {
                               {canDelete("education") && (
                                 <AlertDialog>
                                   <AlertDialogTrigger asChild>
-                                    <Button variant="ghost" size="sm">
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      aria-label={`Delete ${student.name}`}
+                                    >
                                       <Trash2 className="h-4 w-4" />
                                     </Button>
                                   </AlertDialogTrigger>
@@ -670,7 +622,6 @@ const SCStudents = () => {
                       ))}
                     </TableBody>
                   </Table>
-                )}
 
                 {/* Pagination */}
                 <div className="flex items-center justify-between space-x-2 py-4">
@@ -758,14 +709,14 @@ const SCStudents = () => {
                       />
                     </div>
                     <div>
-                      <Label htmlFor="gender">Gender *</Label>
+                      <Label htmlFor="gender">Gender</Label>
                       <Select
                         value={formData.gender}
                         onValueChange={(value) =>
                           setFormData({ ...formData, gender: value })
                         }
                       >
-                        <SelectTrigger>
+                        <SelectTrigger id="gender">
                           <SelectValue placeholder="Select gender" />
                         </SelectTrigger>
                         <SelectContent>
@@ -774,6 +725,17 @@ const SCStudents = () => {
                           <SelectItem value="Other">Other</SelectItem>
                         </SelectContent>
                       </Select>
+                    </div>
+                    <div>
+                      <Label htmlFor="dateOfBirth">Date of Birth</Label>
+                      <Input
+                        id="dateOfBirth"
+                        type="date"
+                        value={formData.dateOfBirth || ""}
+                        onChange={(e) =>
+                          setFormData({ ...formData, dateOfBirth: e.target.value })
+                        }
+                      />
                     </div>
                     <div>
                       <Label htmlFor="age">Age</Label>
@@ -788,14 +750,27 @@ const SCStudents = () => {
                     </div>
                     <div>
                       <Label htmlFor="classGrade">Class/Grade</Label>
-                      <Input
-                        id="classGrade"
-                        value={formData.classGrade}
-                        onChange={(e) =>
-                          setFormData({ ...formData, classGrade: e.target.value })
+                      <Select
+                        value={formData.classGrade || "none"}
+                        onValueChange={(value) =>
+                          setFormData({
+                            ...formData,
+                            classGrade: value === "none" ? "" : value,
+                          })
                         }
-                        placeholder="Enter class/grade"
-                      />
+                      >
+                        <SelectTrigger id="classGrade">
+                          <SelectValue placeholder="Select class/grade" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">Not specified</SelectItem>
+                          {CLASS_GRADES.map((grade) => (
+                            <SelectItem key={grade} value={grade}>
+                              {grade}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
                     <div>
                       <Label htmlFor="studentStatus">Status</Label>
@@ -1069,6 +1044,19 @@ const SCStudents = () => {
                         }
                       />
                     </div>
+                    <div className="md:col-span-2">
+                      <Label htmlFor="individualCarePlan">Individual Care Plan</Label>
+                      <Textarea
+                        id="individualCarePlan"
+                        value={formData.individualCarePlan || ""}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            individualCarePlan: e.target.value,
+                          })
+                        }
+                      />
+                    </div>
                   </div>
 
                   <DialogFooter>
@@ -1120,14 +1108,14 @@ const SCStudents = () => {
                       />
                     </div>
                     <div>
-                      <Label htmlFor="editGender">Gender *</Label>
+                      <Label htmlFor="editGender">Gender</Label>
                       <Select
                         value={formData.gender}
                         onValueChange={(value) =>
                           setFormData({ ...formData, gender: value })
                         }
                       >
-                        <SelectTrigger>
+                        <SelectTrigger id="editGender">
                           <SelectValue placeholder="Select gender" />
                         </SelectTrigger>
                         <SelectContent>
@@ -1136,6 +1124,17 @@ const SCStudents = () => {
                           <SelectItem value="Other">Other</SelectItem>
                         </SelectContent>
                       </Select>
+                    </div>
+                    <div>
+                      <Label htmlFor="editDateOfBirth">Date of Birth</Label>
+                      <Input
+                        id="editDateOfBirth"
+                        type="date"
+                        value={formData.dateOfBirth || ""}
+                        onChange={(e) =>
+                          setFormData({ ...formData, dateOfBirth: e.target.value })
+                        }
+                      />
                     </div>
                     <div>
                       <Label htmlFor="editAge">Age</Label>
@@ -1150,14 +1149,27 @@ const SCStudents = () => {
                     </div>
                     <div>
                       <Label htmlFor="editClassGrade">Class/Grade</Label>
-                      <Input
-                        id="editClassGrade"
-                        value={formData.classGrade}
-                        onChange={(e) =>
-                          setFormData({ ...formData, classGrade: e.target.value })
+                      <Select
+                        value={formData.classGrade || "none"}
+                        onValueChange={(value) =>
+                          setFormData({
+                            ...formData,
+                            classGrade: value === "none" ? "" : value,
+                          })
                         }
-                        placeholder="Enter class/grade"
-                      />
+                      >
+                        <SelectTrigger id="editClassGrade">
+                          <SelectValue placeholder="Select class/grade" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">Not specified</SelectItem>
+                          {CLASS_GRADES.map((grade) => (
+                            <SelectItem key={grade} value={grade}>
+                              {grade}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
                     <div>
                       <Label htmlFor="editStudentStatus">Status</Label>
@@ -1439,6 +1451,19 @@ const SCStudents = () => {
                         }
                       />
                     </div>
+                    <div className="md:col-span-2">
+                      <Label htmlFor="editIndividualCarePlan">Individual Care Plan</Label>
+                      <Textarea
+                        id="editIndividualCarePlan"
+                        value={formData.individualCarePlan || ""}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            individualCarePlan: e.target.value,
+                          })
+                        }
+                      />
+                    </div>
                   </div>
 
                   <DialogFooter>
@@ -1486,7 +1511,15 @@ const SCStudents = () => {
                         </div>
                         <div>
                           <Label className="font-semibold">Age</Label>
-                          <p>{selectedStudent.age} years</p>
+                          <p>
+                            {selectedStudent.age != null && selectedStudent.age !== ""
+                              ? `${selectedStudent.age} years`
+                              : "N/A"}
+                          </p>
+                        </div>
+                        <div>
+                          <Label className="font-semibold">Date of Birth</Label>
+                          <p>{formatDate(selectedStudent.dateOfBirth, "N/A")}</p>
                         </div>
                         <div>
                           <Label className="font-semibold">
@@ -1502,7 +1535,7 @@ const SCStudents = () => {
                         </div>
                         <div>
                           <Label className="font-semibold">Ward No</Label>
-                          <p>{selectedStudent.wardNo}</p>
+                          <p>{formatWard(selectedStudent.wardNo)}</p>
                         </div>
                         <div>
                           <Label className="font-semibold">Class/Grade</Label>
@@ -1560,11 +1593,7 @@ const SCStudents = () => {
                             Date of Reporting
                           </Label>
                           <p>
-                            {selectedStudent.dateOfReporting
-                              ? new Date(
-                                selectedStudent.dateOfReporting
-                              ).toLocaleDateString()
-                              : "N/A"}
+                            {formatDate(selectedStudent.dateOfReporting, "N/A")}
                           </p>
                         </div>
                         <div>
@@ -1595,11 +1624,7 @@ const SCStudents = () => {
                             Date of Educational Assessment
                           </Label>
                           <p>
-                            {selectedStudent.dateOfEducationalAssessment
-                              ? new Date(
-                                selectedStudent.dateOfEducationalAssessment
-                              ).toLocaleDateString()
-                              : "N/A"}
+                            {formatDate(selectedStudent.dateOfEducationalAssessment, "N/A")}
                           </p>
                         </div>
                         <div>
@@ -1607,11 +1632,7 @@ const SCStudents = () => {
                             Date of Career Counselling
                           </Label>
                           <p>
-                            {selectedStudent.dateOfCareerCounselling
-                              ? new Date(
-                                selectedStudent.dateOfCareerCounselling
-                              ).toLocaleDateString()
-                              : "N/A"}
+                            {formatDate(selectedStudent.dateOfCareerCounselling, "N/A")}
                           </p>
                         </div>
                       </div>

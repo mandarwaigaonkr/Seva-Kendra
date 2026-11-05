@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -48,22 +49,13 @@ import {
 import { Badge } from "@/components/ui/badge";
 import {
   Scale,
-  FileSpreadsheet,
   Plus,
   Search,
   Filter,
   Edit,
   Trash2,
   Eye,
-  RefreshCw,
-  Menu,
   Calendar,
-  User,
-  FileText,
-  CheckCircle,
-  Clock,
-  XCircle,
-  AlertCircle,
   Phone,
   Check,
   ChevronsUpDown,
@@ -87,7 +79,21 @@ import Sidebar from "../components/Sidebar";
 import usePermissions from "../hooks/usePermissions";
 import { getWardOptions } from "../lib/formOptions";
 import GuidelinesCard from "../components/GuidelinesCard";
-import ExcelBulkImportButton from "../components/ExcelBulkImportButton";
+import ExcelImportPanel from "../components/ExcelImportPanel";
+import legalAidImportTemplate, {
+  LEGAL_AID_GENDER,
+  LEGAL_AID_ISSUES,
+  LEGAL_AID_STATUS,
+  LEGAL_AID_PRIORITY,
+} from "../lib/excelImport/templates/legalAidService";
+import {
+  ModulePageHeader,
+  tableState,
+  StatusBadge,
+  formatWard,
+  formatDate,
+  toDateInput,
+} from "../components/module/ModuleKit";
 
 const WardCombobox = ({ id, value, onChange, options, placeholder }) => {
   const [open, setOpen] = useState(false);
@@ -104,7 +110,7 @@ const WardCombobox = ({ id, value, onChange, options, placeholder }) => {
           aria-controls={`${id}-list`}
           className="h-9 w-full justify-between bg-input px-3 text-left text-sm font-normal text-foreground"
         >
-          {selectedWard ? selectedWard.label : placeholder}
+          {selectedWard ? selectedWard.label : value || placeholder}
           <ChevronsUpDown className="ml-2 h-4 w-4 opacity-50 shrink-0" />
         </Button>
       </PopoverTrigger>
@@ -151,9 +157,33 @@ const WardCombobox = ({ id, value, onChange, options, placeholder }) => {
   );
 };
 
+const emptyForm = () => ({
+  householdCode: "",
+  uniqueId: "",
+  name: "",
+  gender: "",
+  age: "",
+  contactNo: "",
+  headOfHousehold: "",
+  wardNo: "",
+  habitation: "",
+  projectResponsible: "",
+  dateOfReporting: "",
+  reportedBy: "",
+  natureOfIssue: "",
+  status: "Pending",
+  priority: "Medium",
+  actionPlan: "",
+  progressReporting: {},
+  photoDocumentation: [],
+  remarks: "",
+  followUpRequired: false,
+  followUpDate: "",
+});
+
 const LegalAid = () => {
   const wardOptions = getWardOptions();
-  const { canCreate, canEdit, canDelete, canExport } = usePermissions();
+  const { canCreate, canEdit, canDelete } = usePermissions();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [legalAidServices, setLegalAidServices] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -162,19 +192,6 @@ const LegalAid = () => {
     status: "all",
     caseType: "all",
   });
-
-  // Wrapper for Excel import to ensure required fields have defaults
-  const createLegalAidRecord = async (data) => {
-    const payload = {
-      progressReporting: {},
-      photoDocumentation: [],
-      status: "Pending",
-      priority: "Medium",
-      followUpRequired: false,
-      ...data,
-    };
-    return legalAidServiceAPI.create(payload);
-  };
 
   const [pagination, setPagination] = useState({
     page: 1,
@@ -186,65 +203,17 @@ const LegalAid = () => {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
-  const [formData, setFormData] = useState({
-    householdCode: "",
-    uniqueId: "",
-    name: "",
-    gender: "",
-    age: "",
-    contactNo: "",
-    headOfHousehold: "",
-    wardNo: "",
-    habitation: "",
-    projectResponsible: "",
-    dateOfReporting: "",
-    reportedBy: "",
-    natureOfIssue: "",
-    status: "Pending",
-    priority: "Medium",
-    actionPlan: "",
-    progressReporting: {},
-    photoDocumentation: [],
-    remarks: "",
-    followUpRequired: false,
-    followUpDate: "",
-  });
+  const [formData, setFormData] = useState(emptyForm());
 
-  const caseTypes = [
-    "Property Dispute",
-    "Family Dispute",
-    "Domestic Violence",
-    "Labor Rights",
-    "Consumer Rights",
-    "Land Rights",
-    "Government Benefits",
-    "Legal Documentation",
-    "Other",
-  ];
+  const natureOfIssueOptions = LEGAL_AID_ISSUES;
+  const genderOptions = LEGAL_AID_GENDER;
+  const statusOptions = LEGAL_AID_STATUS;
+  const priorityOptions = LEGAL_AID_PRIORITY;
 
-  const natureOfIssueOptions = [
-    "Property Dispute",
-    "Family Dispute",
-    "Domestic Violence",
-    "Labor Rights",
-    "Consumer Rights",
-    "Land Rights",
-    "Government Benefits",
-    "Legal Documentation",
-    "Criminal Case",
-    "Civil Case",
-    "Other",
-  ];
-
-  const genderOptions = ["Male", "Female", "Other"];
-
-  const statusOptions = [
-    "Pending",
-    "In Progress",
-    "Resolved",
-    "Closed",
-    "Referred",
-  ];
+  const hasFilters =
+    Boolean(searchTerm) ||
+    filters.status !== "all" ||
+    filters.caseType !== "all";
 
   // Fetch legal aid services
   const fetchLegalAidServices = async () => {
@@ -328,13 +297,26 @@ const LegalAid = () => {
   // Handle form submission
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!formData.gender || !formData.wardNo || !formData.natureOfIssue) {
+      toast.error("Please select Gender, Ward and Nature of Issue");
+      return;
+    }
     try {
+      const payload = {
+        ...formData,
+        age: formData.age === "" ? "" : Number(formData.age),
+      };
+      if (!payload.contactNo || payload.contactNo.trim() === "") {
+        delete payload.contactNo;
+      }
+      if (!payload.followUpDate) delete payload.followUpDate;
+
       if (selectedService) {
-        await legalAidServiceAPI.update(selectedService._id, formData);
+        await legalAidServiceAPI.update(selectedService._id, payload);
         toast.success("Legal aid service updated successfully");
         setIsEditModalOpen(false);
       } else {
-        await legalAidServiceAPI.create(formData);
+        await legalAidServiceAPI.create(payload);
         toast.success("Legal aid service created successfully");
         setIsCreateModalOpen(false);
       }
@@ -352,29 +334,7 @@ const LegalAid = () => {
 
   // Reset form
   const resetForm = () => {
-    setFormData({
-      householdCode: "",
-      uniqueId: "",
-      name: "",
-      gender: "",
-      age: "",
-      contactNo: "",
-      headOfHousehold: "",
-      wardNo: "",
-      habitation: "",
-      projectResponsible: "",
-      dateOfReporting: "",
-      reportedBy: "",
-      natureOfIssue: "",
-      status: "Pending",
-      priority: "Medium",
-      actionPlan: "",
-      progressReporting: {},
-      photoDocumentation: [],
-      remarks: "",
-      followUpRequired: false,
-      followUpDate: "",
-    });
+    setFormData(emptyForm());
     setSelectedService(null);
   };
 
@@ -390,52 +350,253 @@ const LegalAid = () => {
     }
   };
 
-  // Get status badge color
-  const getStatusColor = (status) => {
-    switch (status) {
-      case "Resolved":
-        return "bg-green-100 text-green-800 hover:bg-green-200";
-      case "Closed":
-        return "bg-green-100 text-green-800 hover:bg-green-200";
-      case "Settled":
-        return "bg-blue-100 text-blue-800 hover:bg-blue-200";
-      case "In Progress":
-        return "bg-yellow-100 text-yellow-800 hover:bg-yellow-200";
-      case "Hearing Scheduled":
-        return "bg-purple-100 text-purple-800 hover:bg-purple-200";
-      case "Open":
-        return "bg-blue-100 text-blue-800 hover:bg-blue-200";
-      case "Dismissed":
-        return "bg-red-100 text-red-800 hover:bg-red-200";
-      case "Under Review":
-        return "bg-secondary text-foreground hover:bg-secondary/80";
-      default:
-        return "bg-secondary text-foreground hover:bg-secondary/80";
-    }
+  const openEdit = (service) => {
+    setSelectedService(service);
+    setFormData({
+      householdCode: service.householdCode || "",
+      uniqueId: service.uniqueId || "",
+      name: service.name || "",
+      gender: service.gender || "",
+      age: service.age ?? "",
+      contactNo: service.contactNo || "",
+      headOfHousehold: service.headOfHousehold || "",
+      wardNo: service.wardNo || "",
+      habitation: service.habitation || "",
+      projectResponsible: service.projectResponsible || "",
+      dateOfReporting: toDateInput(service.dateOfReporting),
+      reportedBy: service.reportedBy || "",
+      natureOfIssue: service.natureOfIssue || "",
+      status: service.status || "Pending",
+      priority: service.priority || "Medium",
+      actionPlan: service.actionPlan || "",
+      remarks: service.remarks || "",
+      followUpRequired: service.followUpRequired || false,
+      followUpDate: toDateInput(service.followUpDate),
+    });
+    setIsEditModalOpen(true);
   };
 
-  // Get status icon
-  const getStatusIcon = (status) => {
-    switch (status) {
-      case "Resolved":
-        return <CheckCircle className="h-3 w-3" />;
-      case "Closed":
-        return <CheckCircle className="h-3 w-3" />;
-      case "Settled":
-        return <CheckCircle className="h-3 w-3" />;
-      case "In Progress":
-        return <Clock className="h-3 w-3" />;
-      case "Hearing Scheduled":
-        return <Calendar className="h-3 w-3" />;
-      case "Open":
-        return <FileText className="h-3 w-3" />;
-      case "Dismissed":
-        return <XCircle className="h-3 w-3" />;
-      case "Under Review":
-        return <AlertCircle className="h-3 w-3" />;
-      default:
-        return <Clock className="h-3 w-3" />;
-    }
+  const setField = (key) => (e) =>
+    setFormData((prev) => ({ ...prev, [key]: e.target.value }));
+
+  const renderSelect = (id, key, options, placeholder) => (
+    <Select
+      value={formData[key]}
+      onValueChange={(value) =>
+        setFormData((prev) => ({ ...prev, [key]: value }))
+      }
+    >
+      <SelectTrigger id={id}>
+        <SelectValue placeholder={placeholder} />
+      </SelectTrigger>
+      <SelectContent>
+        {options.map((option) => (
+          <SelectItem key={option} value={option}>
+            {option}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+
+  // Shared create / edit fields — mirror legalAidService.model.js
+  const renderFormFields = (prefix) => {
+    const id = (name) => `${prefix}${name}`;
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <Label htmlFor={id("householdCode")}>Household Code *</Label>
+          <Input
+            id={id("householdCode")}
+            value={formData.householdCode}
+            onChange={setField("householdCode")}
+            placeholder="Enter household code"
+            required
+          />
+        </div>
+        <div>
+          <Label htmlFor={id("uniqueId")}>Unique ID *</Label>
+          <Input
+            id={id("uniqueId")}
+            value={formData.uniqueId}
+            onChange={setField("uniqueId")}
+            placeholder="e.g. LA-001"
+            required
+          />
+        </div>
+        <div>
+          <Label htmlFor={id("name")}>Name *</Label>
+          <Input
+            id={id("name")}
+            value={formData.name}
+            onChange={setField("name")}
+            placeholder="Enter name"
+            required
+          />
+        </div>
+        <div>
+          <Label htmlFor={id("gender")}>Gender *</Label>
+          {renderSelect(id("gender"), "gender", genderOptions, "Select gender")}
+        </div>
+        <div>
+          <Label htmlFor={id("age")}>Age *</Label>
+          <Input
+            id={id("age")}
+            type="number"
+            min="0"
+            max="120"
+            step="1"
+            value={formData.age}
+            onChange={setField("age")}
+            placeholder="Enter age"
+            required
+          />
+        </div>
+        <div>
+          <Label htmlFor={id("contactNo")}>Contact Number</Label>
+          <Input
+            id={id("contactNo")}
+            type="tel"
+            value={formData.contactNo}
+            onChange={setField("contactNo")}
+            placeholder="10-digit mobile number"
+            pattern="[6-9][0-9]{9}"
+            title="10-digit mobile number starting with 6-9"
+          />
+        </div>
+        <div>
+          <Label htmlFor={id("headOfHousehold")}>Head of Household *</Label>
+          <Input
+            id={id("headOfHousehold")}
+            value={formData.headOfHousehold}
+            onChange={setField("headOfHousehold")}
+            placeholder="Enter head of household"
+            required
+          />
+        </div>
+        <div>
+          <Label htmlFor={id("wardNo")}>Ward Number *</Label>
+          <WardCombobox
+            id={id("wardNo")}
+            value={formData.wardNo}
+            onChange={(value) =>
+              setFormData((prev) => ({ ...prev, wardNo: value }))
+            }
+            options={wardOptions}
+            placeholder="Select ward"
+          />
+        </div>
+        <div>
+          <Label htmlFor={id("habitation")}>Habitation *</Label>
+          <Input
+            id={id("habitation")}
+            value={formData.habitation}
+            onChange={setField("habitation")}
+            placeholder="Enter habitation"
+            required
+          />
+        </div>
+        <div>
+          <Label htmlFor={id("projectResponsible")}>
+            Project Responsible *
+          </Label>
+          <Input
+            id={id("projectResponsible")}
+            value={formData.projectResponsible}
+            onChange={setField("projectResponsible")}
+            placeholder="Enter project responsible"
+            required
+          />
+        </div>
+        <div>
+          <Label htmlFor={id("dateOfReporting")}>Date of Reporting *</Label>
+          <Input
+            id={id("dateOfReporting")}
+            type="date"
+            value={formData.dateOfReporting}
+            onChange={setField("dateOfReporting")}
+            required
+          />
+        </div>
+        <div>
+          <Label htmlFor={id("reportedBy")}>Reported By *</Label>
+          <Input
+            id={id("reportedBy")}
+            value={formData.reportedBy}
+            onChange={setField("reportedBy")}
+            placeholder="Enter reported by"
+            required
+          />
+        </div>
+        <div>
+          <Label htmlFor={id("natureOfIssue")}>Nature of Issue *</Label>
+          {renderSelect(
+            id("natureOfIssue"),
+            "natureOfIssue",
+            natureOfIssueOptions,
+            "Select nature of issue"
+          )}
+        </div>
+        <div>
+          <Label htmlFor={id("status")}>Case Status</Label>
+          {renderSelect(id("status"), "status", statusOptions, "Select status")}
+        </div>
+        <div>
+          <Label htmlFor={id("priority")}>Priority</Label>
+          {renderSelect(
+            id("priority"),
+            "priority",
+            priorityOptions,
+            "Select priority"
+          )}
+        </div>
+        <div>
+          <Label htmlFor={id("followUpDate")}>Follow-up Date</Label>
+          <Input
+            id={id("followUpDate")}
+            type="date"
+            value={formData.followUpDate}
+            onChange={setField("followUpDate")}
+          />
+        </div>
+        <div className="flex items-center gap-2 md:col-span-2">
+          <Checkbox
+            id={id("followUpRequired")}
+            checked={Boolean(formData.followUpRequired)}
+            onCheckedChange={(checked) =>
+              setFormData((prev) => ({
+                ...prev,
+                followUpRequired: checked === true,
+              }))
+            }
+          />
+          <Label htmlFor={id("followUpRequired")}>
+            Follow-up required (date defaults to 7 days ahead if left blank)
+          </Label>
+        </div>
+        <div className="md:col-span-2">
+          <Label htmlFor={id("actionPlan")}>Action Plan *</Label>
+          <Textarea
+            id={id("actionPlan")}
+            value={formData.actionPlan}
+            onChange={setField("actionPlan")}
+            placeholder="Enter action plan"
+            rows={3}
+            required
+          />
+        </div>
+        <div className="md:col-span-2">
+          <Label htmlFor={id("remarks")}>Remarks</Label>
+          <Textarea
+            id={id("remarks")}
+            value={formData.remarks}
+            onChange={setField("remarks")}
+            placeholder="Enter remarks"
+            rows={2}
+          />
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -449,100 +610,36 @@ const LegalAid = () => {
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden lg:ml-0">
-        {/* Header */}
-        <header className="bg-background shadow-sm border-b border-border">
-          <div className="flex items-center justify-between px-6 py-4">
-            <div className="flex items-center space-x-4">
+        <ModulePageHeader
+          icon={Scale}
+          accent="text-purple-600"
+          title="Legal Aid Services"
+          subtitle="Legal assistance cases: issue, priority, action plan and follow-up"
+          onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
+          actions={
+            canCreate("socialJustice") && (
               <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setSidebarOpen(!sidebarOpen)}
-                className="lg:hidden"
+                onClick={() => {
+                  resetForm();
+                  setIsCreateModalOpen(true);
+                }}
               >
-                <Menu className="h-6 w-6" />
-              </Button>
-              <div className="flex items-center space-x-2">
-                <Scale className="h-6 w-6 text-purple-600" />
-                <h1 className="text-2xl font-bold text-foreground">
-                  Legal Aid Services
-                </h1>
-              </div>
-            </div>
-            {canCreate("socialJustice") && (
-              <Button onClick={() => setIsCreateModalOpen(true)}>
                 <Plus className="h-4 w-4 mr-2" />
                 Add Legal Case
               </Button>
-            )}
-          </div>
-        </header>
+            )
+          }
+        />
 
         {/* Scrollable Content */}
         <div className="flex-1 overflow-y-auto">
           <div className="container mx-auto p-6 space-y-6">
-            {/* Bulk Import Card */}
             {canCreate("socialJustice") && (
-              <Card className="border border-muted bg-card shadow-sm">
-                <CardContent className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4">
-                  <div className="space-y-1">
-                    <h3 className="font-semibold text-foreground flex items-center gap-2">
-                      <FileSpreadsheet className="h-5 w-5 text-green-600" />
-                      Bulk Import Legal Aid Cases
-                    </h3>
-                    <p className="text-xs text-muted-foreground">
-                      Download the template, fill it in, and upload it to import records in bulk.
-                    </p>
-                  </div>
-                  <ExcelBulkImportButton
-                    label="Import Excel"
-                    description=""
-                    templateFields={[
-                      { label: "Household Code", key: "householdCode" },
-                      { label: "Unique ID", key: "uniqueId" },
-                      { label: "Name", key: "name" },
-                      { label: "Gender", key: "gender", options: ["Male", "Female", "Other"] },
-                      { label: "Age", key: "age" },
-                      { label: "Contact Number", key: "contactNo" },
-                      { label: "Head of Household", key: "headOfHousehold" },
-                      { label: "Ward Number", key: "wardNo" },
-                      { label: "Habitation", key: "habitation" },
-                      { label: "Project Responsible", key: "projectResponsible" },
-                      { label: "Date of Reporting", key: "dateOfReporting" },
-                      { label: "Reported By", key: "reportedBy" },
-                      { label: "Nature of Issue", key: "natureOfIssue", options: ["Property Dispute", "Family Dispute", "Domestic Violence", "Labor Rights", "Consumer Rights", "Land Rights", "Government Benefits", "Legal Documentation", "Criminal Case", "Civil Case", "Other"] },
-                      { label: "Case Status", key: "status", options: ["Pending", "In Progress", "Resolved", "Closed", "Referred"] },
-                      { label: "Priority", key: "priority", options: ["Low", "Medium", "High", "Urgent"] },
-                      { label: "Action Plan", key: "actionPlan" },
-                      { label: "Remarks", key: "remarks" },
-                      { label: "Follow-up Required", key: "followUpRequired" },
-                      { label: "Follow-up Date", key: "followUpDate" },
-                    ]}
-                    sampleRow={{
-                      householdCode: "HH-002",
-                      uniqueId: "LA-001",
-                      name: "Ravi",
-                      gender: "Male",
-                      age: "36",
-                      contactNo: "9876543210",
-                      headOfHousehold: "Ravi",
-                      wardNo: "5",
-                      habitation: "North Colony",
-                      projectResponsible: "Case Worker",
-                      dateOfReporting: "2026-02-01",
-                      reportedBy: "Volunteer",
-                      natureOfIssue: "Property Dispute",
-                      status: "Pending",
-                      priority: "Medium",
-                      actionPlan: "Collect documents and draft notice",
-                      remarks: "",
-                      followUpRequired: true,
-                      followUpDate: "2026-02-10",
-                    }}
-                    createRecord={createLegalAidRecord}
-                    onImported={fetchLegalAidServices}
-                  />
-                </CardContent>
-              </Card>
+              <ExcelImportPanel
+                template={legalAidImportTemplate}
+                createRecord={legalAidServiceAPI.create}
+                onImported={fetchLegalAidServices}
+              />
             )}
 
             <GuidelinesCard
@@ -571,6 +668,7 @@ const LegalAid = () => {
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
                       placeholder="Search cases..."
+                      aria-label="Search cases"
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
                       className="pl-10"
@@ -582,7 +680,7 @@ const LegalAid = () => {
                       setFilters({ ...filters, status: value })
                     }
                   >
-                    <SelectTrigger>
+                    <SelectTrigger aria-label="Filter by status">
                       <SelectValue placeholder="Filter by status" />
                     </SelectTrigger>
                     <SelectContent>
@@ -600,12 +698,12 @@ const LegalAid = () => {
                       setFilters({ ...filters, caseType: value })
                     }
                   >
-                    <SelectTrigger>
+                    <SelectTrigger aria-label="Filter by nature of issue">
                       <SelectValue placeholder="Filter by case type" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">All Case Types</SelectItem>
-                      {caseTypes.map((type) => (
+                      {natureOfIssueOptions.map((type) => (
                         <SelectItem key={type} value={type}>
                           {type}
                         </SelectItem>
@@ -625,185 +723,142 @@ const LegalAid = () => {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                {loading ? (
-                  <div className="flex justify-center items-center h-64">
-                    <RefreshCw className="h-8 w-8 animate-spin" />
-                  </div>
-                ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Case ID</TableHead>
-                        <TableHead>Client Name</TableHead>
-                        <TableHead>Case Type</TableHead>
-                        <TableHead>Registration Date</TableHead>
-                        <TableHead>Next Hearing</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead>Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {Array.isArray(legalAidServices) &&
-                      legalAidServices.length > 0 ? (
-                        legalAidServices.map((service) => (
-                          <TableRow key={service._id}>
-                            <TableCell className="font-medium">
-                              {service.uniqueId || service.householdCode || "-"}
-                            </TableCell>
-                            <TableCell>
-                              <div>
-                                <div className="font-medium">
-                                  {service.name}
-                                </div>
-                                <div className="text-sm text-muted-foreground flex items-center">
-                                  <Phone className="mr-1 h-3 w-3" />
-                                  {service.contactNo || "-"}
-                                </div>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Case ID</TableHead>
+                      <TableHead>Client Name</TableHead>
+                      <TableHead>Case Type</TableHead>
+                      <TableHead>Date of Reporting</TableHead>
+                      <TableHead>Follow-up</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {tableState({
+                      loading,
+                      count: legalAidServices.length,
+                      colSpan: 7,
+                      filtered: hasFilters,
+                    }) ||
+                      legalAidServices.map((service) => (
+                        <TableRow key={service._id}>
+                          <TableCell className="font-medium">
+                            {service.uniqueId || service.householdCode || "-"}
+                          </TableCell>
+                          <TableCell>
+                            <div>
+                              <div className="font-medium">{service.name}</div>
+                              <div className="text-sm text-muted-foreground flex items-center">
+                                <Phone className="mr-1 h-3 w-3" />
+                                {service.contactNo || "-"}
                               </div>
-                            </TableCell>
-                            <TableCell>
-                              <Badge variant="outline">
-                                {service.natureOfIssue}
-                              </Badge>
-                            </TableCell>
-                            <TableCell>
-                              <div className="flex items-center text-sm">
-                                <Calendar className="mr-1 h-3 w-3" />
-                                {service.dateOfReporting
-                                  ? new Date(
-                                      service.dateOfReporting
-                                    ).toLocaleDateString()
-                                  : "N/A"}
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              <div className="flex items-center text-sm">
-                                <Calendar className="mr-1 h-3 w-3" />
-                                {service.followUpDate
-                                  ? new Date(
-                                      service.followUpDate
-                                    ).toLocaleDateString()
-                                  : "Not scheduled"}
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              <Badge
-                                className={getStatusColor(service.status)}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline">
+                              {service.natureOfIssue}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center text-sm">
+                              <Calendar className="mr-1 h-3 w-3" />
+                              {formatDate(service.dateOfReporting, "N/A")}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center text-sm">
+                              <Calendar className="mr-1 h-3 w-3" />
+                              {formatDate(service.followUpDate, "Not scheduled")}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex flex-col items-start gap-1">
+                              <StatusBadge value={service.status || "Pending"} />
+                              {service.priority && (
+                                <StatusBadge
+                                  value={`${service.priority} priority`}
+                                  tone={
+                                    service.priority === "Urgent" ||
+                                    service.priority === "High"
+                                      ? "danger"
+                                      : service.priority === "Medium"
+                                      ? "warning"
+                                      : "neutral"
+                                  }
+                                  className="text-xs"
+                                />
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center space-x-2">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                aria-label={`View case ${service.uniqueId || service.name}`}
+                                onClick={() => {
+                                  setSelectedService(service);
+                                  setIsViewModalOpen(true);
+                                }}
                               >
-                                {getStatusIcon(service.status)}
-                                <span className="ml-1">
-                                  {service.status || "Pending"}
-                                </span>
-                              </Badge>
-                            </TableCell>
-                            <TableCell>
-                              <div className="flex items-center space-x-2">
+                                <Eye className="h-4 w-4" />
+                              </Button>
+                              {canEdit("socialJustice") && (
                                 <Button
                                   variant="ghost"
                                   size="sm"
-                                  onClick={() => {
-                                    setSelectedService(service);
-                                    setIsViewModalOpen(true);
-                                  }}
+                                  aria-label={`Edit case ${service.uniqueId || service.name}`}
+                                  onClick={() => openEdit(service)}
                                 >
-                                  <Eye className="h-4 w-4" />
+                                  <Edit className="h-4 w-4" />
                                 </Button>
-                                {canEdit("socialJustice") && (
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => {
-                                      setSelectedService(service);
-                                      setFormData({
-                                        householdCode:
-                                          service.householdCode || "",
-                                        uniqueId: service.uniqueId || "",
-                                        name: service.name || "",
-                                        headOfHousehold:
-                                          service.headOfHousehold || "",
-                                        contactNo: service.contactNo || "",
-                                        projectResponsible:
-                                          service.projectResponsible || "",
-                                        dateOfReporting: service.dateOfReporting
-                                          ? service.dateOfReporting.split("T")[0]
-                                          : "",
-                                        reportedBy: service.reportedBy || "",
-                                        natureOfIssue:
-                                          service.natureOfIssue || "",
-                                        actionPlan: service.actionPlan || "",
-                                        status: service.status || "Pending",
-                                        priority: service.priority || "Medium",
-                                        age: service.age || "",
-                                        gender: service.gender || "",
-                                        wardNo: service.wardNo || "",
-                                        habitation: service.habitation || "",
-                                        remarks: service.remarks || "",
-                                        followUpRequired:
-                                          service.followUpRequired || false,
-                                        followUpDate: service.followUpDate
-                                          ? service.followUpDate.split("T")[0]
-                                          : "",
-                                      });
-                                      setIsEditModalOpen(true);
-                                    }}
-                                  >
-                                    <Edit className="h-4 w-4" />
-                                  </Button>
-                                )}
-                                {canDelete("socialJustice") && (
-                                  <AlertDialog>
-                                    <AlertDialogTrigger asChild>
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        className="text-red-600 hover:text-red-700"
+                              )}
+                              {canDelete("socialJustice") && (
+                                <AlertDialog>
+                                  <AlertDialogTrigger asChild>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      aria-label={`Delete case ${service.uniqueId || service.name}`}
+                                      className="text-red-600 hover:text-red-700"
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  </AlertDialogTrigger>
+                                  <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                      <AlertDialogTitle>
+                                        Are you sure?
+                                      </AlertDialogTitle>
+                                      <AlertDialogDescription>
+                                        This action cannot be undone. This will
+                                        permanently delete the legal aid case.
+                                      </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                      <AlertDialogCancel>
+                                        Cancel
+                                      </AlertDialogCancel>
+                                      <AlertDialogAction
+                                        onClick={() =>
+                                          handleDelete(service._id)
+                                        }
+                                        className="bg-red-600 hover:bg-red-700"
                                       >
-                                        <Trash2 className="h-4 w-4" />
-                                      </Button>
-                                    </AlertDialogTrigger>
-                                    <AlertDialogContent>
-                                      <AlertDialogHeader>
-                                        <AlertDialogTitle>
-                                          Are you sure?
-                                        </AlertDialogTitle>
-                                        <AlertDialogDescription>
-                                          This action cannot be undone. This will
-                                          permanently delete the legal aid case.
-                                        </AlertDialogDescription>
-                                      </AlertDialogHeader>
-                                      <AlertDialogFooter>
-                                        <AlertDialogCancel>
-                                          Cancel
-                                        </AlertDialogCancel>
-                                        <AlertDialogAction
-                                          onClick={() =>
-                                            handleDelete(service._id)
-                                          }
-                                          className="bg-red-600 hover:bg-red-700"
-                                        >
-                                          Delete
-                                        </AlertDialogAction>
-                                      </AlertDialogFooter>
-                                    </AlertDialogContent>
-                                  </AlertDialog>
-                                )}
-                              </div>
-                            </TableCell>
-                          </TableRow>
-                        ))
-                      ) : (
-                        <TableRow>
-                          <TableCell colSpan={7} className="text-center py-8">
-                            <div className="flex flex-col items-center justify-center text-muted-foreground">
-                              <Scale className="h-8 w-8 mb-2" />
-                              <p>No legal aid cases found</p>
+                                        Delete
+                                      </AlertDialogAction>
+                                    </AlertDialogFooter>
+                                  </AlertDialogContent>
+                                </AlertDialog>
+                              )}
                             </div>
                           </TableCell>
                         </TableRow>
-                      )}
-                    </TableBody>
-                  </Table>
-                )}
+                      ))}
+                  </TableBody>
+                </Table>
 
                 {/* Pagination */}
                 {pagination.pages > 1 && (
@@ -857,260 +912,7 @@ const LegalAid = () => {
                   </DialogDescription>
                 </DialogHeader>
                 <form onSubmit={handleSubmit} className="space-y-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor="householdCode">Household Code *</Label>
-                      <Input
-                        id="householdCode"
-                        value={formData.householdCode}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            householdCode: e.target.value,
-                          })
-                        }
-                        placeholder="Enter household code"
-                        required
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="uniqueId">Unique ID *</Label>
-                      <Input
-                        id="uniqueId"
-                        value={formData.uniqueId}
-                        onChange={(e) =>
-                          setFormData({ ...formData, uniqueId: e.target.value })
-                        }
-                        placeholder="Enter unique ID"
-                        required
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="name">Name *</Label>
-                      <Input
-                        id="name"
-                        value={formData.name}
-                        onChange={(e) =>
-                          setFormData({ ...formData, name: e.target.value })
-                        }
-                        placeholder="Enter name"
-                        required
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="gender">Gender *</Label>
-                      <Select
-                        value={formData.gender}
-                        onValueChange={(value) =>
-                          setFormData({ ...formData, gender: value })
-                        }
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select gender" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {genderOptions.map((gender) => (
-                            <SelectItem key={gender} value={gender}>
-                              {gender}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <Label htmlFor="age">Age *</Label>
-                      <Input
-                        id="age"
-                        type="number"
-                        min="0"
-                        max="120"
-                        value={formData.age}
-                        onChange={(e) =>
-                          setFormData({ ...formData, age: e.target.value })
-                        }
-                        placeholder="Enter age"
-                        required
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="contactNo">Contact Number</Label>
-                      <Input
-                        id="contactNo"
-                        value={formData.contactNo}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            contactNo: e.target.value,
-                          })
-                        }
-                        placeholder="Enter contact number"
-                        pattern="[6-9][0-9]{9}"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="headOfHousehold">
-                        Head of Household *
-                      </Label>
-                      <Input
-                        id="headOfHousehold"
-                        value={formData.headOfHousehold}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            headOfHousehold: e.target.value,
-                          })
-                        }
-                        placeholder="Enter head of household"
-                        required
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="wardNo">Ward Number *</Label>
-                      <WardCombobox
-                        id="wardNo"
-                        value={formData.wardNo}
-                        onChange={(value) =>
-                          setFormData({ ...formData, wardNo: value })
-                        }
-                        options={wardOptions}
-                        placeholder="Select ward"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="habitation">Habitation *</Label>
-                      <Input
-                        id="habitation"
-                        value={formData.habitation}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            habitation: e.target.value,
-                          })
-                        }
-                        placeholder="Enter habitation"
-                        required
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="projectResponsible">
-                        Project Responsible *
-                      </Label>
-                      <Input
-                        id="projectResponsible"
-                        value={formData.projectResponsible}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            projectResponsible: e.target.value,
-                          })
-                        }
-                        placeholder="Enter project responsible"
-                        required
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="dateOfReporting">
-                        Date of Reporting *
-                      </Label>
-                      <Input
-                        id="dateOfReporting"
-                        type="date"
-                        value={formData.dateOfReporting}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            dateOfReporting: e.target.value,
-                          })
-                        }
-                        required
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="reportedBy">Reported By *</Label>
-                      <Input
-                        id="reportedBy"
-                        value={formData.reportedBy}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            reportedBy: e.target.value,
-                          })
-                        }
-                        placeholder="Enter reported by"
-                        required
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="natureOfIssue">Nature of Issue *</Label>
-                      <Select
-                        value={formData.natureOfIssue}
-                        onValueChange={(value) =>
-                          setFormData({ ...formData, natureOfIssue: value })
-                        }
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select nature of issue" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {natureOfIssueOptions.map((issue) => (
-                            <SelectItem key={issue} value={issue}>
-                              {issue}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <Label htmlFor="status">Case Status</Label>
-                      <Select
-                        value={formData.status}
-                        onValueChange={(value) =>
-                          setFormData({ ...formData, status: value })
-                        }
-                      >
-                        <SelectTrigger id="status">
-                          <SelectValue placeholder="Select status" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {statusOptions.map((status) => (
-                            <SelectItem key={status} value={status}>
-                              {status}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="md:col-span-2">
-                      <Label htmlFor="actionPlan">Action Plan *</Label>
-                      <Input
-                        id="actionPlan"
-                        value={formData.actionPlan}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            actionPlan: e.target.value,
-                          })
-                        }
-                        placeholder="Enter action plan"
-                        required
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="followUpDate">Follow-up Date</Label>
-                      <Input
-                        id="followUpDate"
-                        type="date"
-                        value={formData.followUpDate}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            followUpDate: e.target.value,
-                          })
-                        }
-                      />
-                    </div>
-                  </div>
-
+                  {renderFormFields("")}
                   <DialogFooter>
                     <Button
                       type="button"
@@ -1135,40 +937,7 @@ const LegalAid = () => {
                   </DialogDescription>
                 </DialogHeader>
                 <form onSubmit={handleSubmit} className="space-y-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor="edit-status">Case Status</Label>
-                      <Select
-                        value={formData.status}
-                        onValueChange={(value) =>
-                          setFormData({ ...formData, status: value })
-                        }
-                      >
-                        <SelectTrigger id="edit-status">
-                          <SelectValue placeholder="Select case status" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {statusOptions.map((status) => (
-                            <SelectItem key={status} value={status}>
-                              {status}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <Label htmlFor="edit-followUpDate">Follow-up Date</Label>
-                      <Input
-                        id="edit-followUpDate"
-                        type="date"
-                        value={formData.followUpDate || ""}
-                        onChange={(e) =>
-                          setFormData({ ...formData, followUpDate: e.target.value })
-                        }
-                      />
-                    </div>
-                  </div>
-
+                  {renderFormFields("edit-")}
                   <DialogFooter>
                     <Button
                       type="button"
@@ -1216,9 +985,11 @@ const LegalAid = () => {
                         </div>
                         <div>
                           <Label className="font-semibold">Gender</Label>
-                          <Badge variant="outline">
-                            {selectedService.gender}
-                          </Badge>
+                          <div>
+                            <Badge variant="outline">
+                              {selectedService.gender}
+                            </Badge>
+                          </div>
                         </div>
                         <div>
                           <Label className="font-semibold">Age</Label>
@@ -1228,7 +999,7 @@ const LegalAid = () => {
                           <Label className="font-semibold">
                             Contact Number
                           </Label>
-                          <p>{selectedService.contactNo}</p>
+                          <p>{selectedService.contactNo || "N/A"}</p>
                         </div>
                         <div>
                           <Label className="font-semibold">
@@ -1238,7 +1009,7 @@ const LegalAid = () => {
                         </div>
                         <div>
                           <Label className="font-semibold">Ward No</Label>
-                          <p>{selectedService.wardNo}</p>
+                          <p>{formatWard(selectedService.wardNo)}</p>
                         </div>
                         <div>
                           <Label className="font-semibold">Habitation</Label>
@@ -1263,13 +1034,7 @@ const LegalAid = () => {
                           <Label className="font-semibold">
                             Date of Reporting
                           </Label>
-                          <p>
-                            {selectedService.dateOfReporting
-                              ? new Date(
-                                  selectedService.dateOfReporting
-                                ).toLocaleDateString()
-                              : "N/A"}
-                          </p>
+                          <p>{formatDate(selectedService.dateOfReporting, "N/A")}</p>
                         </div>
                         <div>
                           <Label className="font-semibold">Reported By</Label>
@@ -1283,16 +1048,26 @@ const LegalAid = () => {
                       <h3 className="text-lg font-semibold border-b pb-2">
                         Case Details
                       </h3>
-                      {selectedService.natureOfIssue && (
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div>
                           <Label className="font-semibold">
                             Nature of Issue
                           </Label>
-                          <p className="mt-1 text-sm text-muted-foreground">
-                            {selectedService.natureOfIssue}
-                          </p>
+                          <p>{selectedService.natureOfIssue || "N/A"}</p>
                         </div>
-                      )}
+                        <div>
+                          <Label className="font-semibold">Case Status</Label>
+                          <div>
+                            <StatusBadge value={selectedService.status} />
+                          </div>
+                        </div>
+                        <div>
+                          <Label className="font-semibold">Priority</Label>
+                          <div>
+                            <StatusBadge value={selectedService.priority} />
+                          </div>
+                        </div>
+                      </div>
                       {selectedService.actionPlan && (
                         <div>
                           <Label className="font-semibold">Action Plan</Label>
@@ -1321,26 +1096,24 @@ const LegalAid = () => {
                           <Label className="font-semibold">
                             Follow-up Required
                           </Label>
-                          <Badge
-                            variant={
-                              selectedService.followUpRequired
-                                ? "default"
-                                : "secondary"
-                            }
-                          >
-                            {selectedService.followUpRequired ? "Yes" : "No"}
-                          </Badge>
+                          <div>
+                            <Badge
+                              variant={
+                                selectedService.followUpRequired
+                                  ? "default"
+                                  : "secondary"
+                              }
+                            >
+                              {selectedService.followUpRequired ? "Yes" : "No"}
+                            </Badge>
+                          </div>
                         </div>
                         {selectedService.followUpDate && (
                           <div>
                             <Label className="font-semibold">
                               Follow-up Date
                             </Label>
-                            <p>
-                              {new Date(
-                                selectedService.followUpDate
-                              ).toLocaleDateString()}
-                            </p>
+                            <p>{formatDate(selectedService.followUpDate)}</p>
                           </div>
                         )}
                       </div>
@@ -1362,6 +1135,3 @@ const LegalAid = () => {
 };
 
 export default LegalAid;
-
-
-

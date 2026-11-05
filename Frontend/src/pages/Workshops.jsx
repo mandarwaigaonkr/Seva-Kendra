@@ -48,23 +48,14 @@ import {
 import { Badge } from "@/components/ui/badge";
 import {
   Users,
-  FileSpreadsheet,
   Plus,
   Search,
   Filter,
   Edit,
   Trash2,
   Eye,
-  RefreshCw,
-  Menu,
   Calendar,
-  MapPin,
-  CheckCircle,
-  Clock,
-  AlertCircle,
   User,
-  BookOpen,
-  Target,
   Check,
   ChevronsUpDown,
 } from "lucide-react";
@@ -87,7 +78,17 @@ import Sidebar from "../components/Sidebar";
 import usePermissions from "../hooks/usePermissions";
 import { getWardOptions } from "../lib/formOptions";
 import GuidelinesCard from "../components/GuidelinesCard";
-import ExcelBulkImportButton from "../components/ExcelBulkImportButton";
+import ExcelImportPanel from "../components/ExcelImportPanel";
+import workshopsImportTemplate, {
+  WORKSHOP_GROUP_TYPES,
+} from "../lib/excelImport/templates/workshopsAwareness";
+import {
+  ModulePageHeader,
+  tableState,
+  formatWard,
+  formatDate,
+  toDateInput,
+} from "../components/module/ModuleKit";
 
 const WardCombobox = ({ id, value, onChange, options, placeholder }) => {
   const [open, setOpen] = useState(false);
@@ -104,7 +105,7 @@ const WardCombobox = ({ id, value, onChange, options, placeholder }) => {
           aria-controls={`${id}-list`}
           className="h-9 w-full justify-between bg-input px-3 text-left text-sm font-normal text-foreground"
         >
-          {selectedWard ? selectedWard.label : placeholder}
+          {selectedWard ? selectedWard.label : value || placeholder}
           <ChevronsUpDown className="ml-2 h-4 w-4 opacity-50 shrink-0" />
         </Button>
       </PopoverTrigger>
@@ -151,9 +152,27 @@ const WardCombobox = ({ id, value, onChange, options, placeholder }) => {
   );
 };
 
+const emptyForm = () => ({
+  groupId: "",
+  groupName: "",
+  groupType: "",
+  wardNo: "",
+  habitation: "",
+  projectResponsible: "",
+  topic: "",
+  dateOfTraining: "",
+  resourcePerson: "",
+  profileOfResourcePerson: "",
+  agenda: "",
+  totalParticipants: "",
+  outcome: "",
+});
+
 const Workshops = () => {
   const wardOptions = getWardOptions();
-  const { canCreate, canEdit, canDelete, canExport } = usePermissions();
+  const { canCreate, canEdit, canDelete } = usePermissions();
+  const groupTypes = WORKSHOP_GROUP_TYPES;
+
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [workshops, setWorkshops] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -171,43 +190,9 @@ const Workshops = () => {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
-  const [formData, setFormData] = useState({
-    groupId: "",
-    groupName: "",
-    groupType: "",
-    wardNo: "",
-    habitation: "",
-    projectResponsible: "",
-    topic: "",
-    dateOfTraining: "",
-    resourcePerson: "",
-    profileOfResourcePerson: "",
-    agenda: "",
-    totalParticipants: "",
-    outcome: "",
-  });
+  const [formData, setFormData] = useState(emptyForm());
 
-  const groupTypes = [
-    "CBUCBO",
-    "SHG",
-    "Youth Group",
-    "Women Group",
-    "Community Group",
-    "Farmer Group",
-    "Farmer Producer Group",
-    "Student Group",
-    "Other",
-  ];
-
-  const createWorkshopRecord = async (data) => {
-    const payload = { ...data };
-    if (payload.groupType && payload.groupType.trim().toLowerCase() === "farmer producer group") {
-      payload.groupType = "Farmer Group";
-    }
-    return workshopsAwarenessAPI.create(payload);
-  };
-
-  const statusOptions = ["Planned", "Completed", "Cancelled", "Postponed"];
+  const hasFilters = Boolean(searchTerm) || filters.groupType !== "all";
 
   // Fetch workshops
   const fetchWorkshops = async () => {
@@ -269,13 +254,24 @@ const Workshops = () => {
   // Handle form submission
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!formData.groupType || !formData.wardNo) {
+      toast.error("Please select a Group Type and Ward");
+      return;
+    }
     try {
+      const payload = {
+        ...formData,
+        totalParticipants:
+          formData.totalParticipants === ""
+            ? ""
+            : Number(formData.totalParticipants),
+      };
       if (selectedWorkshop) {
-        await workshopsAwarenessAPI.update(selectedWorkshop._id, formData);
+        await workshopsAwarenessAPI.update(selectedWorkshop._id, payload);
         toast.success("Workshop updated successfully");
         setIsEditModalOpen(false);
       } else {
-        await workshopsAwarenessAPI.create(formData);
+        await workshopsAwarenessAPI.create(payload);
         toast.success("Workshop created successfully");
         setIsCreateModalOpen(false);
       }
@@ -293,21 +289,7 @@ const Workshops = () => {
 
   // Reset form
   const resetForm = () => {
-    setFormData({
-      groupId: "",
-      groupName: "",
-      groupType: "",
-      wardNo: "",
-      habitation: "",
-      projectResponsible: "",
-      topic: "",
-      dateOfTraining: "",
-      resourcePerson: "",
-      profileOfResourcePerson: "",
-      agenda: "",
-      totalParticipants: "",
-      outcome: "",
-    });
+    setFormData(emptyForm());
     setSelectedWorkshop(null);
   };
 
@@ -323,6 +305,195 @@ const Workshops = () => {
     }
   };
 
+  const openEdit = (workshop) => {
+    setSelectedWorkshop(workshop);
+    setFormData({
+      groupId: workshop.groupId || "",
+      groupName: workshop.groupName || "",
+      groupType: workshop.groupType || "",
+      wardNo: workshop.wardNo || "",
+      habitation: workshop.habitation || "",
+      projectResponsible: workshop.projectResponsible || "",
+      topic: workshop.topic || "",
+      dateOfTraining: toDateInput(workshop.dateOfTraining),
+      resourcePerson: workshop.resourcePerson || "",
+      profileOfResourcePerson: workshop.profileOfResourcePerson || "",
+      agenda: workshop.agenda || "",
+      totalParticipants: workshop.totalParticipants ?? "",
+      outcome: workshop.outcome || "",
+    });
+    setIsEditModalOpen(true);
+  };
+
+  const setField = (key) => (e) =>
+    setFormData((prev) => ({ ...prev, [key]: e.target.value }));
+
+  // Shared create / edit fields — mirror workshopsAwareness.model.js (every field is required)
+  const renderFormFields = (prefix) => {
+    const id = (name) => `${prefix}${name}`;
+    return (
+      <>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <Label htmlFor={id("groupId")}>Group ID *</Label>
+            <Input
+              id={id("groupId")}
+              value={formData.groupId}
+              onChange={setField("groupId")}
+              placeholder="e.g. CBO-001"
+              required
+            />
+          </div>
+          <div>
+            <Label htmlFor={id("groupName")}>Group Name *</Label>
+            <Input
+              id={id("groupName")}
+              value={formData.groupName}
+              onChange={setField("groupName")}
+              placeholder="Enter group name"
+              required
+            />
+          </div>
+          <div>
+            <Label htmlFor={id("groupType")}>Group Type *</Label>
+            <Select
+              value={formData.groupType}
+              onValueChange={(value) =>
+                setFormData((prev) => ({ ...prev, groupType: value }))
+              }
+            >
+              <SelectTrigger id={id("groupType")}>
+                <SelectValue placeholder="Select group type" />
+              </SelectTrigger>
+              <SelectContent>
+                {groupTypes.map((type) => (
+                  <SelectItem key={type} value={type}>
+                    {type}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label htmlFor={id("wardNo")}>Ward No *</Label>
+            <WardCombobox
+              id={id("wardNo")}
+              value={formData.wardNo}
+              onChange={(value) =>
+                setFormData((prev) => ({ ...prev, wardNo: value }))
+              }
+              options={wardOptions}
+              placeholder="Select ward"
+            />
+          </div>
+          <div>
+            <Label htmlFor={id("habitation")}>Habitation *</Label>
+            <Input
+              id={id("habitation")}
+              value={formData.habitation}
+              onChange={setField("habitation")}
+              placeholder="Enter habitation"
+              required
+            />
+          </div>
+          <div>
+            <Label htmlFor={id("projectResponsible")}>
+              Project Responsible *
+            </Label>
+            <Input
+              id={id("projectResponsible")}
+              value={formData.projectResponsible}
+              onChange={setField("projectResponsible")}
+              placeholder="Enter project responsible"
+              required
+            />
+          </div>
+          <div>
+            <Label htmlFor={id("topic")}>Topic *</Label>
+            <Input
+              id={id("topic")}
+              value={formData.topic}
+              onChange={setField("topic")}
+              placeholder="Enter training topic"
+              required
+            />
+          </div>
+          <div>
+            <Label htmlFor={id("dateOfTraining")}>Date of Training *</Label>
+            <Input
+              id={id("dateOfTraining")}
+              type="date"
+              value={formData.dateOfTraining}
+              onChange={setField("dateOfTraining")}
+              required
+            />
+          </div>
+          <div>
+            <Label htmlFor={id("resourcePerson")}>Resource Person *</Label>
+            <Input
+              id={id("resourcePerson")}
+              value={formData.resourcePerson}
+              onChange={setField("resourcePerson")}
+              placeholder="Enter resource person name"
+              required
+            />
+          </div>
+          <div>
+            <Label htmlFor={id("profileOfResourcePerson")}>
+              Profile of Resource Person *
+            </Label>
+            <Input
+              id={id("profileOfResourcePerson")}
+              value={formData.profileOfResourcePerson}
+              onChange={setField("profileOfResourcePerson")}
+              placeholder="Enter resource person profile"
+              required
+            />
+          </div>
+          <div>
+            <Label htmlFor={id("totalParticipants")}>
+              Total Participants *
+            </Label>
+            <Input
+              id={id("totalParticipants")}
+              type="number"
+              min="1"
+              step="1"
+              value={formData.totalParticipants}
+              onChange={setField("totalParticipants")}
+              placeholder="Enter total participants"
+              required
+            />
+          </div>
+        </div>
+
+        <div>
+          <Label htmlFor={id("agenda")}>Agenda *</Label>
+          <Textarea
+            id={id("agenda")}
+            value={formData.agenda}
+            onChange={setField("agenda")}
+            placeholder="Enter training agenda"
+            rows={3}
+            required
+          />
+        </div>
+
+        <div>
+          <Label htmlFor={id("outcome")}>Outcome *</Label>
+          <Textarea
+            id={id("outcome")}
+            value={formData.outcome}
+            onChange={setField("outcome")}
+            placeholder="Enter training outcome"
+            rows={3}
+            required
+          />
+        </div>
+      </>
+    );
+  };
+
   return (
     <div className="flex h-screen bg-secondary">
       {/* Sidebar */}
@@ -334,88 +505,36 @@ const Workshops = () => {
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden lg:ml-0">
-        {/* Header */}
-        <header className="bg-background shadow-sm border-b border-border">
-          <div className="flex items-center justify-between px-6 py-4">
-            <div className="flex items-center space-x-4">
+        <ModulePageHeader
+          icon={Users}
+          accent="text-purple-600"
+          title="Workshops & Awareness"
+          subtitle="Trainings and awareness sessions delivered to community groups"
+          onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
+          actions={
+            canCreate("socialJustice") && (
               <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setSidebarOpen(!sidebarOpen)}
-                className="lg:hidden"
+                onClick={() => {
+                  resetForm();
+                  setIsCreateModalOpen(true);
+                }}
               >
-                <Menu className="h-6 w-6" />
-              </Button>
-              <div className="flex items-center space-x-2">
-                <Users className="h-6 w-6 text-purple-600" />
-                <h1 className="text-2xl font-bold text-foreground">
-                  Workshops & Awareness
-                </h1>
-              </div>
-            </div>
-            {canCreate("socialJustice") && (
-              <Button onClick={() => setIsCreateModalOpen(true)}>
                 <Plus className="h-4 w-4 mr-2" />
                 Add Workshop
               </Button>
-            )}
-          </div>
-        </header>
+            )
+          }
+        />
 
         {/* Scrollable Content */}
         <div className="flex-1 overflow-y-auto bg-background">
           <div className="container mx-auto p-6 space-y-6">
-            {/* Bulk Import Card */}
             {canCreate("socialJustice") && (
-              <Card className="border border-muted bg-card shadow-sm">
-                <CardContent className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4">
-                  <div className="space-y-1">
-                    <h3 className="font-semibold text-foreground flex items-center gap-2">
-                      <FileSpreadsheet className="h-5 w-5 text-green-600" />
-                      Bulk Import Workshops
-                    </h3>
-                    <p className="text-xs text-muted-foreground">
-                      Download the template, fill it in, and upload it to import records in bulk.
-                    </p>
-                  </div>
-                  <ExcelBulkImportButton
-                    label="Import Excel"
-                    description=""
-                    templateFields={[
-                      { label: "Group ID", key: "groupId" },
-                      { label: "Group Name", key: "groupName" },
-                      { label: "Group Type", key: "groupType", options: ["CBUCBO", "SHG", "Youth Group", "Women Group", "Community Group", "Farmer Group", "Farmer Producer Group", "Student Group", "Other"] },
-                      { label: "Ward No", key: "wardNo" },
-                      { label: "Habitation", key: "habitation" },
-                      { label: "Project Responsible", key: "projectResponsible" },
-                      { label: "Topic", key: "topic" },
-                      { label: "Date of Training", key: "dateOfTraining" },
-                      { label: "Resource Person", key: "resourcePerson" },
-                      { label: "Profile of Resource Person", key: "profileOfResourcePerson" },
-                      { label: "Agenda", key: "agenda" },
-                      { label: "Total Participants", key: "totalParticipants" },
-                      { label: "Outcome", key: "outcome" },
-                    ]}
-                    sampleRow={{
-                      groupId: "W-001",
-                      groupName: "Youth Awareness Group",
-                      groupType: "Youth Group",
-                      wardNo: "10",
-                      habitation: "West Block",
-                      projectResponsible: "Coordinator",
-                      topic: "Health Awareness",
-                      dateOfTraining: "2026-03-05",
-                      resourcePerson: "Dr. Kumar",
-                      profileOfResourcePerson: "Public health educator",
-                      agenda: "Session on hygiene and nutrition",
-                      totalParticipants: "28",
-                      outcome: "Participants understood the basics",
-                    }}
-                    createRecord={createWorkshopRecord}
-                    onImported={fetchWorkshops}
-                  />
-                </CardContent>
-              </Card>
+              <ExcelImportPanel
+                template={workshopsImportTemplate}
+                createRecord={workshopsAwarenessAPI.create}
+                onImported={fetchWorkshops}
+              />
             )}
 
             <GuidelinesCard
@@ -444,47 +563,30 @@ const Workshops = () => {
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
                       placeholder="Search workshops..."
+                      aria-label="Search workshops"
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
                       className="pl-10"
                     />
                   </div>
-                  {/* <Select
-                    value={filters.status}
+                  <Select
+                    value={filters.groupType}
                     onValueChange={(value) =>
-                      setFilters({ ...filters, status: value })
+                      setFilters({ ...filters, groupType: value })
                     }
                   >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Filter by status" />
+                    <SelectTrigger aria-label="Filter by group type">
+                      <SelectValue placeholder="Filter by group type" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">All Statuses</SelectItem>
-                      {statusOptions.map((status) => (
-                        <SelectItem key={status} value={status}>
-                          {status}
+                      <SelectItem value="all">All Group Types</SelectItem>
+                      {groupTypes.map((type) => (
+                        <SelectItem key={type} value={type}>
+                          {type}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
-                  <Select
-                    value={filters.category}
-                    onValueChange={(value) =>
-                      setFilters({ ...filters, category: value })
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Filter by category" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Categories</SelectItem>
-                      {workshopCategories.map((category) => (
-                        <SelectItem key={category} value={category}>
-                          {category}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select> */}
                 </div>
               </CardContent>
             </Card>
@@ -498,29 +600,33 @@ const Workshops = () => {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                {loading ? (
-                  <div className="flex justify-center items-center h-64">
-                    <RefreshCw className="h-8 w-8 animate-spin" />
-                  </div>
-                ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Group Name</TableHead>
-                        <TableHead>Group Type</TableHead>
-                        <TableHead>Topic</TableHead>
-                        <TableHead>Date</TableHead>
-                        <TableHead>Resource Person</TableHead>
-                        <TableHead>Participants</TableHead>
-                        <TableHead>Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {workshops.map((workshop) => (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Group Name</TableHead>
+                      <TableHead>Group Type</TableHead>
+                      <TableHead>Topic</TableHead>
+                      <TableHead>Date</TableHead>
+                      <TableHead>Resource Person</TableHead>
+                      <TableHead>Participants</TableHead>
+                      <TableHead>Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {tableState({
+                      loading,
+                      count: workshops.length,
+                      colSpan: 7,
+                      filtered: hasFilters,
+                    }) ||
+                      workshops.map((workshop) => (
                         <TableRow key={workshop._id}>
                           <TableCell>
                             <div className="font-medium">
                               {workshop.groupName}
+                            </div>
+                            <div className="text-sm text-muted-foreground">
+                              {formatWard(workshop.wardNo)}
                             </div>
                           </TableCell>
                           <TableCell>
@@ -534,11 +640,7 @@ const Workshops = () => {
                           <TableCell>
                             <div className="flex items-center text-sm">
                               <Calendar className="mr-1 h-3 w-3" />
-                              {workshop.dateOfTraining
-                                ? new Date(
-                                    workshop.dateOfTraining
-                                  ).toLocaleDateString()
-                                : "TBD"}
+                              {formatDate(workshop.dateOfTraining, "TBD")}
                             </div>
                           </TableCell>
                           <TableCell>
@@ -558,6 +660,7 @@ const Workshops = () => {
                               <Button
                                 variant="ghost"
                                 size="sm"
+                                aria-label={`View ${workshop.topic || "workshop"}`}
                                 onClick={() => {
                                   setSelectedWorkshop(workshop);
                                   setIsViewModalOpen(true);
@@ -569,31 +672,8 @@ const Workshops = () => {
                                 <Button
                                   variant="ghost"
                                   size="sm"
-                                  onClick={() => {
-                                    setSelectedWorkshop(workshop);
-                                    setFormData({
-                                      groupId: workshop.groupId || "",
-                                      groupName: workshop.groupName || "",
-                                      groupType: workshop.groupType || "",
-                                      wardNo: workshop.wardNo || "",
-                                      habitation: workshop.habitation || "",
-                                      projectResponsible:
-                                        workshop.projectResponsible || "",
-                                      topic: workshop.topic || "",
-                                      dateOfTraining: workshop.dateOfTraining
-                                        ? workshop.dateOfTraining.split("T")[0]
-                                        : "",
-                                      resourcePerson:
-                                        workshop.resourcePerson || "",
-                                      profileOfResourcePerson:
-                                        workshop.profileOfResourcePerson || "",
-                                      agenda: workshop.agenda || "",
-                                      totalParticipants:
-                                        workshop.totalParticipants || "",
-                                      outcome: workshop.outcome || "",
-                                    });
-                                    setIsEditModalOpen(true);
-                                  }}
+                                  aria-label={`Edit ${workshop.topic || "workshop"}`}
+                                  onClick={() => openEdit(workshop)}
                                 >
                                   <Edit className="h-4 w-4" />
                                 </Button>
@@ -604,6 +684,7 @@ const Workshops = () => {
                                     <Button
                                       variant="ghost"
                                       size="sm"
+                                      aria-label={`Delete ${workshop.topic || "workshop"}`}
                                       className="text-red-600 hover:text-red-700"
                                     >
                                       <Trash2 className="h-4 w-4" />
@@ -637,9 +718,8 @@ const Workshops = () => {
                           </TableCell>
                         </TableRow>
                       ))}
-                    </TableBody>
-                  </Table>
-                )}
+                  </TableBody>
+                </Table>
 
                 {/* Pagination */}
                 {pagination.pages > 1 && (
@@ -694,217 +774,7 @@ const Workshops = () => {
                   </DialogDescription>
                 </DialogHeader>
                 <form onSubmit={handleSubmit} className="space-y-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor="groupId">Group ID *</Label>
-                      <Input
-                        id="groupId"
-                        value={formData.groupId}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            groupId: e.target.value,
-                          })
-                        }
-                        placeholder="Enter group ID"
-                        required
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="groupName">Group Name *</Label>
-                      <Input
-                        id="groupName"
-                        value={formData.groupName}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            groupName: e.target.value,
-                          })
-                        }
-                        placeholder="Enter group name"
-                        required
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="groupType">Group Type *</Label>
-                      <Select
-                        value={formData.groupType}
-                        onValueChange={(value) =>
-                          setFormData({ ...formData, groupType: value })
-                        }
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select group type" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {groupTypes.map((type) => (
-                            <SelectItem key={type} value={type}>
-                              {type}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <Label htmlFor="wardNo">Ward No *</Label>
-                      <WardCombobox
-                        id="wardNo"
-                        value={formData.wardNo}
-                        onChange={(value) =>
-                          setFormData({ ...formData, wardNo: value })
-                        }
-                        options={wardOptions}
-                        placeholder="Select ward"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="habitation">Habitation *</Label>
-                      <Input
-                        id="habitation"
-                        value={formData.habitation}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            habitation: e.target.value,
-                          })
-                        }
-                        placeholder="Enter habitation"
-                        required
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="projectResponsible">
-                        Project Responsible *
-                      </Label>
-                      <Input
-                        id="projectResponsible"
-                        value={formData.projectResponsible}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            projectResponsible: e.target.value,
-                          })
-                        }
-                        placeholder="Enter project responsible"
-                        required
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="topic">Topic *</Label>
-                      <Input
-                        id="topic"
-                        value={formData.topic}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            topic: e.target.value,
-                          })
-                        }
-                        placeholder="Enter training topic"
-                        required
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="dateOfTraining">Date of Training *</Label>
-                      <Input
-                        id="dateOfTraining"
-                        type="date"
-                        value={formData.dateOfTraining}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            dateOfTraining: e.target.value,
-                          })
-                        }
-                        required
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="resourcePerson">Resource Person *</Label>
-                      <Input
-                        id="resourcePerson"
-                        value={formData.resourcePerson}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            resourcePerson: e.target.value,
-                          })
-                        }
-                        placeholder="Enter resource person name"
-                        required
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="profileOfResourcePerson">
-                        Profile of Resource Person *
-                      </Label>
-                      <Input
-                        id="profileOfResourcePerson"
-                        value={formData.profileOfResourcePerson}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            profileOfResourcePerson: e.target.value,
-                          })
-                        }
-                        placeholder="Enter resource person profile"
-                        required
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="totalParticipants">
-                        Total Participants *
-                      </Label>
-                      <Input
-                        id="totalParticipants"
-                        type="number"
-                        value={formData.totalParticipants}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            totalParticipants: e.target.value,
-                          })
-                        }
-                        placeholder="Enter total participants"
-                        required
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <Label htmlFor="agenda">Agenda *</Label>
-                    <Textarea
-                      id="agenda"
-                      value={formData.agenda}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          agenda: e.target.value,
-                        })
-                      }
-                      placeholder="Enter training agenda"
-                      rows={3}
-                      required
-                    />
-                  </div>
-
-                  <div>
-                    <Label htmlFor="outcome">Outcome *</Label>
-                    <Textarea
-                      id="outcome"
-                      value={formData.outcome}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          outcome: e.target.value,
-                        })
-                      }
-                      placeholder="Enter training outcome"
-                      rows={3}
-                      required
-                    />
-                  </div>
-
+                  {renderFormFields("")}
                   <DialogFooter>
                     <Button
                       type="button"
@@ -929,108 +799,7 @@ const Workshops = () => {
                   </DialogDescription>
                 </DialogHeader>
                 <form onSubmit={handleSubmit} className="space-y-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor="edit-groupId">Group ID *</Label>
-                      <Input
-                        id="edit-groupId"
-                        value={formData.groupId}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            groupId: e.target.value,
-                          })
-                        }
-                        placeholder="Enter group ID"
-                        required
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="edit-groupName">Group Name *</Label>
-                      <Input
-                        id="edit-groupName"
-                        value={formData.groupName}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            groupName: e.target.value,
-                          })
-                        }
-                        placeholder="Enter group name"
-                        required
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="edit-groupType">Group Type *</Label>
-                      <Select
-                        value={formData.groupType}
-                        onValueChange={(value) =>
-                          setFormData({ ...formData, groupType: value })
-                        }
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select group type" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {groupTypes.map((type) => (
-                            <SelectItem key={type} value={type}>
-                              {type}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <Label htmlFor="edit-topic">Topic *</Label>
-                      <Input
-                        id="edit-topic"
-                        value={formData.topic}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            topic: e.target.value,
-                          })
-                        }
-                        placeholder="Enter training topic"
-                        required
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="edit-dateOfTraining">
-                        Date of Training *
-                      </Label>
-                      <Input
-                        id="edit-dateOfTraining"
-                        type="date"
-                        value={formData.dateOfTraining}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            dateOfTraining: e.target.value,
-                          })
-                        }
-                        required
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="edit-totalParticipants">
-                        Total Participants *
-                      </Label>
-                      <Input
-                        id="edit-totalParticipants"
-                        type="number"
-                        value={formData.totalParticipants}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            totalParticipants: e.target.value,
-                          })
-                        }
-                        required
-                      />
-                    </div>
-                  </div>
-
+                  {renderFormFields("edit-")}
                   <DialogFooter>
                     <Button
                       type="button"
@@ -1072,11 +841,13 @@ const Workshops = () => {
                         </div>
                         <div>
                           <Label className="font-semibold">Group Type</Label>
-                          <Badge>{selectedWorkshop.groupType}</Badge>
+                          <div>
+                            <Badge>{selectedWorkshop.groupType}</Badge>
+                          </div>
                         </div>
                         <div>
                           <Label className="font-semibold">Ward No</Label>
-                          <p>{selectedWorkshop.wardNo}</p>
+                          <p>{formatWard(selectedWorkshop.wardNo)}</p>
                         </div>
                         <div>
                           <Label className="font-semibold">Habitation</Label>
@@ -1105,13 +876,7 @@ const Workshops = () => {
                           <Label className="font-semibold">
                             Date of Training
                           </Label>
-                          <p>
-                            {selectedWorkshop.dateOfTraining
-                              ? new Date(
-                                  selectedWorkshop.dateOfTraining
-                                ).toLocaleDateString()
-                              : "N/A"}
-                          </p>
+                          <p>{formatDate(selectedWorkshop.dateOfTraining, "N/A")}</p>
                         </div>
                         <div>
                           <Label className="font-semibold">
@@ -1170,6 +935,3 @@ const Workshops = () => {
 };
 
 export default Workshops;
-
-
-

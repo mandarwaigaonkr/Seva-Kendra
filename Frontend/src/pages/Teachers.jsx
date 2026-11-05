@@ -33,7 +33,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import {
   AlertDialog,
@@ -47,13 +46,14 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Plus, Search, Edit, Trash2, Eye, Menu, Users, UserCheck, GraduationCap, BookOpen, FileSpreadsheet } from "lucide-react";
+import { Plus, Search, Edit, Trash2, Eye, GraduationCap } from "lucide-react";
 import { teacherAPI } from "../services/api";
 import Sidebar from "../components/Sidebar";
 import usePermissions from "../hooks/usePermissions";
 import GuidelinesCard from "../components/GuidelinesCard";
-import ExcelBulkImportButton from "../components/ExcelBulkImportButton";
+import ExcelImportPanel from "../components/ExcelImportPanel";
+import teacherImportTemplate from "../lib/excelImport/templates/teacher";
+import { ModulePageHeader, StatusBadge, tableState } from "../components/module/ModuleKit";
 
 const Teachers = () => {
   const { canCreate, canEdit, canDelete, canExport } = usePermissions();
@@ -79,7 +79,6 @@ const Teachers = () => {
     phoneNumber: "",
     specialization: [],
     experienceYears: "",
-    experienceDomain: "",
     qualifications: "",
     status: "Active",
   });
@@ -87,6 +86,13 @@ const Teachers = () => {
   const [specializationFilter, setSpecializationFilter] = useState("all");
   const [stats, setStats] = useState({ total: 0, active: 0, inactive: 0, onLeave: 0 });
   const [filterOptions, setFilterOptions] = useState({ specializations: [], statuses: [] });
+
+  // qualifications is a free-text string array in the model; the form edits it as "a, b, c".
+  const parseQualifications = (value) =>
+    String(value || "")
+      .split(/[,;\n]/)
+      .map((item) => item.trim())
+      .filter(Boolean);
 
   const getSpecializationList = (specialization) => {
     if (Array.isArray(specialization)) {
@@ -159,8 +165,10 @@ const Teachers = () => {
       const submitData = {
         ...formData,
         specialization: getSpecializationList(formData.specialization),
-        experience: parseInt(formData.experienceYears) || 0,
+        experience: Number(formData.experienceYears) || 0,
+        qualifications: parseQualifications(formData.qualifications),
       };
+      delete submitData.experienceYears;
 
       if (!submitData.teacherId?.trim()) {
         delete submitData.teacherId;
@@ -206,7 +214,6 @@ const Teachers = () => {
       phoneNumber: "",
       specialization: [],
       experienceYears: "",
-      experienceDomain: "",
       qualifications: "",
       status: "Active",
     });
@@ -226,8 +233,9 @@ const Teachers = () => {
       phoneNumber: teacher.phoneNumber,
       specialization: getSpecializationList(teacher.specialization),
       experienceYears: teacher.experience?.toString() || "",
-      experienceDomain: "",
-      qualifications: teacher.qualifications || "Other",
+      qualifications: Array.isArray(teacher.qualifications)
+        ? teacher.qualifications.join(", ")
+        : teacher.qualifications || "",
       status: teacher.status,
     });
     setIsEditModalOpen(true);
@@ -261,16 +269,26 @@ const Teachers = () => {
 
       {/* Main Content */}
       <div className="flex-1 overflow-auto">
-        {/* Header */}
-        <div className="sticky top-0 z-10 flex items-center justify-between p-6 bg-background shadow-md border-b border-border lg:justify-start lg:gap-4">
-          <button
-            onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="p-2 text-muted-foreground hover:bg-secondary rounded-lg lg:hidden"
-          >
-            <Menu className="h-6 w-6" />
-          </button>
-          <h1 className="text-2xl font-bold text-foreground">Teachers</h1>
-        </div>
+        <ModulePageHeader
+          icon={GraduationCap}
+          title="Teachers"
+          subtitle="Teaching faculty working across study centers"
+          onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
+          actions={
+            canCreate("education") && (
+              <Button
+                onClick={() => {
+                  resetForm();
+                  setIsCreateModalOpen(true);
+                }}
+                className="gap-2"
+              >
+                <Plus className="h-4 w-4" />
+                Add Teacher
+              </Button>
+            )
+          }
+        />
 
         {/* Content Area */}
         <div className="p-6 space-y-6">
@@ -353,12 +371,6 @@ const Teachers = () => {
                     open={isCreateModalOpen}
                     onOpenChange={setIsCreateModalOpen}
                   >
-                    <DialogTrigger asChild>
-                      <Button onClick={() => resetForm()} className="gap-2">
-                        <Plus className="h-4 w-4" />
-                        Add Teacher
-                      </Button>
-                    </DialogTrigger>
               <DialogContent className="max-w-2xl max-h-screen overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle>Add New Teacher</DialogTitle>
@@ -411,7 +423,7 @@ const Teachers = () => {
                       />
                     </div>
                     <div>
-                      <Label htmlFor="email">Email</Label>
+                      <Label htmlFor="email">Email *</Label>
                       <Input
                         id="email"
                         type="email"
@@ -422,12 +434,18 @@ const Teachers = () => {
                             email: e.target.value,
                           })
                         }
+                        required
                       />
                     </div>
                     <div>
-                      <Label htmlFor="phoneNumber">Phone Number</Label>
+                      <Label htmlFor="phoneNumber">Phone Number *</Label>
                       <Input
                         id="phoneNumber"
+                        type="tel"
+                        inputMode="numeric"
+                        pattern="[6-9][0-9]{9}"
+                        title="10-digit mobile number starting with 6-9"
+                        required
                         value={formData.phoneNumber}
                         onChange={(e) =>
                           setFormData({
@@ -491,20 +509,6 @@ const Teachers = () => {
                       />
                     </div>
                     <div>
-                      <Label htmlFor="experienceDomain">Experience Domain</Label>
-                      <Input
-                        id="experienceDomain"
-                        value={formData.experienceDomain}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            experienceDomain: e.target.value,
-                          })
-                        }
-                        placeholder="Optional domain"
-                      />
-                    </div>
-                    <div>
                       <Label htmlFor="status">Status</Label>
                       <Select
                         value={formData.status}
@@ -529,30 +533,18 @@ const Teachers = () => {
                     </div>
                   </div>
                   <div>
-                    <Label htmlFor="qualifications">Qualification</Label>
-                    <Select
+                    <Label htmlFor="qualifications">Qualifications</Label>
+                    <Input
+                      id="qualifications"
                       value={formData.qualifications}
-                      onValueChange={(value) =>
+                      onChange={(e) =>
                         setFormData({
                           ...formData,
-                          qualifications: value,
+                          qualifications: e.target.value,
                         })
                       }
-                    >
-                      <SelectTrigger id="qualifications">
-                        <SelectValue placeholder="Select qualification" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Illiterate">Illiterate</SelectItem>
-                        <SelectItem value="Neo-literate">Neo-literate</SelectItem>
-                        <SelectItem value="Primary">Primary</SelectItem>
-                        <SelectItem value="Secondary">Secondary</SelectItem>
-                        <SelectItem value="Higher Secondary">Higher Secondary</SelectItem>
-                        <SelectItem value="Graduate">Graduate</SelectItem>
-                        <SelectItem value="Post-Graduate">Post-Graduate</SelectItem>
-                        <SelectItem value="Other">Other</SelectItem>
-                      </SelectContent>
-                    </Select>
+                      placeholder="e.g. B.Ed, M.Sc Mathematics (comma-separated)"
+                    />
                   </div>
 
                   <DialogFooter>
@@ -573,51 +565,16 @@ const Teachers = () => {
             </div>
           </div>
 
-          {/* Bulk Import Card */}
+          {/* Bulk Import */}
           {canCreate("education") && (
-            <Card className="border border-muted bg-card shadow-sm mb-6">
-              <CardContent className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4">
-                <div className="space-y-1">
-                  <h3 className="font-semibold text-foreground flex items-center gap-2">
-                    <FileSpreadsheet className="h-5 w-5 text-green-600" />
-                    Bulk Import Teachers
-                  </h3>
-                  <p className="text-xs text-muted-foreground">
-                    Download the template, fill it in, and upload it to import records in bulk.
-                  </p>
-                </div>
-                <ExcelBulkImportButton
-                  label="Import Excel"
-                  description=""
-                  templateFields={[
-                    { label: "Teacher ID", key: "teacherId" },
-                    { label: "First Name", key: "firstName" },
-                    { label: "Last Name", key: "lastName" },
-                    { label: "Email", key: "email" },
-                    { label: "Phone Number", key: "phoneNumber" },
-                    { label: "Years of Experience", key: "experienceYears" },
-                    { label: "Domain of Experience", key: "experienceDomain" },
-                    { label: "Qualification", key: "qualifications", options: ["Illiterate", "Neo-literate", "Primary", "Secondary", "Higher Secondary", "Graduate", "Post-Graduate", "Other"] },
-                    { label: "Status", key: "status", options: ["Active", "Inactive", "On Leave"] },
-                  ]}
-                  sampleRow={{
-                    teacherId: "TCH-001",
-                    firstName: "Anjali",
-                    lastName: "Roy",
-                    email: "anjali.roy@example.com",
-                    phoneNumber: "9876543210",
-                    experienceYears: "5",
-                    experienceDomain: "Primary Education",
-                    qualifications: "Graduate",
-                    status: "Active",
-                  }}
-                  createRecord={async (payload) => {
-                    await teacherAPI.create(payload);
-                  }}
-                  onImported={fetchTeachers}
-                />
-              </CardContent>
-            </Card>
+            <ExcelImportPanel
+              template={teacherImportTemplate}
+              createRecord={teacherAPI.create}
+              onImported={() => {
+                fetchTeachers();
+                fetchStatsAndOptions();
+              }}
+            />
           )}
 
           {/* Teachers Table */}
@@ -629,123 +586,110 @@ const Teachers = () => {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {loading ? (
-                <div className="space-y-4">
-                  {[...Array(5)].map((_, i) => (
-                    <Skeleton key={i} className="h-12 w-full" />
-                  ))}
-                </div>
-              ) : teachers.length === 0 ? (
-                <div className="text-center py-8">
-                  <p className="text-muted-foreground">No teachers found</p>
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Teacher ID</TableHead>
-                        <TableHead>Name</TableHead>
-                        <TableHead>Email</TableHead>
-                        <TableHead>Phone</TableHead>
-                        <TableHead>Specialization</TableHead>
-                        <TableHead>Experience</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead>Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {teachers.map((teacher) => (
-                        <TableRow key={teacher._id}>
-                          <TableCell className="font-medium">
-                            {teacher.teacherId}
-                          </TableCell>
-                          <TableCell>
-                            {teacher.firstName} {teacher.lastName}
-                          </TableCell>
-                          <TableCell className="text-sm text-muted-foreground">
-                            {teacher.email}
-                          </TableCell>
-                          <TableCell>{teacher.phoneNumber}</TableCell>
-                          <TableCell>
-                            <Badge variant="outline">
-                              {getSpecializationList(teacher.specialization).join(", ") || "-"}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>{teacher.experience || 0} years</TableCell>
-                          <TableCell>
-                            <Badge
-                              variant={
-                                teacher.status === "Active"
-                                  ? "default"
-                                  : teacher.status === "Inactive"
-                                  ? "destructive"
-                                  : "secondary"
-                              }
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Teacher ID</TableHead>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Email</TableHead>
+                      <TableHead>Phone</TableHead>
+                      <TableHead>Specialization</TableHead>
+                      <TableHead>Experience</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {tableState({
+                      loading,
+                      count: teachers.length,
+                      colSpan: 8,
+                      filtered: Boolean(searchTerm) || statusFilter !== "all" || specializationFilter !== "all",
+                    })}
+                    {!loading && teachers.map((teacher) => (
+                      <TableRow key={teacher._id}>
+                        <TableCell className="font-medium">
+                          {teacher.teacherId}
+                        </TableCell>
+                        <TableCell>
+                          {teacher.firstName} {teacher.lastName}
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {teacher.email}
+                        </TableCell>
+                        <TableCell>{teacher.phoneNumber}</TableCell>
+                        <TableCell>
+                          <Badge variant="outline">
+                            {getSpecializationList(teacher.specialization).join(", ") || "-"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>{teacher.experience || 0} years</TableCell>
+                        <TableCell>
+                          <StatusBadge value={teacher.status} />
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => openViewModal(teacher)}
+                              className="p-1 hover:bg-secondary rounded"
+                              title="View"
+                              aria-label="View teacher"
                             >
-                              {teacher.status}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex gap-2">
+                              <Eye className="h-4 w-4 text-blue-600" />
+                            </button>
+                            {canEdit("education") && (
                               <button
-                                onClick={() => openViewModal(teacher)}
+                                onClick={() => openEditModal(teacher)}
                                 className="p-1 hover:bg-secondary rounded"
-                                title="View"
+                                title="Edit"
+                                aria-label="Edit teacher"
                               >
-                                <Eye className="h-4 w-4 text-blue-600" />
+                                <Edit className="h-4 w-4 text-green-600" />
                               </button>
-                              {canEdit("education") && (
-                                <button
-                                  onClick={() => openEditModal(teacher)}
-                                  className="p-1 hover:bg-secondary rounded"
-                                  title="Edit"
-                                >
-                                  <Edit className="h-4 w-4 text-green-600" />
-                                </button>
-                              )}
-                              {canDelete("education") && (
-                                <AlertDialog>
-                                  <AlertDialogTrigger asChild>
-                                    <button
-                                      className="p-1 hover:bg-secondary rounded"
-                                      title="Delete"
+                            )}
+                            {canDelete("education") && (
+                              <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                  <button
+                                    className="p-1 hover:bg-secondary rounded"
+                                    title="Delete"
+                                    aria-label="Delete teacher"
+                                  >
+                                    <Trash2 className="h-4 w-4 text-red-600" />
+                                  </button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle>
+                                      Delete Teacher
+                                    </AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                      Are you sure you want to delete this
+                                      teacher? This action cannot be undone.
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel>
+                                      Cancel
+                                    </AlertDialogCancel>
+                                    <AlertDialogAction
+                                      onClick={() => handleDelete(teacher._id)}
+                                      className="bg-red-600 hover:bg-red-700"
                                     >
-                                      <Trash2 className="h-4 w-4 text-red-600" />
-                                    </button>
-                                  </AlertDialogTrigger>
-                                  <AlertDialogContent>
-                                    <AlertDialogHeader>
-                                      <AlertDialogTitle>
-                                        Delete Teacher
-                                      </AlertDialogTitle>
-                                      <AlertDialogDescription>
-                                        Are you sure you want to delete this
-                                        teacher? This action cannot be undone.
-                                      </AlertDialogDescription>
-                                    </AlertDialogHeader>
-                                    <AlertDialogFooter>
-                                      <AlertDialogCancel>
-                                        Cancel
-                                      </AlertDialogCancel>
-                                      <AlertDialogAction
-                                        onClick={() => handleDelete(teacher._id)}
-                                        className="bg-red-600 hover:bg-red-700"
-                                      >
-                                        Delete
-                                      </AlertDialogAction>
-                                    </AlertDialogFooter>
-                                  </AlertDialogContent>
-                                </AlertDialog>
-                              )}
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              )}
+                                      Delete
+                                    </AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
+                            )}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
 
               {/* Pagination */}
               {pagination.pages > 1 && (
@@ -839,9 +783,10 @@ const Teachers = () => {
                 />
               </div>
               <div>
-                <Label htmlFor="editEmail">Email</Label>
+                <Label htmlFor="editEmail">Email *</Label>
                 <Input
                   id="editEmail"
+                  required
                   type="email"
                   value={formData.email}
                   onChange={(e) =>
@@ -853,9 +798,14 @@ const Teachers = () => {
                 />
               </div>
               <div>
-                <Label htmlFor="editPhoneNumber">Phone Number</Label>
+                <Label htmlFor="editPhoneNumber">Phone Number *</Label>
                 <Input
                   id="editPhoneNumber"
+                  type="tel"
+                  inputMode="numeric"
+                  pattern="[6-9][0-9]{9}"
+                  title="10-digit mobile number starting with 6-9"
+                  required
                   value={formData.phoneNumber}
                   onChange={(e) =>
                     setFormData({
@@ -942,30 +892,18 @@ const Teachers = () => {
               </div>
             </div>
             <div>
-              <Label htmlFor="editQualifications">Qualification</Label>
-              <Select
+              <Label htmlFor="editQualifications">Qualifications</Label>
+              <Input
+                id="editQualifications"
                 value={formData.qualifications}
-                onValueChange={(value) =>
+                onChange={(e) =>
                   setFormData({
                     ...formData,
-                    qualifications: value,
+                    qualifications: e.target.value,
                   })
                 }
-              >
-                <SelectTrigger id="editQualifications">
-                  <SelectValue placeholder="Select qualification" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Illiterate">Illiterate</SelectItem>
-                  <SelectItem value="Neo-literate">Neo-literate</SelectItem>
-                  <SelectItem value="Primary">Primary</SelectItem>
-                  <SelectItem value="Secondary">Secondary</SelectItem>
-                  <SelectItem value="Higher Secondary">Higher Secondary</SelectItem>
-                  <SelectItem value="Graduate">Graduate</SelectItem>
-                  <SelectItem value="Post-Graduate">Post-Graduate</SelectItem>
-                  <SelectItem value="Other">Other</SelectItem>
-                </SelectContent>
-              </Select>
+                placeholder="e.g. B.Ed, M.Sc Mathematics (comma-separated)"
+              />
             </div>
 
             <DialogFooter>
@@ -1032,17 +970,7 @@ const Teachers = () => {
                 </div>
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">Status</p>
-                  <Badge
-                    variant={
-                      selectedTeacher.status === "Active"
-                        ? "default"
-                        : selectedTeacher.status === "Inactive"
-                        ? "destructive"
-                        : "secondary"
-                    }
-                  >
-                    {selectedTeacher.status}
-                  </Badge>
+                  <StatusBadge value={selectedTeacher.status} />
                 </div>
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">

@@ -47,14 +47,26 @@ import {
   Trash2,
   Eye,
   RefreshCw,
-  Menu,
-  FileSpreadsheet,
 } from "lucide-react";
 import { addictionAPI } from "../services/api";
 import Sidebar from "../components/Sidebar";
 import usePermissions from "../hooks/usePermissions";
 import GuidelinesCard from "../components/GuidelinesCard";
-import ExcelBulkImportButton from "../components/ExcelBulkImportButton";
+import ExcelImportPanel from "../components/ExcelImportPanel";
+import addictionImportTemplate from "../lib/excelImport/templates/addiction";
+import { getWardOptions } from "../lib/formOptions";
+import {
+  ModulePageHeader,
+  tableState,
+  StatusBadge,
+  formatWard,
+  formatDate,
+  toDateInput,
+} from "../components/module/ModuleKit";
+
+const WARD_OPTIONS = getWardOptions();
+const SKILL_LINKAGE_OPTIONS = ["Not Linked", "In Progress", "Linked", "Completed", "Dropped Out"];
+const OVERALL_STATUS_OPTIONS = ["Active", "In Rehabilitation", "Recovered", "Relapsed", "Lost to Follow-up", "Unknown"];
 
 const Addiction = () => {
   const { canCreate, canEdit, canDelete, canExport } = usePermissions();
@@ -214,9 +226,7 @@ const Addiction = () => {
       wardNo: record.wardNo || "",
       habitation: record.habitation || "",
       projectResponsible: record.projectResponsible || "",
-      dateOfReporting: record.dateOfReporting
-        ? new Date(record.dateOfReporting).toISOString().split("T")[0]
-        : "",
+      dateOfReporting: toDateInput(record.dateOfReporting),
       reportedBy: record.reportedBy || "",
       typeOfSubstancesUsed: record.typeOfSubstancesUsed || "",
       durationOfUse: record.durationOfUse || "",
@@ -224,12 +234,8 @@ const Addiction = () => {
       comorbidities: record.comorbidities || "",
       individualCarePlan: record.individualCarePlan || "",
       nameOfInstitution: record.nameOfInstitution || "",
-      dateOfAdmission: record.dateOfAdmission
-        ? new Date(record.dateOfAdmission).toISOString().split("T")[0]
-        : "",
-      dateOfRelease: record.dateOfRelease
-        ? new Date(record.dateOfRelease).toISOString().split("T")[0]
-        : "",
+      dateOfAdmission: toDateInput(record.dateOfAdmission),
+      dateOfRelease: toDateInput(record.dateOfRelease),
       statusOfLinkageWithSkillDevelopment:
         record.statusOfLinkageWithSkillDevelopment || "",
       overallStatus: record.overallStatus || "",
@@ -257,30 +263,20 @@ const Addiction = () => {
       <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
 
       <div className="flex-1 flex flex-col overflow-hidden">
-        <header className="bg-background shadow-sm border-b border-border">
-          <div className="flex items-center justify-between px-6 py-4">
-            <div className="flex items-center space-x-4">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setSidebarOpen(!sidebarOpen)}
-                className="lg:hidden"
-              >
-                <Menu className="h-6 w-6" />
-              </Button>
-              <div className="flex items-center space-x-2">
-                <Activity className="h-6 w-6 text-purple-600" />
-                <h1 className="text-2xl font-bold text-foreground">Addiction</h1>
-              </div>
-            </div>
-            {canCreate("health") && (
+        <ModulePageHeader
+          icon={Activity}
+          title="Addiction"
+          subtitle="Substance use cases, rehabilitation and skill-development linkage"
+          onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
+          actions={
+            canCreate("health") && (
               <Button onClick={() => setIsCreateModalOpen(true)}>
                 <Plus className="h-4 w-4 mr-2" />
                 Add Addiction Record
               </Button>
-            )}
-          </div>
-        </header>
+            )
+          }
+        />
 
         <main className="flex-1 overflow-auto p-6">
           <GuidelinesCard
@@ -302,7 +298,7 @@ const Addiction = () => {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
                 <div>
                   <Label htmlFor="search">Search by Name</Label>
                   <Input
@@ -313,14 +309,14 @@ const Addiction = () => {
                   />
                 </div>
                 <div>
-                  <Label htmlFor="gender">Gender</Label>
+                  <Label htmlFor="genderFilter">Gender</Label>
                   <Select
                     value={filters.gender}
                     onValueChange={(value) =>
                       handleFilterChange("gender", value === "all" ? "" : value)
                     }
                   >
-                    <SelectTrigger>
+                    <SelectTrigger id="genderFilter">
                       <SelectValue placeholder="All Genders" />
                     </SelectTrigger>
                     <SelectContent>
@@ -332,7 +328,7 @@ const Addiction = () => {
                   </Select>
                 </div>
                 <div>
-                  <Label htmlFor="statusOfLinkageWithSkillDevelopment">
+                  <Label htmlFor="skillStatusFilter">
                     Skill Development Status
                   </Label>
                   <Select
@@ -344,16 +340,37 @@ const Addiction = () => {
                       )
                     }
                   >
-                    <SelectTrigger>
+                    <SelectTrigger id="skillStatusFilter">
                       <SelectValue placeholder="All Statuses" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">All Statuses</SelectItem>
-                      <SelectItem value="Not Linked">Not Linked</SelectItem>
-                      <SelectItem value="In Progress">In Progress</SelectItem>
-                      <SelectItem value="Linked">Linked</SelectItem>
-                      <SelectItem value="Completed">Completed</SelectItem>
-                      <SelectItem value="Dropped Out">Dropped Out</SelectItem>
+                      {SKILL_LINKAGE_OPTIONS.map((option) => (
+                        <SelectItem key={option} value={option}>
+                          {option}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label htmlFor="overallStatusFilter">Overall Status</Label>
+                  <Select
+                    value={filters.overallStatus}
+                    onValueChange={(value) =>
+                      handleFilterChange("overallStatus", value === "all" ? "" : value)
+                    }
+                  >
+                    <SelectTrigger id="overallStatusFilter">
+                      <SelectValue placeholder="All Statuses" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Statuses</SelectItem>
+                      {OVERALL_STATUS_OPTIONS.map((option) => (
+                        <SelectItem key={option} value={option}>
+                          {option}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -377,61 +394,13 @@ const Addiction = () => {
             </CardContent>
           </Card>
 
-          {/* Bulk Import Card */}
+          {/* Bulk Import */}
           {canCreate("health") && (
-            <Card className="border border-muted bg-card shadow-sm mb-6">
-              <CardContent className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4">
-                <div className="space-y-1">
-                  <h3 className="font-semibold text-foreground flex items-center gap-2">
-                    <FileSpreadsheet className="h-5 w-5 text-green-600" />
-                    Bulk Import Addiction Records
-                  </h3>
-                  <p className="text-xs text-muted-foreground">
-                    Download the template, fill it in, and upload it to import records in bulk.
-                  </p>
-                </div>
-                <ExcelBulkImportButton
-                  label="Import Excel"
-                  description=""
-                  templateFields={[
-                    { label: "Case ID", key: "caseId" },
-                    { label: "Name", key: "name" },
-                    { label: "Gender", key: "gender", options: ["Male", "Female", "Other"] },
-                    { label: "Age", key: "age" },
-                    { label: "Contact Number", key: "contactNo" },
-                    { label: "Ward Number", key: "wardNo" },
-                    { label: "Habitation", key: "habitation" },
-                    { label: "Project Responsible", key: "projectResponsible" },
-                    { label: "Date of Reporting", key: "dateOfReporting" },
-                    { label: "Reported By", key: "reportedBy" },
-                    { label: "Substance Type", key: "substanceType", options: ["Alcohol", "Tobacco", "Cannabis", "Opioids", "Sedatives", "Multiple Substances", "Other"] },
-                    { label: "Skill Development Status", key: "statusOfLinkageWithSkillDevelopment", options: ["Linked", "Not Linked", "In Progress"] },
-                    { label: "Overall Status", key: "overallStatus", options: ["Active", "Recovering", "Recovered", "Relapsed", "Lost to Follow Up"] },
-                    { label: "Remarks", key: "remarks" },
-                  ]}
-                  sampleRow={{
-                    caseId: "ADD-001",
-                    name: "Raju Sharma",
-                    gender: "Male",
-                    age: "28",
-                    contactNo: "9876543210",
-                    wardNo: "4",
-                    habitation: "Howrah",
-                    projectResponsible: "Counselor B",
-                    dateOfReporting: "2024-01-25",
-                    reportedBy: "Field Worker E",
-                    substanceType: "Alcohol",
-                    statusOfLinkageWithSkillDevelopment: "Linked",
-                    overallStatus: "Recovering",
-                    remarks: "Enrolled in de-addiction program",
-                  }}
-                  createRecord={async (payload) => {
-                    await addictionAPI.create(payload);
-                  }}
-                  onImported={fetchRecords}
-                />
-              </CardContent>
-            </Card>
+            <ExcelImportPanel
+              template={addictionImportTemplate}
+              createRecord={addictionAPI.create}
+              onImported={fetchRecords}
+            />
           )}
 
           <Card>
@@ -468,22 +437,12 @@ const Addiction = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {loading ? (
-                      <TableRow>
-                        <TableCell colSpan={8} className="text-center py-4">
-                          <RefreshCw className="h-4 w-4 animate-spin mx-auto" />
-                        </TableCell>
-                      </TableRow>
-                    ) : records.length === 0 ? (
-                      <TableRow>
-                        <TableCell
-                          colSpan={8}
-                          className="text-center py-4 text-muted-foreground"
-                        >
-                          No addiction records found
-                        </TableCell>
-                      </TableRow>
-                    ) : (
+                    {tableState({
+                      loading,
+                      count: records.length,
+                      colSpan: 8,
+                      filtered: Boolean(searchTerm || Object.values(filters).some(Boolean)),
+                    }) ||
                       records.map((record) => (
                         <TableRow key={record._id}>
                           <TableCell className="font-medium">
@@ -497,16 +456,13 @@ const Addiction = () => {
                             {record.typeOfSubstancesUsed || "N/A"}
                           </TableCell>
                           <TableCell>
-                            <Badge variant="secondary">
-                              {record.statusOfLinkageWithSkillDevelopment ||
-                                "N/A"}
-                            </Badge>
+                            <StatusBadge value={record.statusOfLinkageWithSkillDevelopment} />
                           </TableCell>
                           <TableCell>
-                            <Badge>{record.overallStatus || "N/A"}</Badge>
+                            <StatusBadge value={record.overallStatus} />
                           </TableCell>
                           <TableCell>
-                            Ward {record.wardNo}, {record.habitation}
+                            {formatWard(record.wardNo)}, {record.habitation}
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center space-x-2">
@@ -514,6 +470,7 @@ const Addiction = () => {
                                 variant="ghost"
                                 size="sm"
                                 onClick={() => handleView(record)}
+                                aria-label={`View ${record.name}`}
                               >
                                 <Eye className="h-4 w-4" />
                               </Button>
@@ -522,6 +479,7 @@ const Addiction = () => {
                                   variant="ghost"
                                   size="sm"
                                   onClick={() => handleEdit(record)}
+                                  aria-label={`Edit ${record.name}`}
                                 >
                                   <Edit className="h-4 w-4" />
                                 </Button>
@@ -529,7 +487,7 @@ const Addiction = () => {
                               {canDelete("health") && (
                                 <AlertDialog>
                                   <AlertDialogTrigger asChild>
-                                    <Button variant="ghost" size="sm">
+                                    <Button variant="ghost" size="sm" aria-label={`Delete ${record.name}`}>
                                       <Trash2 className="h-4 w-4" />
                                     </Button>
                                   </AlertDialogTrigger>
@@ -559,8 +517,7 @@ const Addiction = () => {
                             </div>
                           </TableCell>
                         </TableRow>
-                      ))
-                    )}
+                      ))}
                   </TableBody>
                 </Table>
               </div>
@@ -660,7 +617,7 @@ const Addiction = () => {
                     setFormData((prev) => ({ ...prev, gender: value }))
                   }
                 >
-                  <SelectTrigger>
+                  <SelectTrigger id="gender">
                     <SelectValue placeholder="Select gender" />
                   </SelectTrigger>
                   <SelectContent>
@@ -754,16 +711,11 @@ const Addiction = () => {
                     <SelectValue placeholder="Select ward" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Ward 1">Ward 1</SelectItem>
-                    <SelectItem value="Ward 2">Ward 2</SelectItem>
-                    <SelectItem value="Ward 3">Ward 3</SelectItem>
-                    <SelectItem value="Ward 4">Ward 4</SelectItem>
-                    <SelectItem value="Ward 5">Ward 5</SelectItem>
-                    <SelectItem value="Ward 6">Ward 6</SelectItem>
-                    <SelectItem value="Ward 7">Ward 7</SelectItem>
-                    <SelectItem value="Ward 8">Ward 8</SelectItem>
-                    <SelectItem value="Ward 9">Ward 9</SelectItem>
-                    <SelectItem value="Ward 10">Ward 10</SelectItem>
+                    {WARD_OPTIONS.map((ward) => (
+                      <SelectItem key={ward.value} value={ward.value}>
+                        {ward.label}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -876,15 +828,15 @@ const Addiction = () => {
                     }))
                   }
                 >
-                  <SelectTrigger>
+                  <SelectTrigger id="statusOfLinkageWithSkillDevelopment">
                     <SelectValue placeholder="Select status" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Not Linked">Not Linked</SelectItem>
-                    <SelectItem value="In Progress">In Progress</SelectItem>
-                    <SelectItem value="Linked">Linked</SelectItem>
-                    <SelectItem value="Completed">Completed</SelectItem>
-                    <SelectItem value="Dropped Out">Dropped Out</SelectItem>
+                    {SKILL_LINKAGE_OPTIONS.map((option) => (
+                      <SelectItem key={option} value={option}>
+                        {option}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -896,21 +848,15 @@ const Addiction = () => {
                     setFormData((prev) => ({ ...prev, overallStatus: value }))
                   }
                 >
-                  <SelectTrigger>
+                  <SelectTrigger id="overallStatus">
                     <SelectValue placeholder="Select status" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Active">Active</SelectItem>
-                    <SelectItem value="In Rehabilitation">
-                      In Rehabilitation
-                    </SelectItem>
-                    <SelectItem value="Recovered">Recovered</SelectItem>
-                    <SelectItem value="Relapsed">Relapsed</SelectItem>
-                    <SelectItem value="Lost to Follow-up">
-                      Lost to Follow-up
-                    </SelectItem>
-                    <SelectItem value="Died">Died</SelectItem>
-                    <SelectItem value="Unknown">Unknown</SelectItem>
+                    {OVERALL_STATUS_OPTIONS.map((option) => (
+                      <SelectItem key={option} value={option}>
+                        {option}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -1023,7 +969,7 @@ const Addiction = () => {
                   </div>
                   <div>
                     <Label className="font-semibold">Ward No</Label>
-                    <p>{selectedRecord.wardNo}</p>
+                    <p>{formatWard(selectedRecord.wardNo)}</p>
                   </div>
                   <div>
                     <Label className="font-semibold">Habitation</Label>
@@ -1045,11 +991,7 @@ const Addiction = () => {
                   <div>
                     <Label className="font-semibold">Date of Reporting</Label>
                     <p>
-                      {selectedRecord.dateOfReporting
-                        ? new Date(
-                            selectedRecord.dateOfReporting
-                          ).toLocaleDateString()
-                        : "N/A"}
+                      {formatDate(selectedRecord.dateOfReporting)}
                     </p>
                   </div>
                   <div>
@@ -1123,35 +1065,24 @@ const Addiction = () => {
                   <div>
                     <Label className="font-semibold">Date of Admission</Label>
                     <p>
-                      {selectedRecord.dateOfAdmission
-                        ? new Date(
-                            selectedRecord.dateOfAdmission
-                          ).toLocaleDateString()
-                        : "N/A"}
+                      {formatDate(selectedRecord.dateOfAdmission)}
                     </p>
                   </div>
                   <div>
                     <Label className="font-semibold">Date of Release</Label>
                     <p>
-                      {selectedRecord.dateOfRelease
-                        ? new Date(
-                            selectedRecord.dateOfRelease
-                          ).toLocaleDateString()
-                        : "N/A"}
+                      {formatDate(selectedRecord.dateOfRelease)}
                     </p>
                   </div>
                   <div>
                     <Label className="font-semibold">
                       Skill Development Status
                     </Label>
-                    <Badge>
-                      {selectedRecord.statusOfLinkageWithSkillDevelopment ||
-                        "N/A"}
-                    </Badge>
+                    <StatusBadge value={selectedRecord.statusOfLinkageWithSkillDevelopment} />
                   </div>
                   <div>
                     <Label className="font-semibold">Overall Status</Label>
-                    <Badge>{selectedRecord.overallStatus || "N/A"}</Badge>
+                    <StatusBadge value={selectedRecord.overallStatus} />
                   </div>
                 </div>
               </div>
