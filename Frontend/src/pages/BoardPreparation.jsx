@@ -1,3 +1,5 @@
+import { toApiPayload } from "@/components/module/ModuleKit";
+import { FormSheet, FormSheetContent, FormSheetDescription, FormSheetFooter, FormSheetHeader, FormSheetTitle } from "@/components/module/FormSheet";
 import React, { useState, useEffect } from "react";
 import { normalizePagination } from "@/components/module/ModuleKit";
 import { FilterBar } from "@/components/module/ModuleKit";
@@ -229,11 +231,11 @@ const BoardPreparation = () => {
     e.preventDefault();
     try {
       if (selectedBoardPrep) {
-        await boardPreparationAPI.update(selectedBoardPrep._id, formData);
+        await boardPreparationAPI.update(selectedBoardPrep._id, toApiPayload(formData, true));
         toast.success("Board preparation record updated successfully");
         setIsEditModalOpen(false);
       } else {
-        await boardPreparationAPI.create(formData);
+        await boardPreparationAPI.create(toApiPayload(formData));
         toast.success("Board preparation record created successfully");
         setIsCreateModalOpen(false);
       }
@@ -619,20 +621,20 @@ const BoardPreparation = () => {
             </Card>
 
             {/* Create Modal */}
-            <Dialog
+            <FormSheet
               open={isCreateModalOpen}
               onOpenChange={setIsCreateModalOpen}
             >
-              <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-                <DialogHeader>
-                  <DialogTitle>Add New Board Prep Record</DialogTitle>
-                  <DialogDescription>
+              <FormSheetContent>
+                <FormSheetHeader>
+                  <FormSheetTitle>Add New Board Prep Record</FormSheetTitle>
+                  <FormSheetDescription>
                     Create a new board preparation record with all required
                     information.
-                  </DialogDescription>
-                </DialogHeader>
+                  </FormSheetDescription>
+                </FormSheetHeader>
                 <form onSubmit={handleSubmit} className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <Label htmlFor="householdCode">Household Code *</Label>
                       <Input
@@ -854,7 +856,7 @@ const BoardPreparation = () => {
                         }
                       />
                     </div>
-                    <div className="md:col-span-2">
+                    <div className="sm:col-span-2">
                       <Label htmlFor="headOfHousehold">
                         Head of Household
                       </Label>
@@ -869,7 +871,7 @@ const BoardPreparation = () => {
                         }
                       />
                     </div>
-                    <div className="md:col-span-2">
+                    <div className="sm:col-span-2">
                       <Label htmlFor="habitation">Habitation</Label>
                       <Input
                         id="habitation"
@@ -882,7 +884,7 @@ const BoardPreparation = () => {
                         }
                       />
                     </div>
-                    <div className="md:col-span-2">
+                    <div className="sm:col-span-2">
                       <Label htmlFor="projectResponsible">
                         Project Responsible *
                       </Label>
@@ -900,27 +902,27 @@ const BoardPreparation = () => {
                     </div>
                   </div>
 
-                  <DialogFooter>
+                  <FormSheetFooter>
                     <Button type="button" variant="outline" onClick={resetForm}>
                       Cancel
                     </Button>
                     <Button type="submit">Create Board Prep Record</Button>
-                  </DialogFooter>
+                  </FormSheetFooter>
                 </form>
-              </DialogContent>
-            </Dialog>
+              </FormSheetContent>
+            </FormSheet>
 
             {/* Edit Modal */}
-            <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
-              <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-                <DialogHeader>
-                  <DialogTitle>Edit Board Prep Record</DialogTitle>
-                  <DialogDescription>
+            <FormSheet open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
+              <FormSheetContent>
+                <FormSheetHeader>
+                  <FormSheetTitle>Edit Board Prep Record</FormSheetTitle>
+                  <FormSheetDescription>
                     Update the board preparation record information.
-                  </DialogDescription>
-                </DialogHeader>
+                  </FormSheetDescription>
+                </FormSheetHeader>
                 <form onSubmit={handleSubmit} className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <Label htmlFor="editHouseholdCode">
                         Household Code *
@@ -1144,7 +1146,7 @@ const BoardPreparation = () => {
                         }
                       />
                     </div>
-                    <div className="md:col-span-2">
+                    <div className="sm:col-span-2">
                       <Label htmlFor="editHeadOfHousehold">
                         Head of Household
                       </Label>
@@ -1159,7 +1161,7 @@ const BoardPreparation = () => {
                         }
                       />
                     </div>
-                    <div className="md:col-span-2">
+                    <div className="sm:col-span-2">
                       <Label htmlFor="editHabitation">Habitation</Label>
                       <Input
                         id="editHabitation"
@@ -1172,7 +1174,7 @@ const BoardPreparation = () => {
                         }
                       />
                     </div>
-                    <div className="md:col-span-2">
+                    <div className="sm:col-span-2">
                       <Label htmlFor="editProjectResponsible">
                         Project Responsible *
                       </Label>
@@ -1190,15 +1192,15 @@ const BoardPreparation = () => {
                     </div>
                   </div>
 
-                  <DialogFooter>
+                  <FormSheetFooter>
                     <Button type="button" variant="outline" onClick={resetForm}>
                       Cancel
                     </Button>
                     <Button type="submit">Update Board Prep Record</Button>
-                  </DialogFooter>
+                  </FormSheetFooter>
                 </form>
-              </DialogContent>
-            </Dialog>
+              </FormSheetContent>
+            </FormSheet>
 
             {/* View Modal */}
             <Dialog open={isViewModalOpen} onOpenChange={setIsViewModalOpen}>

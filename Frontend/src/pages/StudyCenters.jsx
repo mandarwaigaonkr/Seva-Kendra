@@ -1,3 +1,4 @@
+import { FormSheet, FormSheetContent, FormSheetDescription, FormSheetFooter, FormSheetHeader, FormSheetTitle } from "@/components/module/FormSheet";
 import React, { useState, useEffect, useRef } from "react";
 import { normalizePagination } from "@/components/module/ModuleKit";
 import { FilterBar } from "@/components/module/ModuleKit";
@@ -1054,20 +1055,20 @@ const StudyCenters = () => {
             </Card>
 
             {/* Create Modal */}
-            <Dialog
+            <FormSheet
               open={isCreateModalOpen}
               onOpenChange={setIsCreateModalOpen}
             >
-              <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-                <DialogHeader>
-                  <DialogTitle>Add New Study Center</DialogTitle>
-                  <DialogDescription>
+              <FormSheetContent>
+                <FormSheetHeader>
+                  <FormSheetTitle>Add New Study Center</FormSheetTitle>
+                  <FormSheetDescription>
                     Create a new study center record with all required
                     information.
-                  </DialogDescription>
-                </DialogHeader>
+                  </FormSheetDescription>
+                </FormSheetHeader>
                 <form onSubmit={handleSubmit} className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <Label htmlFor="centreCode">Centre Code *</Label>
                       <Input
@@ -1323,7 +1324,7 @@ const StudyCenters = () => {
                     {formData.teachers.map((teacherId, index) => (
                       <div
                         key={index}
-                        className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end"
+                        className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-end"
                       >
                         <div>
                           <Label htmlFor={`teacher-${index}`}>
@@ -1382,7 +1383,7 @@ const StudyCenters = () => {
                     <h3 className="text-lg font-semibold">
                       Functional Aspects
                     </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
                         <Label htmlFor="infrastructureQuality">
                           Infrastructure Quality
@@ -1531,27 +1532,27 @@ const StudyCenters = () => {
                     </div>
                   </div>
 
-                  <DialogFooter>
+                  <FormSheetFooter>
                     <Button type="button" variant="outline" onClick={resetForm}>
                       Cancel
                     </Button>
                     <Button type="submit">Create Study Center</Button>
-                  </DialogFooter>
+                  </FormSheetFooter>
                 </form>
-              </DialogContent>
-            </Dialog>
+              </FormSheetContent>
+            </FormSheet>
 
             {/* Edit Modal */}
-            <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
-              <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-                <DialogHeader>
-                  <DialogTitle>Edit Study Center</DialogTitle>
-                  <DialogDescription>
+            <FormSheet open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
+              <FormSheetContent>
+                <FormSheetHeader>
+                  <FormSheetTitle>Edit Study Center</FormSheetTitle>
+                  <FormSheetDescription>
                     Update the study center information.
-                  </DialogDescription>
-                </DialogHeader>
+                  </FormSheetDescription>
+                </FormSheetHeader>
                 <form onSubmit={handleSubmit} className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <Label htmlFor="editCentreCode">Centre Code *</Label>
                       <Input
@@ -1811,7 +1812,7 @@ const StudyCenters = () => {
                     {formData.teachers.map((teacherId, index) => (
                       <div
                         key={index}
-                        className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end"
+                        className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-end"
                       >
                         <div>
                           <Label htmlFor={`editTeacher-${index}`}>
@@ -1870,7 +1871,7 @@ const StudyCenters = () => {
                     <h3 className="text-lg font-semibold">
                       Functional Aspects
                     </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
                         <Label htmlFor="editInfrastructureQuality">
                           Infrastructure Quality
@@ -2019,15 +2020,15 @@ const StudyCenters = () => {
                     </div>
                   </div>
 
-                  <DialogFooter>
+                  <FormSheetFooter>
                     <Button type="button" variant="outline" onClick={resetForm}>
                       Cancel
                     </Button>
                     <Button type="submit">Update Study Center</Button>
-                  </DialogFooter>
+                  </FormSheetFooter>
                 </form>
-              </DialogContent>
-            </Dialog>
+              </FormSheetContent>
+            </FormSheet>
 
             {/* View Modal */}
             <Dialog open={isViewModalOpen} onOpenChange={setIsViewModalOpen}>

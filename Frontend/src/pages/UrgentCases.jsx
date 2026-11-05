@@ -72,7 +72,7 @@ const UrgentCases = () => {
             {alerts.length > 0 && (
               <Card className="border-red-300">
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-red-700">
+                  <CardTitle className="flex items-center gap-2 text-destructive">
                     <AlertTriangle className="h-5 w-5" />
                     Update Alerts
                   </CardTitle>

@@ -1,3 +1,4 @@
+import { FormSheet, FormSheetContent, FormSheetDescription, FormSheetFooter, FormSheetHeader, FormSheetTitle } from "@/components/module/FormSheet";
 import React, { useState, useEffect } from "react";
 import { normalizePagination } from "@/components/module/ModuleKit";
 import { toast } from "sonner";
@@ -277,7 +278,6 @@ const HealthCamps = () => {
       <div className="flex-1 flex flex-col overflow-hidden">
         <ModulePageHeader
           icon={Heart}
-          accent="text-red-600"
           title="Health Camps"
           subtitle="Community health camps, services delivered and beneficiaries reached"
           onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
@@ -642,16 +642,16 @@ const HealthCamps = () => {
       </div>
 
       {/* Create Modal */}
-      <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Add New Health Camp</DialogTitle>
-            <DialogDescription>
+      <FormSheet open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
+        <FormSheetContent>
+          <FormSheetHeader>
+            <FormSheetTitle>Add New Health Camp</FormSheetTitle>
+            <FormSheetDescription>
               Fill in the details for the new health camp.
-            </DialogDescription>
-          </DialogHeader>
+            </FormSheetDescription>
+          </FormSheetHeader>
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="dateOfCamp">Date of Camp *</Label>
                 <Input
@@ -881,7 +881,7 @@ const HealthCamps = () => {
                 onChange={handleInputChange}
               />
             </div>
-            <DialogFooter>
+            <FormSheetFooter>
               <Button
                 type="button"
                 variant="outline"
@@ -890,22 +890,22 @@ const HealthCamps = () => {
                 Cancel
               </Button>
               <Button type="submit">Create Health Camp</Button>
-            </DialogFooter>
+            </FormSheetFooter>
           </form>
-        </DialogContent>
-      </Dialog>
+        </FormSheetContent>
+      </FormSheet>
 
       {/* Edit Modal */}
-      <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Edit Health Camp</DialogTitle>
-            <DialogDescription>
+      <FormSheet open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
+        <FormSheetContent>
+          <FormSheetHeader>
+            <FormSheetTitle>Edit Health Camp</FormSheetTitle>
+            <FormSheetDescription>
               Update the health camp details.
-            </DialogDescription>
-          </DialogHeader>
+            </FormSheetDescription>
+          </FormSheetHeader>
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="edit-dateOfCamp">Date of Camp *</Label>
                 <Input
@@ -1139,7 +1139,7 @@ const HealthCamps = () => {
                 onChange={handleInputChange}
               />
             </div>
-            <DialogFooter>
+            <FormSheetFooter>
               <Button
                 type="button"
                 variant="outline"
@@ -1148,10 +1148,10 @@ const HealthCamps = () => {
                 Cancel
               </Button>
               <Button type="submit">Update Health Camp</Button>
-            </DialogFooter>
+            </FormSheetFooter>
           </form>
-        </DialogContent>
-      </Dialog>
+        </FormSheetContent>
+      </FormSheet>
 
       {/* View Modal */}
       <Dialog open={isViewModalOpen} onOpenChange={setIsViewModalOpen}>

@@ -546,7 +546,7 @@ const TrackingDashboard = () => {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-red-600">
+                <div className="text-2xl font-bold text-destructive">
                   {stats.overdue || 0}
                 </div>
               </CardContent>
@@ -558,7 +558,7 @@ const TrackingDashboard = () => {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-blue-600">
+                <div className="text-2xl font-bold text-info">
                   {stats.inProgress || 0}
                 </div>
               </CardContent>
@@ -570,7 +570,7 @@ const TrackingDashboard = () => {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-green-600">
+                <div className="text-2xl font-bold text-success">
                   {stats.completedThisMonth || 0}
                 </div>
               </CardContent>
@@ -1257,7 +1257,7 @@ const TrackingDashboard = () => {
                 <AlertDialogCancel>Cancel</AlertDialogCancel>
                 <AlertDialogAction
                   onClick={handleDeleteConfirm}
-                  className="bg-red-600 hover:bg-red-700"
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                 >
                   Delete
                 </AlertDialogAction>

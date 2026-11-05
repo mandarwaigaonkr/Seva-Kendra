@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from "react";
+import { FormSheet, FormSheetContent, FormSheetDescription, FormSheetFooter, FormSheetHeader, FormSheetTitle } from "@/components/module/FormSheet";
+import React, { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import {
   Card,
@@ -196,7 +197,9 @@ const Workshops = () => {
   const hasFilters = Boolean(searchTerm) || filters.groupType !== "all";
 
   // Fetch workshops
+  const latestRequest = useRef(0);
   const fetchWorkshops = async () => {
+    const requestId = ++latestRequest.current;
     setLoading(true);
     try {
       const params = {
@@ -210,6 +213,7 @@ const Workshops = () => {
       }
 
       const response = await workshopsAwarenessAPI.getAll(params);
+      if (requestId !== latestRequest.current) return; // superseded by a newer request
       // Handle different response structures from backend
       const workshopsData =
         response.data.workshops ||
@@ -238,19 +242,18 @@ const Workshops = () => {
       toast.error("Failed to fetch workshops");
       console.error("Error fetching workshops:", error);
     } finally {
-      setLoading(false);
+      if (requestId === latestRequest.current) setLoading(false);
     }
   };
 
-  // Initial data load
+  // A new search or filter starts again from page 1.
   useEffect(() => {
-    fetchWorkshops();
-  }, []);
-
-  // Refetch when search or filters change
-  useEffect(() => {
-    fetchWorkshops();
+    setPagination((prev) => (prev.page === 1 ? prev : { ...prev, page: 1 }));
   }, [searchTerm, filters]);
+
+  useEffect(() => {
+    fetchWorkshops();
+  }, [pagination.page, pagination.limit, searchTerm, filters]);
 
   // Handle form submission
   const handleSubmit = async (e) => {
@@ -334,7 +337,7 @@ const Workshops = () => {
     const id = (name) => `${prefix}${name}`;
     return (
       <>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <Label htmlFor={id("groupId")}>Group ID *</Label>
             <Input
@@ -508,7 +511,6 @@ const Workshops = () => {
       <div className="flex-1 flex flex-col overflow-hidden lg:ml-0">
         <ModulePageHeader
           icon={Users}
-          accent="text-purple-600"
           title="Workshops & Awareness"
           subtitle="Trainings and awareness sessions delivered to community groups"
           onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
@@ -679,7 +681,7 @@ const Workshops = () => {
                                       variant="ghost"
                                       size="sm"
                                       aria-label={`Delete ${workshop.topic || "workshop"}`}
-                                      className="text-red-600 hover:text-red-700"
+                                      className="text-destructive hover:text-destructive/80"
                                     >
                                       <Trash2 className="h-4 w-4" />
                                     </Button>
@@ -700,7 +702,7 @@ const Workshops = () => {
                                       </AlertDialogCancel>
                                       <AlertDialogAction
                                         onClick={() => handleDelete(workshop._id)}
-                                        className="bg-red-600 hover:bg-red-700"
+                                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                                       >
                                         Delete
                                       </AlertDialogAction>
@@ -755,21 +757,21 @@ const Workshops = () => {
             </Card>
 
             {/* Create Modal */}
-            <Dialog
+            <FormSheet
               open={isCreateModalOpen}
               onOpenChange={setIsCreateModalOpen}
             >
-              <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-                <DialogHeader>
-                  <DialogTitle>Add New Workshop</DialogTitle>
-                  <DialogDescription>
+              <FormSheetContent>
+                <FormSheetHeader>
+                  <FormSheetTitle>Add New Workshop</FormSheetTitle>
+                  <FormSheetDescription>
                     Fill in the details to schedule a new workshop or awareness
                     program
-                  </DialogDescription>
-                </DialogHeader>
+                  </FormSheetDescription>
+                </FormSheetHeader>
                 <form onSubmit={handleSubmit} className="space-y-6">
                   {renderFormFields("")}
-                  <DialogFooter>
+                  <FormSheetFooter>
                     <Button
                       type="button"
                       variant="outline"
@@ -778,23 +780,23 @@ const Workshops = () => {
                       Cancel
                     </Button>
                     <Button type="submit">Create Workshop</Button>
-                  </DialogFooter>
+                  </FormSheetFooter>
                 </form>
-              </DialogContent>
-            </Dialog>
+              </FormSheetContent>
+            </FormSheet>
 
             {/* Edit Modal */}
-            <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
-              <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-                <DialogHeader>
-                  <DialogTitle>Edit Workshop</DialogTitle>
-                  <DialogDescription>
+            <FormSheet open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
+              <FormSheetContent>
+                <FormSheetHeader>
+                  <FormSheetTitle>Edit Workshop</FormSheetTitle>
+                  <FormSheetDescription>
                     Update the workshop information
-                  </DialogDescription>
-                </DialogHeader>
+                  </FormSheetDescription>
+                </FormSheetHeader>
                 <form onSubmit={handleSubmit} className="space-y-6">
                   {renderFormFields("edit-")}
-                  <DialogFooter>
+                  <FormSheetFooter>
                     <Button
                       type="button"
                       variant="outline"
@@ -803,10 +805,10 @@ const Workshops = () => {
                       Cancel
                     </Button>
                     <Button type="submit">Update Workshop</Button>
-                  </DialogFooter>
+                  </FormSheetFooter>
                 </form>
-              </DialogContent>
-            </Dialog>
+              </FormSheetContent>
+            </FormSheet>
 
             {/* View Modal */}
             <Dialog open={isViewModalOpen} onOpenChange={setIsViewModalOpen}>

@@ -1,3 +1,4 @@
+import { FormSheet, FormSheetContent, FormSheetDescription, FormSheetFooter, FormSheetHeader, FormSheetTitle } from "@/components/module/FormSheet";
 import React, { useState, useEffect } from "react";
 import { normalizePagination } from "@/components/module/ModuleKit";
 import { toast } from "sonner";
@@ -451,7 +452,6 @@ const PWD = () => {
       <div className="flex-1 flex flex-col overflow-hidden">
         <ModulePageHeader
           icon={Accessibility}
-          accent="text-blue-600"
           title="Persons with Disabilities"
           subtitle="Disability type, certification, UDID and support services"
           onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
@@ -733,13 +733,13 @@ const PWD = () => {
       </div>
 
       {/* Create Modal */}
-      <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
-        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Add New PWD Record</DialogTitle>
-          </DialogHeader>
+      <FormSheet open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
+        <FormSheetContent>
+          <FormSheetHeader>
+            <FormSheetTitle>Add New PWD Record</FormSheetTitle>
+          </FormSheetHeader>
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="householdCode">Household Code *</Label>
                 <Input
@@ -877,9 +877,9 @@ const PWD = () => {
                   required
                 />
               </div>
-              <div className="md:col-span-3">
+              <div className="sm:col-span-2">
                 <Label htmlFor="typeOfDisability">Disability Type *</Label>
-                <div className="mt-2 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 rounded-md border p-3">
+                <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-3 rounded-md border p-3">
                   {DISABILITY_OPTIONS.map((option) => {
                     const checked = (formData.typeOfDisability || []).includes(option);
                     return (
@@ -968,7 +968,7 @@ const PWD = () => {
                   onChange={handleInputChange}
                 />
               </div>
-              <div className="md:col-span-2">
+              <div className="sm:col-span-2">
                 <Label htmlFor="assessmentResults">Assessment Results</Label>
                 <Textarea
                   id="assessmentResults"
@@ -978,7 +978,7 @@ const PWD = () => {
                   placeholder="Details about assessment results"
                 />
               </div>
-              <div className="md:col-span-3">
+              <div className="sm:col-span-2">
                 <Label htmlFor="assistiveDevicesProvided">
                   Assistive Devices Provided
                 </Label>
@@ -990,7 +990,7 @@ const PWD = () => {
                   placeholder="Details about assistive devices provided"
                 />
               </div>
-              <div className="md:col-span-3">
+              <div className="sm:col-span-2">
                 <Label htmlFor="therapyServices">Therapy Services</Label>
                 <Textarea
                   id="therapyServices"
@@ -1000,7 +1000,7 @@ const PWD = () => {
                   placeholder="Details about therapy services"
                 />
               </div>
-              <div className="md:col-span-3">
+              <div className="sm:col-span-2">
                 <Label htmlFor="institutionalCare">Institutional Care</Label>
                 <Textarea
                   id="institutionalCare"
@@ -1010,7 +1010,7 @@ const PWD = () => {
                   placeholder="Details about institutional care support"
                 />
               </div>
-              <div className="md:col-span-3">
+              <div className="sm:col-span-2">
                 <Label htmlFor="educationalSupport">Educational Support</Label>
                 <Textarea
                   id="educationalSupport"
@@ -1020,7 +1020,7 @@ const PWD = () => {
                   placeholder="Details about educational support provided"
                 />
               </div>
-              <div className="md:col-span-3">
+              <div className="sm:col-span-2">
                 <Label htmlFor="vocationalTraining">Vocational Training</Label>
                 <Textarea
                   id="vocationalTraining"
@@ -1093,7 +1093,7 @@ const PWD = () => {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="md:col-span-3">
+              <div className="sm:col-span-2">
                 <Label htmlFor="beneficiaryOfGovernmentSchemes">
                   Beneficiary of Government Schemes
                 </Label>
@@ -1107,7 +1107,7 @@ const PWD = () => {
                 />
               </div>
             </div>
-            <DialogFooter>
+            <FormSheetFooter>
               <Button
                 type="button"
                 variant="outline"
@@ -1116,19 +1116,19 @@ const PWD = () => {
                 Cancel
               </Button>
               <Button type="submit">Create Record</Button>
-            </DialogFooter>
+            </FormSheetFooter>
           </form>
-        </DialogContent>
-      </Dialog>
+        </FormSheetContent>
+      </FormSheet>
 
       {/* Edit and View modals similar to create */}
-      <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
-        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Edit PWD Record</DialogTitle>
-          </DialogHeader>
+      <FormSheet open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
+        <FormSheetContent>
+          <FormSheetHeader>
+            <FormSheetTitle>Edit PWD Record</FormSheetTitle>
+          </FormSheetHeader>
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="editHouseholdCode">Household Code *</Label>
                 <Input
@@ -1266,9 +1266,9 @@ const PWD = () => {
                   required
                 />
               </div>
-              <div className="md:col-span-3">
+              <div className="sm:col-span-2">
                 <Label htmlFor="editTypeOfDisability">Disability Type *</Label>
-                <div className="mt-2 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 rounded-md border p-3">
+                <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-3 rounded-md border p-3">
                   {DISABILITY_OPTIONS.map((option) => {
                     const checked = (formData.typeOfDisability || []).includes(option);
                     return (
@@ -1357,7 +1357,7 @@ const PWD = () => {
                   onChange={handleInputChange}
                 />
               </div>
-              <div className="md:col-span-3">
+              <div className="sm:col-span-2">
                 <Label htmlFor="editAssessmentResults">
                   Assessment Results
                 </Label>
@@ -1369,7 +1369,7 @@ const PWD = () => {
                   placeholder="Details about assessment results"
                 />
               </div>
-              <div className="md:col-span-3">
+              <div className="sm:col-span-2">
                 <Label htmlFor="editAssistiveDevicesProvided">
                   Assistive Devices Provided
                 </Label>
@@ -1381,7 +1381,7 @@ const PWD = () => {
                   placeholder="Details about assistive devices provided"
                 />
               </div>
-              <div className="md:col-span-3">
+              <div className="sm:col-span-2">
                 <Label htmlFor="editTherapyServices">Therapy Services</Label>
                 <Textarea
                   id="editTherapyServices"
@@ -1391,7 +1391,7 @@ const PWD = () => {
                   placeholder="Details about therapy services"
                 />
               </div>
-              <div className="md:col-span-3">
+              <div className="sm:col-span-2">
                 <Label htmlFor="editInstitutionalCare">Institutional Care</Label>
                 <Textarea
                   id="editInstitutionalCare"
@@ -1401,7 +1401,7 @@ const PWD = () => {
                   placeholder="Details about institutional care support"
                 />
               </div>
-              <div className="md:col-span-3">
+              <div className="sm:col-span-2">
                 <Label htmlFor="editEducationalSupport">
                   Educational Support
                 </Label>
@@ -1413,7 +1413,7 @@ const PWD = () => {
                   placeholder="Details about educational support provided"
                 />
               </div>
-              <div className="md:col-span-3">
+              <div className="sm:col-span-2">
                 <Label htmlFor="editVocationalTraining">
                   Vocational Training
                 </Label>
@@ -1488,7 +1488,7 @@ const PWD = () => {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="md:col-span-3">
+              <div className="sm:col-span-2">
                 <Label htmlFor="editBeneficiaryOfGovernmentSchemes">
                   Beneficiary of Government Schemes
                 </Label>
@@ -1502,15 +1502,15 @@ const PWD = () => {
                 />
               </div>
             </div>
-            <DialogFooter>
+            <FormSheetFooter>
               <Button type="button" variant="outline" onClick={resetForm}>
                 Cancel
               </Button>
               <Button type="submit">Update Record</Button>
-            </DialogFooter>
+            </FormSheetFooter>
           </form>
-        </DialogContent>
-      </Dialog>
+        </FormSheetContent>
+      </FormSheet>
 
       <Dialog open={isViewModalOpen} onOpenChange={setIsViewModalOpen}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">

@@ -1,3 +1,5 @@
+import { toApiPayload } from "@/components/module/ModuleKit";
+import { FormSheet, FormSheetContent, FormSheetDescription, FormSheetFooter, FormSheetHeader, FormSheetTitle } from "@/components/module/FormSheet";
 import React, { useState, useEffect } from "react";
 import { FilterBar } from "@/components/module/ModuleKit";
 import { toast } from "sonner";
@@ -149,20 +151,17 @@ const OtherDiseases = () => {
     e.preventDefault();
     try {
       if (selectedRecord) {
-        await otherDiseasesAPI.update(selectedRecord._id, formData);
+        await otherDiseasesAPI.update(selectedRecord._id, toApiPayload(formData, true));
         toast.success("Other diseases record updated successfully");
         setIsEditModalOpen(false);
       } else {
-        await otherDiseasesAPI.create(formData);
+        await otherDiseasesAPI.create(toApiPayload(formData));
         toast.success("Other diseases record created successfully");
         setIsCreateModalOpen(false);
       }
       fetchRecords();
       resetForm();
     } catch (error) {
-      toast.error(
-        selectedRecord ? "Failed to update record" : "Failed to create record"
-      );
       console.error("Error submitting form:", error);
     }
   };
@@ -520,7 +519,7 @@ const OtherDiseases = () => {
       </div>
 
       {/* Create/Edit Modal */}
-      <Dialog
+      <FormSheet
         open={isCreateModalOpen || isEditModalOpen}
         onOpenChange={(open) => {
           if (!open) {
@@ -530,14 +529,14 @@ const OtherDiseases = () => {
           }
         }}
       >
-        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>
+        <FormSheetContent>
+          <FormSheetHeader>
+            <FormSheetTitle>
               {selectedRecord ? "Edit" : "Add New"} Other Diseases Record
-            </DialogTitle>
-          </DialogHeader>
+            </FormSheetTitle>
+          </FormSheetHeader>
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="name">Name *</Label>
                 <Input
@@ -722,7 +721,7 @@ const OtherDiseases = () => {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="md:col-span-3">
+              <div className="sm:col-span-2">
                 <Label htmlFor="natureOfIssue">Nature of Issue</Label>
                 <Textarea
                   id="natureOfIssue"
@@ -732,7 +731,7 @@ const OtherDiseases = () => {
                   rows={2}
                 />
               </div>
-              <div className="md:col-span-3">
+              <div className="sm:col-span-2">
                 <Label htmlFor="screeningResults">Screening Results</Label>
                 <Textarea
                   id="screeningResults"
@@ -742,7 +741,7 @@ const OtherDiseases = () => {
                   rows={2}
                 />
               </div>
-              <div className="md:col-span-3">
+              <div className="sm:col-span-2">
                 <Label htmlFor="individualCarePlan">Individual Care Plan</Label>
                 <Textarea
                   id="individualCarePlan"
@@ -753,7 +752,7 @@ const OtherDiseases = () => {
                 />
               </div>
             </div>
-            <DialogFooter>
+            <FormSheetFooter>
               <Button
                 type="button"
                 variant="outline"
@@ -768,10 +767,10 @@ const OtherDiseases = () => {
               <Button type="submit">
                 {selectedRecord ? "Update" : "Create"} Record
               </Button>
-            </DialogFooter>
+            </FormSheetFooter>
           </form>
-        </DialogContent>
-      </Dialog>
+        </FormSheetContent>
+      </FormSheet>
 
       {/* View Modal */}
       <Dialog open={isViewModalOpen} onOpenChange={setIsViewModalOpen}>

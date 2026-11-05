@@ -1,3 +1,5 @@
+import { toApiPayload } from "@/components/module/ModuleKit";
+import { FormSheet, FormSheetContent, FormSheetDescription, FormSheetFooter, FormSheetHeader, FormSheetTitle } from "@/components/module/FormSheet";
 import React, { useState, useEffect } from "react";
 import { normalizePagination } from "@/components/module/ModuleKit";
 import { FilterBar } from "@/components/module/ModuleKit";
@@ -170,20 +172,17 @@ const Adolescents = () => {
     e.preventDefault();
     try {
       if (selectedRecord) {
-        await adolescentsAPI.update(selectedRecord._id, formData);
+        await adolescentsAPI.update(selectedRecord._id, toApiPayload(formData, true));
         toast.success("Adolescent record updated successfully");
         setIsEditModalOpen(false);
       } else {
-        await adolescentsAPI.create(formData);
+        await adolescentsAPI.create(toApiPayload(formData));
         toast.success("Adolescent record created successfully");
         setIsCreateModalOpen(false);
       }
       fetchAdolescents();
       resetForm();
     } catch (error) {
-      toast.error(
-        selectedRecord ? "Failed to update record" : "Failed to create record"
-      );
       console.error("Error submitting form:", error);
     }
   };
@@ -192,13 +191,12 @@ const Adolescents = () => {
   const handleUpdate = async (e) => {
     e.preventDefault();
     try {
-      await adolescentsAPI.update(selectedRecord._id, formData);
+      await adolescentsAPI.update(selectedRecord._id, toApiPayload(formData, true));
       toast.success("Adolescent record updated successfully");
       setIsEditModalOpen(false);
       fetchAdolescents();
       resetForm();
     } catch (error) {
-      toast.error("Failed to update record");
       console.error("Error updating record:", error);
     }
   };
@@ -612,13 +610,13 @@ const Adolescents = () => {
       </div>
 
       {/* Create Modal */}
-      <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
-        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Add New Adolescent Record</DialogTitle>
-          </DialogHeader>
+      <FormSheet open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
+        <FormSheetContent>
+          <FormSheetHeader>
+            <FormSheetTitle>Add New Adolescent Record</FormSheetTitle>
+          </FormSheetHeader>
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="householdCode">Household Code *</Label>
                 <Input
@@ -828,7 +826,7 @@ const Adolescents = () => {
               </div>
 
               {/* Health Assessment Section */}
-              <div className="col-span-3">
+              <div className="sm:col-span-2">
                 <h3 className="text-lg font-semibold mt-4 mb-2 border-b pb-2">
                   Health Assessment
                 </h3>
@@ -884,7 +882,7 @@ const Adolescents = () => {
               </div>
 
               {/* Sexual & Reproductive Health Section */}
-              <div className="col-span-3">
+              <div className="sm:col-span-2">
                 <h3 className="text-lg font-semibold mt-4 mb-2 border-b pb-2">
                   Sexual & Reproductive Health
                 </h3>
@@ -939,7 +937,7 @@ const Adolescents = () => {
               </div>
 
               {/* Mental Health Section */}
-              <div className="col-span-3">
+              <div className="sm:col-span-2">
                 <h3 className="text-lg font-semibold mt-4 mb-2 border-b pb-2">
                   Mental Health
                 </h3>
@@ -994,7 +992,7 @@ const Adolescents = () => {
               </div>
 
               {/* Life Skills & Development Section */}
-              <div className="col-span-3">
+              <div className="sm:col-span-2">
                 <h3 className="text-lg font-semibold mt-4 mb-2 border-b pb-2">
                   Life Skills & Development
                 </h3>
@@ -1056,7 +1054,7 @@ const Adolescents = () => {
               </div>
 
               {/* Risk Factors Section */}
-              <div className="col-span-3">
+              <div className="sm:col-span-2">
                 <h3 className="text-lg font-semibold mt-4 mb-2 border-b pb-2">
                   Risk Factors
                 </h3>
@@ -1094,7 +1092,7 @@ const Adolescents = () => {
                 />
               </div>
             </div>
-            <DialogFooter>
+            <FormSheetFooter>
               <Button
                 type="button"
                 variant="outline"
@@ -1103,22 +1101,22 @@ const Adolescents = () => {
                 Cancel
               </Button>
               <Button type="submit">Create Record</Button>
-            </DialogFooter>
+            </FormSheetFooter>
           </form>
-        </DialogContent>
-      </Dialog>
+        </FormSheetContent>
+      </FormSheet>
 
       {/* Edit Modal */}
-      <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Edit Adolescent Record</DialogTitle>
-          </DialogHeader>
+      <FormSheet open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
+        <FormSheetContent>
+          <FormSheetHeader>
+            <FormSheetTitle>Edit Adolescent Record</FormSheetTitle>
+          </FormSheetHeader>
           <form onSubmit={handleUpdate} className="space-y-6">
             {/* Basic Information */}
             <div className="space-y-4">
               <h3 className="text-lg font-semibold">Basic Information</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="edit-householdCode">Household Code *</Label>
                   <Input
@@ -1258,7 +1256,7 @@ const Adolescents = () => {
             {/* Education Details */}
             <div className="space-y-4">
               <h3 className="text-lg font-semibold">Education Details</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="edit-educationStatus">
                     Education Status *
@@ -1308,7 +1306,7 @@ const Adolescents = () => {
             {/* Health Assessment */}
             <div className="space-y-4">
               <h3 className="text-lg font-semibold">Health Assessment</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="edit-dateOfHealthScreening">
                     Date of Health Screening
@@ -1391,7 +1389,7 @@ const Adolescents = () => {
               <h3 className="text-lg font-semibold">
                 Sexual & Reproductive Health
               </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="edit-menstrualHygiene">
                     Menstrual Hygiene
@@ -1448,7 +1446,7 @@ const Adolescents = () => {
             {/* Mental Health */}
             <div className="space-y-4">
               <h3 className="text-lg font-semibold">Mental Health</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="edit-mentalHealthScreening">
                     Mental Health Screening
@@ -1507,7 +1505,7 @@ const Adolescents = () => {
               <h3 className="text-lg font-semibold">
                 Life Skills & Development
               </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="edit-lifeSkillsTraining">
                     Life Skills Training
@@ -1575,7 +1573,7 @@ const Adolescents = () => {
             {/* Risk Factors */}
             <div className="space-y-4">
               <h3 className="text-lg font-semibold">Risk Factors</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="edit-substanceUse">Substance Use</Label>
                   <Select
@@ -1611,7 +1609,7 @@ const Adolescents = () => {
             {/* Reporting Details */}
             <div className="space-y-4">
               <h3 className="text-lg font-semibold">Reporting Details</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="edit-dateOfReporting">
                     Date of Reporting *
@@ -1638,15 +1636,15 @@ const Adolescents = () => {
               </div>
             </div>
 
-            <DialogFooter>
+            <FormSheetFooter>
               <Button type="button" variant="outline" onClick={resetForm}>
                 Cancel
               </Button>
               <Button type="submit">Update Record</Button>
-            </DialogFooter>
+            </FormSheetFooter>
           </form>
-        </DialogContent>
-      </Dialog>
+        </FormSheetContent>
+      </FormSheet>
 
       <Dialog open={isViewModalOpen} onOpenChange={setIsViewModalOpen}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">

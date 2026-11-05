@@ -1,3 +1,4 @@
+import { FormSheet, FormSheetContent, FormSheetDescription, FormSheetFooter, FormSheetHeader, FormSheetTitle } from "@/components/module/FormSheet";
 import React, { useState, useEffect } from "react";
 import { normalizePagination } from "@/components/module/ModuleKit";
 import { FilterBar } from "@/components/module/ModuleKit";
@@ -834,21 +835,21 @@ const CompetitiveExams = () => {
             </Card>
 
             {/* Create Modal */}
-            <Dialog
+            <FormSheet
               open={isCreateModalOpen}
               onOpenChange={setIsCreateModalOpen}
             >
-              <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-                <DialogHeader>
-                  <DialogTitle>Add New Exam Record</DialogTitle>
-                  <DialogDescription>
+              <FormSheetContent>
+                <FormSheetHeader>
+                  <FormSheetTitle>Add New Exam Record</FormSheetTitle>
+                  <FormSheetDescription>
                     Create a new competitive exam record with all required
                     information.
-                  </DialogDescription>
-                </DialogHeader>
+                  </FormSheetDescription>
+                </FormSheetHeader>
                 <form onSubmit={handleSubmit} className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="md:col-span-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="sm:col-span-2">
                       <Label htmlFor="scStudentId">Select Student from SC List</Label>
                       <StudentCombobox
                         id="scStudentId"
@@ -1071,7 +1072,7 @@ const CompetitiveExams = () => {
                         required
                       />
                     </div>
-                    <div className="md:col-span-2">
+                    <div className="sm:col-span-2">
                       <Label htmlFor="educationalStatus">
                         Educational Status *
                       </Label>
@@ -1171,7 +1172,7 @@ const CompetitiveExams = () => {
                         }
                       />
                     </div>
-                    <div className="md:col-span-2">
+                    <div className="sm:col-span-2">
                       <Label htmlFor="individualCarePlan">Individual Care Plan</Label>
                       <Textarea
                         id="individualCarePlan"
@@ -1183,28 +1184,28 @@ const CompetitiveExams = () => {
                     </div>
                   </div>
 
-                  <DialogFooter>
+                  <FormSheetFooter>
                     <Button type="button" variant="outline" onClick={resetForm}>
                       Cancel
                     </Button>
                     <Button type="submit">Create Exam Record</Button>
-                  </DialogFooter>
+                  </FormSheetFooter>
                 </form>
-              </DialogContent>
-            </Dialog>
+              </FormSheetContent>
+            </FormSheet>
 
             {/* Edit Modal */}
-            <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
-              <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-                <DialogHeader>
-                  <DialogTitle>Edit Exam Record</DialogTitle>
-                  <DialogDescription>
+            <FormSheet open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
+              <FormSheetContent>
+                <FormSheetHeader>
+                  <FormSheetTitle>Edit Exam Record</FormSheetTitle>
+                  <FormSheetDescription>
                     Update the competitive exam record information.
-                  </DialogDescription>
-                </DialogHeader>
+                  </FormSheetDescription>
+                </FormSheetHeader>
                 <form onSubmit={handleSubmit} className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="md:col-span-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="sm:col-span-2">
                       <Label htmlFor="editScStudentId">
                         Select Student from SC List
                       </Label>
@@ -1431,7 +1432,7 @@ const CompetitiveExams = () => {
                         required
                       />
                     </div>
-                    <div className="md:col-span-2">
+                    <div className="sm:col-span-2">
                       <Label htmlFor="editEducationalStatus">
                         Educational Status *
                       </Label>
@@ -1531,7 +1532,7 @@ const CompetitiveExams = () => {
                         }
                       />
                     </div>
-                    <div className="md:col-span-2">
+                    <div className="sm:col-span-2">
                       <Label htmlFor="editIndividualCarePlan">Individual Care Plan</Label>
                       <Textarea
                         id="editIndividualCarePlan"
@@ -1543,15 +1544,15 @@ const CompetitiveExams = () => {
                     </div>
                   </div>
 
-                  <DialogFooter>
+                  <FormSheetFooter>
                     <Button type="button" variant="outline" onClick={resetForm}>
                       Cancel
                     </Button>
                     <Button type="submit">Update Exam Record</Button>
-                  </DialogFooter>
+                  </FormSheetFooter>
                 </form>
-              </DialogContent>
-            </Dialog>
+              </FormSheetContent>
+            </FormSheet>
 
             {/* View Modal */}
             <Dialog open={isViewModalOpen} onOpenChange={setIsViewModalOpen}>

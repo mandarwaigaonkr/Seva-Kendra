@@ -1,3 +1,4 @@
+import { FormSheet, FormSheetContent, FormSheetDescription, FormSheetFooter, FormSheetHeader, FormSheetTitle } from "@/components/module/FormSheet";
 import React, { useState, useEffect } from "react";
 import { normalizePagination } from "@/components/module/ModuleKit";
 import { FilterBar } from "@/components/module/ModuleKit";
@@ -663,20 +664,20 @@ const SCStudents = () => {
             </Card>
 
             {/* Create Modal */}
-            <Dialog
+            <FormSheet
               open={isCreateModalOpen}
               onOpenChange={setIsCreateModalOpen}
             >
-              <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-                <DialogHeader>
-                  <DialogTitle>Add New SC Student</DialogTitle>
-                  <DialogDescription>
+              <FormSheetContent>
+                <FormSheetHeader>
+                  <FormSheetTitle>Add New SC Student</FormSheetTitle>
+                  <FormSheetDescription>
                     Create a new SC student record with all required
                     information.
-                  </DialogDescription>
-                </DialogHeader>
+                  </FormSheetDescription>
+                </FormSheetHeader>
                 <form onSubmit={handleSubmit} className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <Label htmlFor="householdCode">Household Code *</Label>
                       <Input
@@ -965,7 +966,7 @@ const SCStudents = () => {
                         }
                       />
                     </div>
-                    <div className="md:col-span-2">
+                    <div className="sm:col-span-2">
                       <Label htmlFor="natureOfIssue">Nature of Issue</Label>
                       <Textarea
                         id="natureOfIssue"
@@ -1038,7 +1039,7 @@ const SCStudents = () => {
                         }
                       />
                     </div>
-                    <div className="md:col-span-2">
+                    <div className="sm:col-span-2">
                       <Label htmlFor="individualCarePlan">Individual Care Plan</Label>
                       <Textarea
                         id="individualCarePlan"
@@ -1053,27 +1054,27 @@ const SCStudents = () => {
                     </div>
                   </div>
 
-                  <DialogFooter>
+                  <FormSheetFooter>
                     <Button type="button" variant="outline" onClick={resetForm}>
                       Cancel
                     </Button>
                     <Button type="submit">Create SC Student</Button>
-                  </DialogFooter>
+                  </FormSheetFooter>
                 </form>
-              </DialogContent>
-            </Dialog>
+              </FormSheetContent>
+            </FormSheet>
 
             {/* Edit Modal - Similar structure to create modal */}
-            <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
-              <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-                <DialogHeader>
-                  <DialogTitle>Edit SC Student</DialogTitle>
-                  <DialogDescription>
+            <FormSheet open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
+              <FormSheetContent>
+                <FormSheetHeader>
+                  <FormSheetTitle>Edit SC Student</FormSheetTitle>
+                  <FormSheetDescription>
                     Update the SC student information.
-                  </DialogDescription>
-                </DialogHeader>
+                  </FormSheetDescription>
+                </FormSheetHeader>
                 <form onSubmit={handleSubmit} className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <Label htmlFor="editHouseholdCode">
                         Household Code *
@@ -1368,7 +1369,7 @@ const SCStudents = () => {
                         }
                       />
                     </div>
-                    <div className="md:col-span-2">
+                    <div className="sm:col-span-2">
                       <Label htmlFor="editNatureOfIssue">
                         Nature of Issue
                       </Label>
@@ -1445,7 +1446,7 @@ const SCStudents = () => {
                         }
                       />
                     </div>
-                    <div className="md:col-span-2">
+                    <div className="sm:col-span-2">
                       <Label htmlFor="editIndividualCarePlan">Individual Care Plan</Label>
                       <Textarea
                         id="editIndividualCarePlan"
@@ -1460,15 +1461,15 @@ const SCStudents = () => {
                     </div>
                   </div>
 
-                  <DialogFooter>
+                  <FormSheetFooter>
                     <Button type="button" variant="outline" onClick={resetForm}>
                       Cancel
                     </Button>
                     <Button type="submit">Update SC Student</Button>
-                  </DialogFooter>
+                  </FormSheetFooter>
                 </form>
-              </DialogContent>
-            </Dialog>
+              </FormSheetContent>
+            </FormSheet>
 
             {/* View Modal */}
             <Dialog open={isViewModalOpen} onOpenChange={setIsViewModalOpen}>

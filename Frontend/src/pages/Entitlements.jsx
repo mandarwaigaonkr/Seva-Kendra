@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from "react";
+import { FormSheet, FormSheetContent, FormSheetDescription, FormSheetFooter, FormSheetHeader, FormSheetTitle } from "@/components/module/FormSheet";
+import React, { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import {
   Card,
@@ -270,7 +271,9 @@ const Entitlements = () => {
     filters.status !== "all" ||
     filters.entitlementType !== "all";
 
+  const latestRequest = useRef(0);
   const fetchEntitlements = async () => {
+    const requestId = ++latestRequest.current;
     setLoading(true);
     try {
       const params = {
@@ -283,6 +286,7 @@ const Entitlements = () => {
       };
 
       const response = await entitlementsAPI.getAll(params);
+      if (requestId !== latestRequest.current) return; // superseded by a newer request
 
       // Handle response data with fallbacks
       const entitlementsData =
@@ -314,19 +318,18 @@ const Entitlements = () => {
       // Set empty array on error to prevent undefined errors
       setEntitlements([]);
     } finally {
-      setLoading(false);
+      if (requestId === latestRequest.current) setLoading(false);
     }
   };
 
-  // Initial data load
+  // A new search or filter starts again from page 1.
   useEffect(() => {
-    fetchEntitlements();
-  }, []);
-
-  // Refetch when search or filters change
-  useEffect(() => {
-    fetchEntitlements();
+    setPagination((prev) => (prev.page === 1 ? prev : { ...prev, page: 1 }));
   }, [searchTerm, filters]);
+
+  useEffect(() => {
+    fetchEntitlements();
+  }, [pagination.page, pagination.limit, searchTerm, filters]);
 
   // Form state mirrors the model; only strip blanks the schema would reject.
   const buildEntitlementPayload = () => {
@@ -504,7 +507,7 @@ const Entitlements = () => {
           <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
             Beneficiary
           </h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <Label htmlFor={id("householdCode")}>Household Code</Label>
               <Input
@@ -620,7 +623,7 @@ const Entitlements = () => {
           <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
             Reporting
           </h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <Label htmlFor={id("dateOfReporting")}>Date of Reporting *</Label>
               <Input
@@ -667,7 +670,7 @@ const Entitlements = () => {
           <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
             ID Proof & Domicile
           </h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <Label htmlFor={id("idProofType")}>Type of Document</Label>
               {renderSelect(
@@ -704,7 +707,7 @@ const Entitlements = () => {
                 }
               />
             </div>
-            <div className="md:col-span-2">
+            <div className="sm:col-span-2">
               <Label htmlFor={id("idProofIssue")}>Nature of Issue</Label>
               <Textarea
                 id={id("idProofIssue")}
@@ -723,7 +726,7 @@ const Entitlements = () => {
           <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
             Schemes
           </h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <Label htmlFor={id("eligibleSchemes")}>
                 Eligible Schemes / Entitlement Type
@@ -753,7 +756,7 @@ const Entitlements = () => {
                 "Select status"
               )}
             </div>
-            <div className="md:col-span-2">
+            <div className="sm:col-span-2">
               <Label htmlFor={id("schemeIssue")}>Nature of Issue</Label>
               <Textarea
                 id={id("schemeIssue")}
@@ -808,7 +811,7 @@ const Entitlements = () => {
           <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
             Follow-up
           </h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="flex items-center gap-2">
               <Checkbox
                 id={id("followUpRequired")}
@@ -831,7 +834,7 @@ const Entitlements = () => {
                 onChange={setField("followUpDate")}
               />
             </div>
-            <div className="md:col-span-2">
+            <div className="sm:col-span-2">
               <Label htmlFor={id("remarks")}>Remarks</Label>
               <Textarea
                 id={id("remarks")}
@@ -868,7 +871,6 @@ const Entitlements = () => {
       <div className="flex-1 flex flex-col overflow-hidden lg:ml-0">
         <ModulePageHeader
           icon={Award}
-          accent="text-purple-600"
           title="Entitlements"
           subtitle="ID proofs, documents and government scheme access for beneficiaries"
           onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
@@ -1061,7 +1063,7 @@ const Entitlements = () => {
                                       variant="ghost"
                                       size="sm"
                                       aria-label={`Delete ${entitlement.name}`}
-                                      className="text-red-600 hover:text-red-700"
+                                      className="text-destructive hover:text-destructive/80"
                                     >
                                       <Trash2 className="h-4 w-4" />
                                     </Button>
@@ -1084,7 +1086,7 @@ const Entitlements = () => {
                                         onClick={() =>
                                           handleDelete(entitlement._id)
                                         }
-                                        className="bg-red-600 hover:bg-red-700"
+                                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                                       >
                                         Delete
                                       </AlertDialogAction>
@@ -1139,20 +1141,20 @@ const Entitlements = () => {
             </Card>
 
             {/* Create Modal */}
-            <Dialog
+            <FormSheet
               open={isCreateModalOpen}
               onOpenChange={setIsCreateModalOpen}
             >
-              <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-                <DialogHeader>
-                  <DialogTitle>Add New Entitlement</DialogTitle>
-                  <DialogDescription>
+              <FormSheetContent>
+                <FormSheetHeader>
+                  <FormSheetTitle>Add New Entitlement</FormSheetTitle>
+                  <FormSheetDescription>
                     Fill in the details to create a new entitlement record
-                  </DialogDescription>
-                </DialogHeader>
+                  </FormSheetDescription>
+                </FormSheetHeader>
                 <form onSubmit={handleSubmit} className="space-y-6">
                   {renderFormFields("")}
-                  <DialogFooter>
+                  <FormSheetFooter>
                     <Button
                       type="button"
                       variant="outline"
@@ -1161,23 +1163,23 @@ const Entitlements = () => {
                       Cancel
                     </Button>
                     <Button type="submit">Create Entitlement</Button>
-                  </DialogFooter>
+                  </FormSheetFooter>
                 </form>
-              </DialogContent>
-            </Dialog>
+              </FormSheetContent>
+            </FormSheet>
 
             {/* Edit Modal */}
-            <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
-              <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-                <DialogHeader>
-                  <DialogTitle>Edit Entitlement</DialogTitle>
-                  <DialogDescription>
+            <FormSheet open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
+              <FormSheetContent>
+                <FormSheetHeader>
+                  <FormSheetTitle>Edit Entitlement</FormSheetTitle>
+                  <FormSheetDescription>
                     Update the entitlement information
-                  </DialogDescription>
-                </DialogHeader>
+                  </FormSheetDescription>
+                </FormSheetHeader>
                 <form onSubmit={handleSubmit} className="space-y-6">
                   {renderFormFields("edit-")}
-                  <DialogFooter>
+                  <FormSheetFooter>
                     <Button
                       type="button"
                       variant="outline"
@@ -1186,10 +1188,10 @@ const Entitlements = () => {
                       Cancel
                     </Button>
                     <Button type="submit">Update Entitlement</Button>
-                  </DialogFooter>
+                  </FormSheetFooter>
                 </form>
-              </DialogContent>
-            </Dialog>
+              </FormSheetContent>
+            </FormSheet>
 
             {/* View Modal */}
             <Dialog open={isViewModalOpen} onOpenChange={setIsViewModalOpen}>

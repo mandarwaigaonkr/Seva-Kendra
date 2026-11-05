@@ -1,3 +1,4 @@
+import { FormSheet, FormSheetContent, FormSheetDescription, FormSheetFooter, FormSheetHeader, FormSheetTitle } from "@/components/module/FormSheet";
 import React, { useState, useEffect } from "react";
 import { normalizePagination } from "@/components/module/ModuleKit";
 import { toast } from "sonner";
@@ -368,20 +369,20 @@ const Teachers = () => {
                   </Select>
                 </div>
                 {canCreate("education") && (
-                  <Dialog
+                  <FormSheet
                     open={isCreateModalOpen}
                     onOpenChange={setIsCreateModalOpen}
                   >
-              <DialogContent className="max-w-2xl max-h-screen overflow-y-auto">
-                <DialogHeader>
-                  <DialogTitle>Add New Teacher</DialogTitle>
-                  <DialogDescription>
+              <FormSheetContent>
+                <FormSheetHeader>
+                  <FormSheetTitle>Add New Teacher</FormSheetTitle>
+                  <FormSheetDescription>
                     Enter teacher details to add a new teacher to the system.
-                  </DialogDescription>
-                </DialogHeader>
+                  </FormSheetDescription>
+                </FormSheetHeader>
 
                 <form onSubmit={handleSubmit} className="space-y-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <Label htmlFor="teacherId">Teacher ID</Label>
                       <Input
@@ -457,9 +458,9 @@ const Teachers = () => {
                         placeholder="10 digit number"
                       />
                     </div>
-                    <div className="md:col-span-2">
+                    <div className="sm:col-span-2">
                       <Label htmlFor="specialization">Specialization</Label>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-3 mt-2 p-3 border rounded-md">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3 mt-2 p-3 border rounded-md">
                         {specializations.map((spec) => {
                           const checked = formData.specialization.includes(spec);
                           return (
@@ -548,7 +549,7 @@ const Teachers = () => {
                     />
                   </div>
 
-                  <DialogFooter>
+                  <FormSheetFooter>
                     <Button
                       type="button"
                       variant="outline"
@@ -557,10 +558,10 @@ const Teachers = () => {
                       Cancel
                     </Button>
                     <Button type="submit">Add Teacher</Button>
-                  </DialogFooter>
+                  </FormSheetFooter>
                 </form>
-              </DialogContent>
-            </Dialog>
+              </FormSheetContent>
+            </FormSheet>
             )}
           </div>
             </div>
@@ -637,7 +638,7 @@ const Teachers = () => {
                               title="View"
                               aria-label="View teacher"
                             >
-                              <Eye className="h-4 w-4 text-blue-600" />
+                              <Eye className="h-4 w-4" />
                             </button>
                             {canEdit("education") && (
                               <button
@@ -646,7 +647,7 @@ const Teachers = () => {
                                 title="Edit"
                                 aria-label="Edit teacher"
                               >
-                                <Edit className="h-4 w-4 text-green-600" />
+                                <Edit className="h-4 w-4" />
                               </button>
                             )}
                             {canDelete("education") && (
@@ -657,7 +658,7 @@ const Teachers = () => {
                                     title="Delete"
                                     aria-label="Delete teacher"
                                   >
-                                    <Trash2 className="h-4 w-4 text-red-600" />
+                                    <Trash2 className="h-4 w-4" />
                                   </button>
                                 </AlertDialogTrigger>
                                 <AlertDialogContent>
@@ -676,7 +677,7 @@ const Teachers = () => {
                                     </AlertDialogCancel>
                                     <AlertDialogAction
                                       onClick={() => handleDelete(teacher._id)}
-                                      className="bg-red-600 hover:bg-red-700"
+                                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                                     >
                                       Delete
                                     </AlertDialogAction>
@@ -733,15 +734,15 @@ const Teachers = () => {
       </div>
 
       {/* Edit Modal */}
-      <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
-        <DialogContent className="max-w-2xl max-h-screen overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Edit Teacher</DialogTitle>
-            <DialogDescription>Update teacher information.</DialogDescription>
-          </DialogHeader>
+      <FormSheet open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
+        <FormSheetContent>
+          <FormSheetHeader>
+            <FormSheetTitle>Edit Teacher</FormSheetTitle>
+            <FormSheetDescription>Update teacher information.</FormSheetDescription>
+          </FormSheetHeader>
 
           <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="editTeacherId">Teacher ID</Label>
                 <Input
@@ -816,9 +817,9 @@ const Teachers = () => {
                   }
                 />
               </div>
-              <div className="md:col-span-2">
+              <div className="sm:col-span-2">
                 <Label htmlFor="editSpecialization">Specialization</Label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-3 mt-2 p-3 border rounded-md">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3 mt-2 p-3 border rounded-md">
                   {specializations.map((spec) => {
                     const checked = formData.specialization.includes(spec);
                     return (
@@ -907,7 +908,7 @@ const Teachers = () => {
               />
             </div>
 
-            <DialogFooter>
+            <FormSheetFooter>
               <Button
                 type="button"
                 variant="outline"
@@ -916,10 +917,10 @@ const Teachers = () => {
                 Cancel
               </Button>
               <Button type="submit">Update Teacher</Button>
-            </DialogFooter>
+            </FormSheetFooter>
           </form>
-        </DialogContent>
-      </Dialog>
+        </FormSheetContent>
+      </FormSheet>
 
       {/* View Modal */}
       <Dialog open={isViewModalOpen} onOpenChange={setIsViewModalOpen}>

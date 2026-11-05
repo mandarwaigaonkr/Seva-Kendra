@@ -30,7 +30,8 @@ CRM for an NGO in Kolkata. Three domains — **Education**, **Health**, **Social
 | One import template per module (`model:` names its Mongoose file) | `Frontend/src/lib/excelImport/templates/` — `addiction.js` is the reference |
 | Import UI: preview → import → error report | `ExcelBulkImportButton.jsx`, wrapped by `ExcelImportPanel.jsx` |
 | App shell (persistent sidebar, Ctrl K "Find a section", page Suspense). Pages render only their header + `<main>` | `Frontend/src/components/shell/` — `navigation.js` is the one list of sections (sidebar, search, breadcrumbs, Home) |
-| Page kit: `ModulePageHeader` (breadcrumb + mobile menu), `FilterBar`, `tableState`, `StatusBadge`, `formatWard`, `formatDate`, `toDateInput`, `normalizePagination` | `Frontend/src/components/module/ModuleKit.jsx` |
+| Page kit: `ModulePageHeader` (breadcrumb + mobile menu), `FilterBar`, `tableState`, `StatusBadge`, `formatWard`, `formatDate`, `toDateInput`, `normalizePagination`, `toApiPayload`, `statusTone` (pure ones live in `src/lib/recordData.js`, `src/lib/pagination.js`) | `Frontend/src/components/module/ModuleKit.jsx` |
+| Add/edit record panel (slide-over from the right, sticky Save bar, backdrop click doesn't close). Form fields use `grid-cols-1 sm:grid-cols-2` | `Frontend/src/components/module/FormSheet.jsx` |
 | Design tokens (light + dark), type, motion, `#app-content main` column | `Frontend/src/index.css`, `Frontend/tailwind.config.js` |
 | Ward options (`"Ward 1"…"Ward 144"`) | `Frontend/src/lib/formOptions.js` → `getWardOptions()` |
 
@@ -38,7 +39,7 @@ CRM for an NGO in Kolkata. Three domains — **Education**, **Health**, **Social
 
 - **Ward** is stored as `"Ward N"`; display with `formatWard` (plain `"4"` exists in old data).
 - **Dates**: date inputs load via `toDateInput()`, display via `formatDate()` (both UTC-safe); import parses DD/MM/YYYY day-first.
-- **Optional enum Selects** start at `""`, which Mongoose rejects — send `undefined` for unset optional enums.
+- **Optional enum Selects** start at `""`, which Mongoose rejects — submit through `toApiPayload(formData, isUpdate)` (drops `""` on create, sends `null` on update).
 - `src/lib/api.js` interceptor returns `response.data` and toasts every error; rejected errors carry `.status`. Wrap bulk calls in `runWithoutErrorToasts`.
 - Backend `errorHandler` returns `{ message, success:false }`; Social Justice models normalise enum case in `pre("validate")`.
 - `householdCode` is `unique` in several health/education models (one record per household).
@@ -59,7 +60,7 @@ A change is done when every one of these is green:
 - `node --test scripts/test-excel-import.mjs` — import-engine suite, all pass.
 - `node scripts/check-form-options.mjs` — every literal `<SelectItem>` value is a model enum value.
 - `npm run build` succeeds; `npx eslint <changed files>` has 0 errors; `npx eslint -c .jsx-undef.config.js src/pages src/components` has 0 errors (catches JSX components used without an import, which the build does not).
-- `node --test scripts/test-pagination.mjs` passes.
+- `node --test scripts/test-pagination.mjs` and `node --test scripts/test-record-data.mjs` pass.
 - UI changes: screenshot the changed page at 375 and 1280, light and dark.
 - When the backend is running against the dev DB: `node scripts/e2e-smoke.mjs` — imports every template's sample row through the live API, checks view-only users get 403 on create/delete, then cleans up.
 

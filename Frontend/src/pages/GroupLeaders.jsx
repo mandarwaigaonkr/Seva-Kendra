@@ -1,3 +1,4 @@
+import { FormSheet, FormSheetContent, FormSheetDescription, FormSheetFooter, FormSheetHeader, FormSheetTitle } from "@/components/module/FormSheet";
 import React, { useState, useEffect } from "react";
 import { normalizePagination } from "@/components/module/ModuleKit";
 import { toast } from "sonner";
@@ -319,21 +320,21 @@ const GroupLeaders = () => {
               </div>
             </div>
             {canCreate("education") && (
-              <Dialog
+              <FormSheet
                 open={isCreateModalOpen}
                 onOpenChange={setIsCreateModalOpen}
               >
-              <DialogContent className="max-w-2xl max-h-screen overflow-y-auto">
-                <DialogHeader>
-                  <DialogTitle>Add New Group Leader</DialogTitle>
-                  <DialogDescription>
+              <FormSheetContent>
+                <FormSheetHeader>
+                  <FormSheetTitle>Add New Group Leader</FormSheetTitle>
+                  <FormSheetDescription>
                     Enter group leader details to add a new group leader to the
                     system.
-                  </DialogDescription>
-                </DialogHeader>
+                  </FormSheetDescription>
+                </FormSheetHeader>
 
                 <form onSubmit={handleSubmit} className="space-y-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <Label htmlFor="leaderId">Leader ID</Label>
                       <Input
@@ -490,7 +491,7 @@ const GroupLeaders = () => {
                     </Select>
                   </div>
 
-                  <DialogFooter>
+                  <FormSheetFooter>
                     <Button
                       type="button"
                       variant="outline"
@@ -499,10 +500,10 @@ const GroupLeaders = () => {
                       Cancel
                     </Button>
                     <Button type="submit">Add Group Leader</Button>
-                  </DialogFooter>
+                  </FormSheetFooter>
                 </form>
-              </DialogContent>
-            </Dialog>
+              </FormSheetContent>
+            </FormSheet>
             )}
           </div>
 
@@ -571,7 +572,7 @@ const GroupLeaders = () => {
                               title="View"
                               aria-label="View group leader"
                             >
-                              <Eye className="h-4 w-4 text-blue-600" />
+                              <Eye className="h-4 w-4" />
                             </button>
                             {canEdit("education") && (
                               <button
@@ -580,7 +581,7 @@ const GroupLeaders = () => {
                                 title="Edit"
                                 aria-label="Edit group leader"
                               >
-                                <Edit className="h-4 w-4 text-green-600" />
+                                <Edit className="h-4 w-4" />
                               </button>
                             )}
                             {canDelete("education") && (
@@ -591,7 +592,7 @@ const GroupLeaders = () => {
                                     title="Delete"
                                     aria-label="Delete group leader"
                                   >
-                                    <Trash2 className="h-4 w-4 text-red-600" />
+                                    <Trash2 className="h-4 w-4" />
                                   </button>
                                 </AlertDialogTrigger>
                                 <AlertDialogContent>
@@ -610,7 +611,7 @@ const GroupLeaders = () => {
                                     </AlertDialogCancel>
                                     <AlertDialogAction
                                       onClick={() => handleDelete(leader._id)}
-                                      className="bg-red-600 hover:bg-red-700"
+                                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                                     >
                                       Delete
                                     </AlertDialogAction>
@@ -667,17 +668,17 @@ const GroupLeaders = () => {
       </div>
 
       {/* Edit Modal */}
-      <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
-        <DialogContent className="max-w-2xl max-h-screen overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Edit Group Leader</DialogTitle>
-            <DialogDescription>
+      <FormSheet open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
+        <FormSheetContent>
+          <FormSheetHeader>
+            <FormSheetTitle>Edit Group Leader</FormSheetTitle>
+            <FormSheetDescription>
               Update group leader information.
-            </DialogDescription>
-          </DialogHeader>
+            </FormSheetDescription>
+          </FormSheetHeader>
 
           <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="editLeaderId">Leader ID</Label>
                 <Input
@@ -833,7 +834,7 @@ const GroupLeaders = () => {
               </Select>
             </div>
 
-            <DialogFooter>
+            <FormSheetFooter>
               <Button
                 type="button"
                 variant="outline"
@@ -842,10 +843,10 @@ const GroupLeaders = () => {
                 Cancel
               </Button>
               <Button type="submit">Update Group Leader</Button>
-            </DialogFooter>
+            </FormSheetFooter>
           </form>
-        </DialogContent>
-      </Dialog>
+        </FormSheetContent>
+      </FormSheet>
 
       {/* View Modal */}
       <Dialog open={isViewModalOpen} onOpenChange={setIsViewModalOpen}>

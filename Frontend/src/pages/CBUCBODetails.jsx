@@ -1,3 +1,4 @@
+import { FormSheet, FormSheetContent, FormSheetDescription, FormSheetFooter, FormSheetHeader, FormSheetTitle } from "@/components/module/FormSheet";
 import React, { useState, useEffect } from "react";
 import { toast } from "sonner";
 import {
@@ -369,7 +370,7 @@ const CBUCBODetails = () => {
     const id = (name) => `${prefix}${name}`;
     return (
       <>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <Label htmlFor={id("groupId")}>Group ID *</Label>
             <Input
@@ -578,7 +579,6 @@ const CBUCBODetails = () => {
       <div className="flex-1 flex flex-col overflow-hidden lg:ml-0">
         <ModulePageHeader
           icon={Building2}
-          accent="text-purple-600"
           title="CBU/CBO Details"
           subtitle="Community-based groups: membership, leadership and capacity building"
           onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
@@ -757,7 +757,7 @@ const CBUCBODetails = () => {
                                       variant="ghost"
                                       size="sm"
                                       aria-label={`Delete ${group.groupName}`}
-                                      className="text-red-600 hover:text-red-700"
+                                      className="text-destructive hover:text-destructive/80"
                                     >
                                       <Trash2 className="h-4 w-4" />
                                     </Button>
@@ -778,7 +778,7 @@ const CBUCBODetails = () => {
                                       </AlertDialogCancel>
                                       <AlertDialogAction
                                         onClick={() => handleDelete(group._id)}
-                                        className="bg-red-600 hover:bg-red-700"
+                                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                                       >
                                         Delete
                                       </AlertDialogAction>
@@ -833,20 +833,20 @@ const CBUCBODetails = () => {
             </Card>
 
             {/* Create Modal */}
-            <Dialog
+            <FormSheet
               open={isCreateModalOpen}
               onOpenChange={setIsCreateModalOpen}
             >
-              <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-                <DialogHeader>
-                  <DialogTitle>Add New CBUCBO Group</DialogTitle>
-                  <DialogDescription>
+              <FormSheetContent>
+                <FormSheetHeader>
+                  <FormSheetTitle>Add New CBUCBO Group</FormSheetTitle>
+                  <FormSheetDescription>
                     Fill in the details to create a new CBUCBO group
-                  </DialogDescription>
-                </DialogHeader>
+                  </FormSheetDescription>
+                </FormSheetHeader>
                 <form onSubmit={handleSubmit} className="space-y-6">
                   {renderFormFields("")}
-                  <DialogFooter>
+                  <FormSheetFooter>
                     <Button
                       type="button"
                       variant="outline"
@@ -855,23 +855,23 @@ const CBUCBODetails = () => {
                       Cancel
                     </Button>
                     <Button type="submit">Create Group</Button>
-                  </DialogFooter>
+                  </FormSheetFooter>
                 </form>
-              </DialogContent>
-            </Dialog>
+              </FormSheetContent>
+            </FormSheet>
 
             {/* Edit Modal */}
-            <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
-              <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-                <DialogHeader>
-                  <DialogTitle>Edit CBUCBO Group</DialogTitle>
-                  <DialogDescription>
+            <FormSheet open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
+              <FormSheetContent>
+                <FormSheetHeader>
+                  <FormSheetTitle>Edit CBUCBO Group</FormSheetTitle>
+                  <FormSheetDescription>
                     Update the group information
-                  </DialogDescription>
-                </DialogHeader>
+                  </FormSheetDescription>
+                </FormSheetHeader>
                 <form onSubmit={handleSubmit} className="space-y-6">
                   {renderFormFields("edit-")}
-                  <DialogFooter>
+                  <FormSheetFooter>
                     <Button
                       type="button"
                       variant="outline"
@@ -880,10 +880,10 @@ const CBUCBODetails = () => {
                       Cancel
                     </Button>
                     <Button type="submit">Update Group</Button>
-                  </DialogFooter>
+                  </FormSheetFooter>
                 </form>
-              </DialogContent>
-            </Dialog>
+              </FormSheetContent>
+            </FormSheet>
 
             {/* View Modal */}
             <Dialog open={isViewModalOpen} onOpenChange={setIsViewModalOpen}>

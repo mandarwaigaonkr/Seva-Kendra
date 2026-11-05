@@ -10,6 +10,7 @@ import { useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { TableCell, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
+import { statusTone } from "@/lib/recordData";
 import { useShell } from "@/components/shell/AppShell";
 import { DOMAIN_TONE, locate } from "@/components/shell/navigation";
 
@@ -108,19 +109,7 @@ const TONES = {
   neutral: { pill: "bg-muted text-muted-foreground", dot: "bg-muted-foreground/60" },
 };
 
-const TONE_RULES = [
-  [/^(n\/?a|unknown|not specified|pending review)$/i, "neutral"],
-  [/(lost|drop|reject|denied|deceased|inactive|closed.*unresolved|relapse|critical|urgent|high|failed|not linked|not eligible)/i, "danger"],
-  [/(pending|in progress|ongoing|under|review|follow|applied|scheduled|partial|medium|referred|in rehab|treatment)/i, "warning"],
-  [/(complete|recovered|resolved|cured|active|approved|linked|received|eligible|passed|success|enrolled|low|yes|done)/i, "success"],
-];
-
-export const statusTone = (value) => {
-  const text = String(value ?? "").trim();
-  if (!text) return "neutral";
-  for (const [re, tone] of TONE_RULES) if (re.test(text)) return tone;
-  return "info";
-};
+export { statusTone };
 
 /** Coloured, consistent status pill. Pass `tone` to override the automatic mapping. */
 export const StatusBadge = ({ value, tone, className, fallback = "—" }) => {
@@ -211,3 +200,5 @@ export const FilterBar = ({ children, className }) => {
 };
 
 export { normalizePagination } from "@/lib/pagination";
+
+export { toApiPayload } from "@/lib/recordData";

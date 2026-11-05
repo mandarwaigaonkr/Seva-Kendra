@@ -816,7 +816,7 @@ const Dashboard = () => {
   const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
   const rangeLabel = { last_7_days: "last 7 days", last_30_days: "last 30 days", last_90_days: "last 90 days", last_year: "last year" }[dateRange];
 
-  // How many records each section holds, keyed by the section's route.
+  // Records added to each section in the selected period (the backend applies the date range), keyed by route.
   const sectionCounts = {
     "/health/health-camps": moduleStats.health.healthCamps,
     "/health/elderly": moduleStats.health.elderlySupport,
@@ -940,11 +940,11 @@ const Dashboard = () => {
           </div>
         </section>
 
-        {/* Programmes launcher: every section, with how many records it holds */}
+        {/* Programmes launcher: every section, with how many records were added in the selected period */}
         <section aria-labelledby="programmes-heading">
           <div className="mb-3 flex items-baseline justify-between gap-4">
             <h2 id="programmes-heading" className="text-xl font-semibold text-foreground">Programmes</h2>
-            <p className="hidden text-sm text-muted-foreground sm:block">Open a section to add, find or update records</p>
+            <p className="hidden text-sm text-muted-foreground sm:block">Counts are records added in the {rangeLabel ?? "selected period"}. Open a section to add, find or update records.</p>
           </div>
           <div className="grid gap-4 lg:grid-cols-3">
             {domains.map((d) => {
@@ -961,7 +961,7 @@ const Dashboard = () => {
                     </div>
                     <span className="text-right">
                       <span className="block text-lg font-semibold leading-none text-foreground">{domainTotal(d).toLocaleString("en-IN")}</span>
-                      <span className="text-xs text-muted-foreground">records</span>
+                      <span className="text-xs text-muted-foreground">{rangeLabel ? `added, ${rangeLabel}` : "records"}</span>
                     </span>
                   </div>
                   <ul className="divide-y divide-border">

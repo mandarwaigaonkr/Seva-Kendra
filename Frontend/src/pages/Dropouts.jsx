@@ -1,3 +1,5 @@
+import { toApiPayload } from "@/components/module/ModuleKit";
+import { FormSheet, FormSheetContent, FormSheetDescription, FormSheetFooter, FormSheetHeader, FormSheetTitle } from "@/components/module/FormSheet";
 import React, { useState, useEffect } from "react";
 import { normalizePagination } from "@/components/module/ModuleKit";
 import { FilterBar } from "@/components/module/ModuleKit";
@@ -89,14 +91,6 @@ import {
   formatDate,
   toDateInput,
 } from "../components/module/ModuleKit";
-
-// Mongoose rejects "" for enum / ObjectId fields: drop blanks on create, clear them on update.
-const toApiPayload = (data, isUpdate) =>
-  Object.fromEntries(
-    Object.entries(data).flatMap(([key, value]) =>
-      value === "" ? (isUpdate ? [[key, null]] : []) : [[key, value]]
-    )
-  );
 
 const WardCombobox = ({ id, value, onChange, options, placeholder }) => {
   const [open, setOpen] = useState(false);
@@ -637,28 +631,28 @@ const Dropouts = () => {
             </Card>
 
             {/* Create Modal */}
-            <Dialog
+            <FormSheet
               open={isCreateModalOpen}
               onOpenChange={setIsCreateModalOpen}
             >
-              <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-                <DialogHeader>
-                  <DialogTitle>Add New Dropout Record</DialogTitle>
-                  <DialogDescription>
+              <FormSheetContent>
+                <FormSheetHeader>
+                  <FormSheetTitle>Add New Dropout Record</FormSheetTitle>
+                  <FormSheetDescription>
                     Create a new dropout record with all required information.
-                  </DialogDescription>
-                </DialogHeader>
+                  </FormSheetDescription>
+                </FormSheetHeader>
                 <form onSubmit={handleSubmit} className="space-y-4">
                   {/* Student Selection Section */}
-                  <div className="bg-blue-50 p-4 rounded-lg border border-blue-200 space-y-3">
+                  <div className="bg-info/10 p-4 rounded-lg border border-info/30 space-y-3">
                     <div>
                       <Label
                         htmlFor="selectStudent"
-                        className="font-semibold text-blue-900"
+                        className="font-semibold text-foreground"
                       >
                         Select from SC Students (Optional)
                       </Label>
-                      <p className="text-sm text-blue-800 mb-2">
+                      <p className="text-sm text-muted-foreground mb-2">
                         Choose a student to auto-populate the form, or leave
                         empty to enter manually.
                       </p>
@@ -686,7 +680,7 @@ const Dropouts = () => {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <Label htmlFor="householdCode">Household Code *</Label>
                       <Input
@@ -969,7 +963,7 @@ const Dropouts = () => {
                         </SelectContent>
                       </Select>
                     </div>
-                    <div className="md:col-span-2">
+                    <div className="sm:col-span-2">
                       <Label htmlFor="reasonForDropout">
                         Reason for Dropout *
                       </Label>
@@ -1045,7 +1039,7 @@ const Dropouts = () => {
                         }
                       />
                     </div>
-                    <div className="md:col-span-2">
+                    <div className="sm:col-span-2">
                       <Label htmlFor="individualCarePlan">Individual Care Plan</Label>
                       <Textarea
                         id="individualCarePlan"
@@ -1058,7 +1052,7 @@ const Dropouts = () => {
                         }
                       />
                     </div>
-                    <div className="md:col-span-2 space-y-2">
+                    <div className="sm:col-span-2 space-y-2">
                       <p className="text-sm font-medium">Documents available</p>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                         <div className="flex items-center gap-2">
@@ -1168,36 +1162,36 @@ const Dropouts = () => {
                     </div>
                   </div>
 
-                  <DialogFooter>
+                  <FormSheetFooter>
                     <Button type="button" variant="outline" onClick={resetForm}>
                       Cancel
                     </Button>
                     <Button type="submit">Create Dropout Record</Button>
-                  </DialogFooter>
+                  </FormSheetFooter>
                 </form>
-              </DialogContent>
-            </Dialog>
+              </FormSheetContent>
+            </FormSheet>
 
             {/* Edit and View Modals - Similar structure to create modal */}
-            <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
-              <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-                <DialogHeader>
-                  <DialogTitle>Edit Dropout Record</DialogTitle>
-                  <DialogDescription>
+            <FormSheet open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
+              <FormSheetContent>
+                <FormSheetHeader>
+                  <FormSheetTitle>Edit Dropout Record</FormSheetTitle>
+                  <FormSheetDescription>
                     Update the dropout record information.
-                  </DialogDescription>
-                </DialogHeader>
+                  </FormSheetDescription>
+                </FormSheetHeader>
                 <form onSubmit={handleSubmit} className="space-y-4">
                   {/* Student Selection Section */}
-                  <div className="bg-blue-50 p-4 rounded-lg border border-blue-200 space-y-3">
+                  <div className="bg-info/10 p-4 rounded-lg border border-info/30 space-y-3">
                     <div>
                       <Label
                         htmlFor="editSelectStudent"
-                        className="font-semibold text-blue-900"
+                        className="font-semibold text-foreground"
                       >
                         Update from SC Students (Optional)
                       </Label>
-                      <p className="text-sm text-blue-800 mb-2">
+                      <p className="text-sm text-muted-foreground mb-2">
                         Choose a student to update form fields, or modify
                         manually.
                       </p>
@@ -1225,7 +1219,7 @@ const Dropouts = () => {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <Label htmlFor="editHouseholdCode">
                         Household Code *
@@ -1512,7 +1506,7 @@ const Dropouts = () => {
                         </SelectContent>
                       </Select>
                     </div>
-                    <div className="md:col-span-2">
+                    <div className="sm:col-span-2">
                       <Label htmlFor="editReasonForDropout">
                         Reason for Dropout *
                       </Label>
@@ -1590,7 +1584,7 @@ const Dropouts = () => {
                         }
                       />
                     </div>
-                    <div className="md:col-span-2">
+                    <div className="sm:col-span-2">
                       <Label htmlFor="editIndividualCarePlan">Individual Care Plan</Label>
                       <Textarea
                         id="editIndividualCarePlan"
@@ -1603,7 +1597,7 @@ const Dropouts = () => {
                         }
                       />
                     </div>
-                    <div className="md:col-span-2 space-y-2">
+                    <div className="sm:col-span-2 space-y-2">
                       <p className="text-sm font-medium">Documents available</p>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                         <div className="flex items-center gap-2">
@@ -1713,15 +1707,15 @@ const Dropouts = () => {
                     </div>
                   </div>
 
-                  <DialogFooter>
+                  <FormSheetFooter>
                     <Button type="button" variant="outline" onClick={resetForm}>
                       Cancel
                     </Button>
                     <Button type="submit">Update Dropout Record</Button>
-                  </DialogFooter>
+                  </FormSheetFooter>
                 </form>
-              </DialogContent>
-            </Dialog>
+              </FormSheetContent>
+            </FormSheet>
 
             {/* View Modal */}
             <Dialog open={isViewModalOpen} onOpenChange={setIsViewModalOpen}>

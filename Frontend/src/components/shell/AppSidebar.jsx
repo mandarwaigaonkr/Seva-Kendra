@@ -93,8 +93,10 @@ const AppSidebar = ({ open, onClose, onOpenFind }) => {
         aria-label="Main navigation"
         className={cn(
           "fixed inset-y-0 left-0 z-50 flex w-[17rem] flex-col border-r border-border bg-sidebar",
-          "transition-transform duration-200 ease-out lg:static lg:z-auto lg:w-64 lg:translate-x-0 lg:transition-none",
-          open ? "translate-x-0" : "-translate-x-full"
+          "transition-[transform,visibility] duration-200 ease-out lg:static lg:z-auto lg:w-64 lg:translate-x-0 lg:transition-none",
+          // Closed on small screens: off-canvas and invisible, so keyboard and screen-reader
+          // users don't land on links they can't see. Visibility flips after the slide ends.
+          open ? "visible translate-x-0" : "invisible -translate-x-full lg:visible"
         )}
       >
         {/* Brand */}

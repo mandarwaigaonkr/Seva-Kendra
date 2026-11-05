@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from "react";
+import { FormSheet, FormSheetContent, FormSheetDescription, FormSheetFooter, FormSheetHeader, FormSheetTitle } from "@/components/module/FormSheet";
+import React, { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import {
   Card,
@@ -217,7 +218,9 @@ const LegalAid = () => {
     filters.caseType !== "all";
 
   // Fetch legal aid services
+  const latestRequest = useRef(0);
   const fetchLegalAidServices = async () => {
+    const requestId = ++latestRequest.current;
     setLoading(true);
     try {
       const params = {
@@ -230,6 +233,7 @@ const LegalAid = () => {
       if (filters.caseType && filters.caseType !== "all") params.caseType = filters.caseType;
 
       const response = await legalAidServiceAPI.getAll(params);
+      if (requestId !== latestRequest.current) return; // superseded by a newer request
 
       // Handle different possible response structures
       const servicesData =
@@ -270,30 +274,18 @@ const LegalAid = () => {
       console.error("Error fetching legal aid services:", error);
       setLegalAidServices([]);
     } finally {
-      setLoading(false);
+      if (requestId === latestRequest.current) setLoading(false);
     }
   };
 
-  // Initial load
+  // A new search or filter starts again from page 1.
+  useEffect(() => {
+    setPagination((prev) => (prev.page === 1 ? prev : { ...prev, page: 1 }));
+  }, [searchTerm, filters.status, filters.caseType]);
+
   useEffect(() => {
     fetchLegalAidServices();
-  }, []);
-
-  // Handle page changes and search/filter changes
-  useEffect(() => {
-    if (pagination.page !== 1) {
-      fetchLegalAidServices();
-    }
-  }, [pagination.page, pagination.limit]);
-
-  useEffect(() => {
-    const timeoutId = setTimeout(() => {
-      setPagination((prev) => ({ ...prev, page: 1 }));
-      fetchLegalAidServices();
-    }, 300);
-
-    return () => clearTimeout(timeoutId);
-  }, [searchTerm, filters.status, filters.caseType]);
+  }, [pagination.page, pagination.limit, searchTerm, filters.status, filters.caseType]);
 
   // Handle form submission
   const handleSubmit = async (e) => {
@@ -404,7 +396,7 @@ const LegalAid = () => {
   const renderFormFields = (prefix) => {
     const id = (name) => `${prefix}${name}`;
     return (
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
           <Label htmlFor={id("householdCode")}>Household Code *</Label>
           <Input
@@ -560,7 +552,7 @@ const LegalAid = () => {
             onChange={setField("followUpDate")}
           />
         </div>
-        <div className="flex items-center gap-2 md:col-span-2">
+        <div className="flex items-center gap-2 sm:col-span-2">
           <Checkbox
             id={id("followUpRequired")}
             checked={Boolean(formData.followUpRequired)}
@@ -575,7 +567,7 @@ const LegalAid = () => {
             Follow-up required (date defaults to 7 days ahead if left blank)
           </Label>
         </div>
-        <div className="md:col-span-2">
+        <div className="sm:col-span-2">
           <Label htmlFor={id("actionPlan")}>Action Plan *</Label>
           <Textarea
             id={id("actionPlan")}
@@ -586,7 +578,7 @@ const LegalAid = () => {
             required
           />
         </div>
-        <div className="md:col-span-2">
+        <div className="sm:col-span-2">
           <Label htmlFor={id("remarks")}>Remarks</Label>
           <Textarea
             id={id("remarks")}
@@ -613,7 +605,6 @@ const LegalAid = () => {
       <div className="flex-1 flex flex-col overflow-hidden lg:ml-0">
         <ModulePageHeader
           icon={Scale}
-          accent="text-purple-600"
           title="Legal Aid Services"
           subtitle="Legal assistance cases: issue, priority, action plan and follow-up"
           onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
@@ -816,7 +807,7 @@ const LegalAid = () => {
                                       variant="ghost"
                                       size="sm"
                                       aria-label={`Delete case ${service.uniqueId || service.name}`}
-                                      className="text-red-600 hover:text-red-700"
+                                      className="text-destructive hover:text-destructive/80"
                                     >
                                       <Trash2 className="h-4 w-4" />
                                     </Button>
@@ -839,7 +830,7 @@ const LegalAid = () => {
                                         onClick={() =>
                                           handleDelete(service._id)
                                         }
-                                        className="bg-red-600 hover:bg-red-700"
+                                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                                       >
                                         Delete
                                       </AlertDialogAction>
@@ -894,20 +885,20 @@ const LegalAid = () => {
             </Card>
 
             {/* Create Modal */}
-            <Dialog
+            <FormSheet
               open={isCreateModalOpen}
               onOpenChange={setIsCreateModalOpen}
             >
-              <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-                <DialogHeader>
-                  <DialogTitle>Add New Legal Case</DialogTitle>
-                  <DialogDescription>
+              <FormSheetContent>
+                <FormSheetHeader>
+                  <FormSheetTitle>Add New Legal Case</FormSheetTitle>
+                  <FormSheetDescription>
                     Fill in the details to create a new legal aid case
-                  </DialogDescription>
-                </DialogHeader>
+                  </FormSheetDescription>
+                </FormSheetHeader>
                 <form onSubmit={handleSubmit} className="space-y-6">
                   {renderFormFields("")}
-                  <DialogFooter>
+                  <FormSheetFooter>
                     <Button
                       type="button"
                       variant="outline"
@@ -916,23 +907,23 @@ const LegalAid = () => {
                       Cancel
                     </Button>
                     <Button type="submit">Create Case</Button>
-                  </DialogFooter>
+                  </FormSheetFooter>
                 </form>
-              </DialogContent>
-            </Dialog>
+              </FormSheetContent>
+            </FormSheet>
 
             {/* Edit Modal */}
-            <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
-              <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-                <DialogHeader>
-                  <DialogTitle>Edit Legal Case</DialogTitle>
-                  <DialogDescription>
+            <FormSheet open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
+              <FormSheetContent>
+                <FormSheetHeader>
+                  <FormSheetTitle>Edit Legal Case</FormSheetTitle>
+                  <FormSheetDescription>
                     Update the case information
-                  </DialogDescription>
-                </DialogHeader>
+                  </FormSheetDescription>
+                </FormSheetHeader>
                 <form onSubmit={handleSubmit} className="space-y-6">
                   {renderFormFields("edit-")}
-                  <DialogFooter>
+                  <FormSheetFooter>
                     <Button
                       type="button"
                       variant="outline"
@@ -941,10 +932,10 @@ const LegalAid = () => {
                       Cancel
                     </Button>
                     <Button type="submit">Update Case</Button>
-                  </DialogFooter>
+                  </FormSheetFooter>
                 </form>
-              </DialogContent>
-            </Dialog>
+              </FormSheetContent>
+            </FormSheet>
 
             {/* View Modal */}
             <Dialog open={isViewModalOpen} onOpenChange={setIsViewModalOpen}>

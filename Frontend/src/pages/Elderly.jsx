@@ -1,3 +1,4 @@
+import { FormSheet, FormSheetContent, FormSheetDescription, FormSheetFooter, FormSheetHeader, FormSheetTitle } from "@/components/module/FormSheet";
 import React, { useState, useEffect } from "react";
 import { normalizePagination } from "@/components/module/ModuleKit";
 import { toast } from "sonner";
@@ -380,7 +381,6 @@ const Elderly = () => {
       <div className="flex-1 flex flex-col overflow-hidden">
         <ModulePageHeader
           icon={Users}
-          accent="text-blue-600"
           title="Elderly Care"
           subtitle="Senior citizens (60+): screening, care plans and benefit linkages"
           onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
@@ -675,16 +675,16 @@ const Elderly = () => {
       </div>
 
       {/* Create Modal */}
-      <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Add New Elderly Record</DialogTitle>
-            <DialogDescription>
+      <FormSheet open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
+        <FormSheetContent>
+          <FormSheetHeader>
+            <FormSheetTitle>Add New Elderly Record</FormSheetTitle>
+            <FormSheetDescription>
               Fill in the details for the new elderly record.
-            </DialogDescription>
-          </DialogHeader>
+            </FormSheetDescription>
+          </FormSheetHeader>
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="householdCode">Household Code *</Label>
                 <Input
@@ -934,7 +934,7 @@ const Elderly = () => {
                 placeholder="Personalized care plan details"
               />
             </div>
-            <DialogFooter>
+            <FormSheetFooter>
               <Button
                 type="button"
                 variant="outline"
@@ -943,22 +943,22 @@ const Elderly = () => {
                 Cancel
               </Button>
               <Button type="submit">Create Elderly Record</Button>
-            </DialogFooter>
+            </FormSheetFooter>
           </form>
-        </DialogContent>
-      </Dialog>
+        </FormSheetContent>
+      </FormSheet>
 
       {/* Edit Modal */}
-      <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Edit Elderly Record</DialogTitle>
-            <DialogDescription>
+      <FormSheet open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
+        <FormSheetContent>
+          <FormSheetHeader>
+            <FormSheetTitle>Edit Elderly Record</FormSheetTitle>
+            <FormSheetDescription>
               Update the elderly record details.
-            </DialogDescription>
-          </DialogHeader>
+            </FormSheetDescription>
+          </FormSheetHeader>
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="edit-householdCode">Household Code *</Label>
                 <Input
@@ -1216,7 +1216,7 @@ const Elderly = () => {
                 placeholder="Personalized care plan details"
               />
             </div>
-            <DialogFooter>
+            <FormSheetFooter>
               <Button
                 type="button"
                 variant="outline"
@@ -1225,10 +1225,10 @@ const Elderly = () => {
                 Cancel
               </Button>
               <Button type="submit">Update Elderly Record</Button>
-            </DialogFooter>
+            </FormSheetFooter>
           </form>
-        </DialogContent>
-      </Dialog>
+        </FormSheetContent>
+      </FormSheet>
 
       {/* View Modal */}
       <Dialog open={isViewModalOpen} onOpenChange={setIsViewModalOpen}>
