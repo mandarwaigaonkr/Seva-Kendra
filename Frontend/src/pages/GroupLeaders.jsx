@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { normalizePagination } from "@/components/module/ModuleKit";
 import { toast } from "sonner";
 import {
   Card,
@@ -118,7 +119,7 @@ const GroupLeaders = () => {
 
       const response = await groupLeaderAPI.getAll(params);
       setGroupLeaders(response.data.data);
-      setPagination(response.data.pagination);
+      setPagination(normalizePagination(response.data.pagination));
     } catch (error) {
       toast.error("Failed to fetch group leaders");
       console.error("Error fetching group leaders:", error);

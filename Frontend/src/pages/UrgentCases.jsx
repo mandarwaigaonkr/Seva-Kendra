@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { ModulePageHeader } from "@/components/module/ModuleKit";
 import { AlertTriangle, RefreshCw, Menu } from "lucide-react";
 import { trackingAPI } from "../services/api";
 import Sidebar from "../components/Sidebar";
@@ -55,31 +56,19 @@ const UrgentCases = () => {
     <div className="flex h-screen bg-background">
       <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
       <div className="flex-1 flex flex-col overflow-hidden lg:ml-0">
-        <div className="lg:hidden bg-card shadow-sm p-4 flex items-center border-b border-border">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setSidebarOpen(true)}
-            className="mr-2"
-          >
-            <Menu className="h-5 w-5" />
-          </Button>
-          <h1 className="text-lg font-semibold">Urgent Cases</h1>
-        </div>
+        <ModulePageHeader
+          title="Urgent cases"
+          subtitle="High-priority cases that are still open. Update these first."
+          actions={
+            <Button onClick={fetchUrgentCases} variant="outline" disabled={loading}>
+              <RefreshCw className={loading ? "animate-spin motion-reduce:animate-none" : ""} />
+              Refresh
+            </Button>
+          }
+        />
 
         <div className="flex-1 overflow-y-auto">
-          <div className="container mx-auto p-6 space-y-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h1 className="text-3xl font-bold text-foreground">Urgent Case Follow-Up</h1>
-                <p className="text-muted-foreground">Track high-priority unresolved beneficiary cases</p>
-              </div>
-              <Button onClick={fetchUrgentCases} variant="outline" disabled={loading}>
-                <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
-                Refresh
-              </Button>
-            </div>
-
+          <div className="shell-main space-y-6">
             {alerts.length > 0 && (
               <Card className="border-red-300">
                 <CardHeader>

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { normalizePagination } from "@/components/module/ModuleKit";
 import { toast } from "sonner";
 import {
   Card,
@@ -72,6 +73,7 @@ import {
   toDateInput,
 } from "../components/module/ModuleKit";
 import { getWardOptions } from "../lib/formOptions";
+import { FilterBar } from "@/components/module/ModuleKit";
 
 const WARD_OPTIONS = getWardOptions();
 
@@ -132,7 +134,7 @@ const HealthCamps = () => {
 
       const response = await healthCampAPI.getAll(params);
       setHealthCamps(response.data.healthCamps);
-      setPagination(response.data.pagination);
+      setPagination(normalizePagination(response.data.pagination));
     } catch (error) {
       toast.error("Failed to fetch health camps");
       console.error("Error fetching health camps:", error);
@@ -303,14 +305,7 @@ const HealthCamps = () => {
             ]}
           />
           {/* Filters */}
-          <Card className="mb-6">
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <Filter className="h-5 w-5" />
-                <span>Filters</span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
+          <FilterBar>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div>
                   <Label htmlFor="search">Search</Label>
@@ -457,8 +452,7 @@ const HealthCamps = () => {
                   </Button>
                 </div>
               </div>
-            </CardContent>
-          </Card>
+            </FilterBar>
 
           {/* Bulk Import */}
           {canCreate("health") && (

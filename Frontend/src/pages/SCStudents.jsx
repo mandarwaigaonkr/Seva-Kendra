@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from "react";
+import { normalizePagination } from "@/components/module/ModuleKit";
+import { FilterBar } from "@/components/module/ModuleKit";
 import { toast } from "sonner";
 import {
   Card,
@@ -233,7 +235,7 @@ const SCStudents = () => {
 
       const response = await scStudentAPI.getAll(params);
       setScStudents(response.data.data);
-      setPagination(response.data.pagination);
+      setPagination(normalizePagination(response.data.pagination));
     } catch (error) {
       toast.error("Failed to fetch SC students");
       console.error("Error fetching SC students:", error);
@@ -440,14 +442,7 @@ const SCStudents = () => {
 
 
             {/* Search and Filters */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Filter className="h-5 w-5" />
-                  Search & Filters
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
+            <FilterBar>
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -495,8 +490,7 @@ const SCStudents = () => {
                     </Select>
                   </div>
                 </div>
-              </CardContent>
-            </Card>
+              </FilterBar>
 
             {/* Bulk Import Card */}
             {canCreate("education") && (

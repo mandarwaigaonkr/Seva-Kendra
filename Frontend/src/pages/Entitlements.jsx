@@ -93,6 +93,7 @@ import {
   formatDate,
   toDateInput,
 } from "../components/module/ModuleKit";
+import { FilterBar } from "@/components/module/ModuleKit";
 
 const WardCombobox = ({ id, value, onChange, options, placeholder }) => {
   const [open, setOpen] = useState(false);
@@ -290,7 +291,14 @@ const Entitlements = () => {
 
       // Handle pagination data - if not provided by API, create default pagination
       if (response.data.pagination) {
-        setPagination(response.data.pagination);
+        // Backend sends { currentPage, totalPages, totalRecords, recordsPerPage }.
+        const p = response.data.pagination;
+        setPagination({
+          page: p.page ?? p.currentPage ?? 1,
+          limit: p.limit ?? p.recordsPerPage ?? 10,
+          total: p.total ?? p.totalRecords ?? entitlementsData.length,
+          pages: p.pages ?? p.totalPages ?? 1,
+        });
       } else {
         // Create default pagination based on data length
         setPagination({
@@ -882,13 +890,6 @@ const Entitlements = () => {
         {/* Scrollable Content */}
         <div className="flex-1 overflow-y-auto">
           <div className="container mx-auto p-6 space-y-6">
-            {canCreate("socialJustice") && (
-              <ExcelImportPanel
-                template={entitlementsImportTemplate}
-                createRecord={entitlementsAPI.create}
-                onImported={fetchEntitlements}
-              />
-            )}
 
             <GuidelinesCard
               title="Entitlement Guidelines"
@@ -903,14 +904,7 @@ const Entitlements = () => {
             />
 
             {/* Search and Filters */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Filter className="h-5 w-5" />
-                  Search & Filters
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
+            <FilterBar>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -959,8 +953,15 @@ const Entitlements = () => {
                     </SelectContent>
                   </Select>
                 </div>
-              </CardContent>
-            </Card>
+              </FilterBar>
+
+              {canCreate("socialJustice") && (
+                <ExcelImportPanel
+                  template={entitlementsImportTemplate}
+                  createRecord={entitlementsAPI.create}
+                  onImported={fetchEntitlements}
+                />
+              )}
 
             {/* Entitlements Table */}
             <Card>

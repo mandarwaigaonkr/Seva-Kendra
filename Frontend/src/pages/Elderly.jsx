@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { normalizePagination } from "@/components/module/ModuleKit";
 import { toast } from "sonner";
 import {
   Card,
@@ -89,6 +90,7 @@ import {
   formatWard,
   toDateInput,
 } from "../components/module/ModuleKit";
+import { FilterBar } from "@/components/module/ModuleKit";
 
 const WardCombobox = ({ id, value, onChange, options, placeholder }) => {
   const [open, setOpen] = useState(false);
@@ -212,7 +214,7 @@ const Elderly = () => {
 
       const response = await elderlyAPI.getAll(params);
       setElderly(response.data.elderly);
-      setPagination(response.data.pagination);
+      setPagination(normalizePagination(response.data.pagination));
     } catch (error) {
       toast.error("Failed to fetch elderly records");
       console.error("Error fetching elderly records:", error);
@@ -406,14 +408,7 @@ const Elderly = () => {
             ]}
           />
           {/* Filters */}
-          <Card className="mb-6">
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <Filter className="h-5 w-5" />
-                <span>Filters</span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
+          <FilterBar>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
                 <div>
                   <Label htmlFor="search">Search</Label>
@@ -479,8 +474,7 @@ const Elderly = () => {
                   </Button>
                 </div>
               </div>
-            </CardContent>
-          </Card>
+            </FilterBar>
 
           {/* Bulk Import */}
           {canCreate("health") && (

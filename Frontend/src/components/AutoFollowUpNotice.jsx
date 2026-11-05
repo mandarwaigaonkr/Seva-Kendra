@@ -4,7 +4,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 const AutoFollowUpNotice = ({ recordName, module, followUpDate }) => {
   return (
-    <Alert className="mt-4 bg-blue-50 border-blue-200 shadow-md hover:shadow-lg transition-shadow duration-300">
+    <Alert className="mt-4 bg-blue-50 border-blue-200 shadow-md transition-shadow duration-300">
       <CheckCircle2 className="h-4 w-4 text-blue-600" />
       <AlertTitle className="text-blue-900">
         Automatic Follow-up Created

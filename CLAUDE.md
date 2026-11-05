@@ -7,7 +7,8 @@ CRM for an NGO in Kolkata. Three domains — **Education**, **Health**, **Social
 
 ## Running locally
 
-1. `sevaKendra-backend/.env` needs `MONGO_URL` (the README's `MONGODB_URI` is outdated), `JWT_SECRET`, `PORT=5000`, `WHITELIST=http://localhost:5173`.
+0. Dev database: Docker container `sevakendra-mongo` (mongo:7, volume `sevakendra-mongo-data`, restarts automatically). If missing: `docker run -d --name sevakendra-mongo -p 27017:27017 -v sevakendra-mongo-data:/data/db --restart unless-stopped mongo:7`.
+1. `sevaKendra-backend/.env` needs `MONGO_URL` (the README's `MONGODB_URI` is outdated; dev value `mongodb://127.0.0.1:27017/sevakendra`), `JWT_SECRET`, `PORT=5000`, `WHITELIST=http://localhost:5173`.
 2. `cd sevaKendra-backend && npm run dev` → http://localhost:5000/api/v1
 3. First run only: `node scripts/createAdmin.js` → `admin@sevakendra.com` / `Admin@123`.
 4. `cd Frontend && npm run dev` → http://localhost:5173
@@ -28,7 +29,9 @@ CRM for an NGO in Kolkata. Three domains — **Education**, **Health**, **Social
 | SheetJS read/write, template + error-report workbooks | `Frontend/src/lib/excelImport/workbook.js` |
 | One import template per module (`model:` names its Mongoose file) | `Frontend/src/lib/excelImport/templates/` — `addiction.js` is the reference |
 | Import UI: preview → import → error report | `ExcelBulkImportButton.jsx`, wrapped by `ExcelImportPanel.jsx` |
-| Page kit: `ModulePageHeader`, `tableState`, `StatusBadge`, `formatWard`, `formatDate`, `toDateInput` | `Frontend/src/components/module/ModuleKit.jsx` |
+| App shell (persistent sidebar, Ctrl K "Find a section", page Suspense). Pages render only their header + `<main>` | `Frontend/src/components/shell/` — `navigation.js` is the one list of sections (sidebar, search, breadcrumbs, Home) |
+| Page kit: `ModulePageHeader` (breadcrumb + mobile menu), `FilterBar`, `tableState`, `StatusBadge`, `formatWard`, `formatDate`, `toDateInput`, `normalizePagination` | `Frontend/src/components/module/ModuleKit.jsx` |
+| Design tokens (light + dark), type, motion, `#app-content main` column | `Frontend/src/index.css`, `Frontend/tailwind.config.js` |
 | Ward options (`"Ward 1"…"Ward 144"`) | `Frontend/src/lib/formOptions.js` → `getWardOptions()` |
 
 ## Conventions and gotchas
@@ -40,6 +43,10 @@ CRM for an NGO in Kolkata. Three domains — **Education**, **Health**, **Social
 - Backend `errorHandler` returns `{ message, success:false }`; Social Justice models normalise enum case in `pre("validate")`.
 - `householdCode` is `unique` in several health/education models (one record per household).
 - Every module route runs `verifyTokenExists` then `checkPermission("<domain>", action)`: GET → view, POST `/` → create, POST `/:id/...` and PUT → edit, DELETE → delete. New routes follow the same pattern; default users have `view` on all three domains.
+- **Design system**: Atkinson Hyperlegible Next (slashed zero is the font, not a bug); weights 400/500/600 only (`font-bold` maps to 600); one jade accent; domain colours (`text-domain-*`) only as small wayfinding marks; motion 100–300ms, transform/opacity only. Use tokens (`bg-card`, `text-muted-foreground`, `text-destructive`), not raw palette colours — dark mode depends on it.
+- Dialogs are centred with `inset-0 m-auto`, never translate — the enter animation owns `transform`.
+- Backend list endpoints return `{ currentPage, totalPages, totalRecords }`; wrap with `normalizePagination`.
+- `<Button>` defaults to `type="button"`; form submits need `type="submit"`.
 - `TBHIVAddict.jsx` is not routed (dead page). `/auth/dummy-login` is dev-only.
 - ESLint prints many `no-unused-vars` warnings for JSX-only identifiers — pre-existing noise; errors are what count.
 - Git `autocrlf` normalises line endings on commit; mixed endings in the working tree are fine.
@@ -51,7 +58,10 @@ A change is done when every one of these is green:
 - `node scripts/verify-import-templates.mjs` — every template round-trips through the parser and validates against its real model (0 errors, 0 warnings).
 - `node --test scripts/test-excel-import.mjs` — import-engine suite, all pass.
 - `node scripts/check-form-options.mjs` — every literal `<SelectItem>` value is a model enum value.
-- `npm run build` succeeds; `npx eslint <changed files>` has 0 errors.
+- `npm run build` succeeds; `npx eslint <changed files>` has 0 errors; `npx eslint -c .jsx-undef.config.js src/pages src/components` has 0 errors (catches JSX components used without an import, which the build does not).
+- `node --test scripts/test-pagination.mjs` passes.
+- UI changes: screenshot the changed page at 375 and 1280, light and dark.
+- When the backend is running against the dev DB: `node scripts/e2e-smoke.mjs` — imports every template's sample row through the live API, checks view-only users get 403 on create/delete, then cleans up.
 
 ## Open backend issues (awaiting a decision from the user)
 

@@ -94,6 +94,7 @@ import {
   formatDate,
   toDateInput,
 } from "../components/module/ModuleKit";
+import { FilterBar } from "@/components/module/ModuleKit";
 
 const WardCombobox = ({ id, value, onChange, options, placeholder }) => {
   const [open, setOpen] = useState(false);
@@ -634,13 +635,6 @@ const LegalAid = () => {
         {/* Scrollable Content */}
         <div className="flex-1 overflow-y-auto">
           <div className="container mx-auto p-6 space-y-6">
-            {canCreate("socialJustice") && (
-              <ExcelImportPanel
-                template={legalAidImportTemplate}
-                createRecord={legalAidServiceAPI.create}
-                onImported={fetchLegalAidServices}
-              />
-            )}
 
             <GuidelinesCard
               title="Legal Aid Case Guidelines"
@@ -655,14 +649,7 @@ const LegalAid = () => {
             />
 
             {/* Search and Filters */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Filter className="h-5 w-5" />
-                  Search & Filters
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
+            <FilterBar>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -711,8 +698,15 @@ const LegalAid = () => {
                     </SelectContent>
                   </Select>
                 </div>
-              </CardContent>
-            </Card>
+              </FilterBar>
+
+              {canCreate("socialJustice") && (
+                <ExcelImportPanel
+                  template={legalAidImportTemplate}
+                  createRecord={legalAidServiceAPI.create}
+                  onImported={fetchLegalAidServices}
+                />
+              )}
 
             {/* Legal Aid Services Table */}
             <Card>

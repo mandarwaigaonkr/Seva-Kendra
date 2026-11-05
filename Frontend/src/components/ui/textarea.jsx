@@ -1,20 +1,19 @@
-import * as React from "react"
+import * as React from "react";
+import { cn } from "@/lib/utils";
 
-import { cn } from "@/lib/utils"
+const Textarea = React.forwardRef(({ className, ...props }, ref) => (
+  <textarea
+    ref={ref}
+    className={cn(
+      "flex min-h-20 w-full rounded-md border border-input bg-card px-3 py-2 text-base text-foreground shadow-sm",
+      "placeholder:text-muted-foreground/80 transition-colors duration-100 hover:border-foreground/30",
+      "focus-visible:outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/25",
+      "aria-[invalid=true]:border-destructive disabled:cursor-not-allowed disabled:bg-muted disabled:opacity-70",
+      className
+    )}
+    {...props}
+  />
+));
+Textarea.displayName = "Textarea";
 
-function Textarea({
-  className,
-  ...props
-}) {
-  return (
-    <textarea
-      data-slot="textarea"
-      className={cn(
-        "border-input bg-input text-foreground placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive flex field-sizing-content min-h-16 w-full rounded-md border px-3 py-2 text-base shadow-xs transition-[color,box-shadow] outline-none focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50 md:text-sm",
-        className
-      )}
-      {...props} />
-  );
-}
-
-export { Textarea }
+export { Textarea };

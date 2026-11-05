@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { FilterBar } from "@/components/module/ModuleKit";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -290,14 +291,7 @@ const Addiction = () => {
               "Maintain high standards of confidentiality for all records.",
             ]}
           />
-          <Card className="mb-6">
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <Filter className="h-5 w-5" />
-                <span>Filters</span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
+          <FilterBar>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
                 <div>
                   <Label htmlFor="search">Search by Name</Label>
@@ -391,8 +385,7 @@ const Addiction = () => {
                   </Button>
                 </div>
               </div>
-            </CardContent>
-          </Card>
+            </FilterBar>
 
           {/* Bulk Import */}
           {canCreate("health") && (

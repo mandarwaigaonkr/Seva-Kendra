@@ -1,33 +1,26 @@
 import React, { useState, useEffect } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
 import * as yup from "yup";
-import { Eye, EyeOff, User, ArrowRight, AlertCircle, Sparkles } from "lucide-react";
+import { Eye, EyeOff, AlertCircle } from "lucide-react";
 import sevaLogo from "../assets/seva_logo.png";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useAuth } from "../contexts/AuthContext";
+import ThemeToggle from "@/components/ThemeToggle";
 
 // Validation schema
 const signInSchema = yup.object({
   email: yup
     .string()
-    .required("Email is required")
-    .email("Please enter a valid email address"),
+    .required("Enter your email address")
+    .email("Enter an email like name@sevakendra.org"),
   password: yup
     .string()
-    .required("Password is required")
-    .min(6, "Password must be at least 6 characters"),
+    .required("Enter your password")
+    .min(6, "Passwords have at least 6 characters"),
 });
 
 export default function SignIn() {
@@ -41,6 +34,8 @@ export default function SignIn() {
     formState: { errors },
     setError,
   } = useForm({
+    mode: "onTouched",
+    reValidateMode: "onChange",
     resolver: yupResolver(signInSchema),
     defaultValues: {
       email: "",
@@ -70,129 +65,90 @@ export default function SignIn() {
         setError("root", { message: result.error });
       }
     } catch (err) {
-      setError("root", { message: "An unexpected error occurred" });
+      setError("root", { message: "We couldn't reach the server. Check your internet connection and try again." });
     }
   };
 
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/5 via-accent/5 to-primary/10 p-4 relative overflow-hidden">
-      {/* Animated background elements */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-40 -right-40 w-80 h-80 bg-primary/10 rounded-full blur-3xl animate-pulse"></div>
-        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-accent/10 rounded-full blur-3xl animate-pulse" style={{animationDelay: '1s'}}></div>
-      </div>
-      
-      <Card className="w-full max-w-md shadow-2xl border-2 border-primary/20 bg-card/95 backdrop-blur-sm relative z-10">
-        <CardHeader className="text-center space-y-4 bg-gradient-to-br from-primary via-primary/95 to-accent py-8 border-b-2 border-primary/30">
-          <div className="mx-auto bg-card p-4 rounded-2xl w-fit shadow-2xl transform hover:scale-105 transition-transform duration-300">
-            <img src={sevaLogo} alt="Seva Kendra Logo" className="w-20 h-20 object-contain" />
-          </div>
-          <div className="space-y-2">
-            <CardTitle className="text-3xl font-bold text-primary-foreground flex items-center justify-center gap-2">
-              <Sparkles className="w-6 h-6" />
-              Welcome Back
-            </CardTitle>
-            <CardDescription className="text-primary-foreground/90 text-base">
-              Sign in to Seva Kendra CRM
-            </CardDescription>
-          </div>
-        </CardHeader>
+  const formError = error || errors.root?.message;
 
-        <CardContent className="p-8">
-          {/* Error Alert */}
-          {(error || errors.root) && (
-            <Alert variant="destructive" className="mb-6">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>
-                {error || errors.root?.message}
-              </AlertDescription>
-            </Alert>
+  return (
+    <div className="relative flex min-h-dvh flex-col items-center justify-center bg-background px-4 py-10">
+      <ThemeToggle className="absolute right-4 top-4" />
+      <main className="w-full max-w-[25rem]">
+        <div className="mb-8 flex flex-col items-center text-center">
+          <img src={sevaLogo} alt="" className="mb-4 h-16 w-16 rounded-xl bg-card object-contain p-2 shadow-sm ring-1 ring-border" />
+          <h1 className="text-[1.75rem] font-semibold leading-tight text-foreground">Sign in to Seva Kendra</h1>
+          <p className="mt-2 text-[0.9375rem] text-muted-foreground">Records and follow-ups for our Calcutta programmes</p>
+        </div>
+
+        <div className="rounded-xl border border-border bg-card p-6 shadow-sm sm:p-8">
+          {formError && (
+            <div role="alert" className="mb-5 flex gap-3 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2.5 text-[0.9375rem] text-foreground">
+              <AlertCircle className="mt-0.5 h-[18px] w-[18px] shrink-0 text-destructive" aria-hidden />
+              <span>{/invalid|incorrect|wrong|credential/i.test(formError) ? "That email and password don't match. Check them and try again." : formError}</span>
+            </div>
           )}
 
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-            {/* Email */}
-            <div className="space-y-2">
-              <Label htmlFor="email">Email Address</Label>
+          <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-5">
+            <div className="space-y-1.5">
+              <Label htmlFor="email">Email</Label>
               <Input
                 id="email"
                 type="email"
-                placeholder="Enter your email"
-                className={`h-12 ${
-                  errors.email ? "border-red-500" : "border-gray-300"
-                }`}
+                autoComplete="email"
+                inputMode="email"
+                autoFocus
+                aria-invalid={errors.email ? "true" : "false"}
+                aria-describedby={errors.email ? "email-error" : undefined}
                 {...register("email")}
               />
               {errors.email && (
-                <p className="text-sm text-red-600">{errors.email.message}</p>
+                <p id="email-error" className="text-sm text-destructive">
+                  {errors.email.message}
+                </p>
               )}
             </div>
 
-            {/* Password */}
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               <Label htmlFor="password">Password</Label>
               <div className="relative">
                 <Input
                   id="password"
                   type={showPassword ? "text" : "password"}
-                  placeholder="Enter your password"
-                  className={`h-12 pr-10 ${
-                    errors.password ? "border-red-500" : "border-gray-300"
-                  }`}
+                  autoComplete="current-password"
+                  className="pr-12"
+                  aria-invalid={errors.password ? "true" : "false"}
+                  aria-describedby={errors.password ? "password-error" : undefined}
                   {...register("password")}
                 />
                 <button
                   type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-muted-foreground"
-                  tabIndex={-1}
+                  onClick={() => setShowPassword((v) => !v)}
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  aria-pressed={showPassword}
+                  className="absolute inset-y-0 right-0 flex w-11 items-center justify-center rounded-r-md text-muted-foreground hover:text-foreground"
                 >
-                  {showPassword ? (
-                    <EyeOff className="w-5 h-5" />
-                  ) : (
-                    <Eye className="w-5 h-5" />
-                  )}
+                  {showPassword ? <EyeOff className="h-[18px] w-[18px]" /> : <Eye className="h-[18px] w-[18px]" />}
                 </button>
               </div>
               {errors.password && (
-                <p className="text-sm text-red-600">
+                <p id="password-error" className="text-sm text-destructive">
                   {errors.password.message}
                 </p>
               )}
             </div>
 
-            {/* Submit */}
-            <Button
-              type="submit"
-              disabled={isLoading}
-              className="w-full h-12 text-base font-semibold bg-gradient-to-r from-primary to-accent hover:from-primary/90 hover:to-accent/90 disabled:opacity-50 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-[1.02]"
-            >
-              {isLoading ? (
-                <>
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
-                  Signing In...
-                </>
-              ) : (
-                <>
-                  Sign In <ArrowRight className="w-4 h-4 ml-2" />
-                </>
-              )}
+            <Button type="submit" size="lg" className="w-full" aria-busy={isLoading}>
+              {isLoading && <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent motion-reduce:animate-none" aria-hidden />}
+              {isLoading ? "Signing in…" : "Sign in"}
             </Button>
-
-            <p className="text-center text-sm text-muted-foreground">
-              Don't have an account?{" "}
-              <Link
-                to="/contact"
-                className="text-primary hover:text-accent hover:underline font-medium transition-colors"
-              >
-                Contact your administrator
-              </Link>
-            </p>
           </form>
-        </CardContent>
-      </Card>
+        </div>
+
+        <p className="mt-6 text-center text-sm text-muted-foreground">
+          Forgot your password or need an account? Ask your Seva Kendra administrator.
+        </p>
+      </main>
     </div>
   );
 }
-
-
-

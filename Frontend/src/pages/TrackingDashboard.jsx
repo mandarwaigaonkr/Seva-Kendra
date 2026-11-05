@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { ModulePageHeader } from "@/components/module/ModuleKit";
 import {
   Calendar,
   Filter,
@@ -520,40 +521,12 @@ const TrackingDashboard = () => {
       <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
 
       <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Top bar */}
-        <div className="bg-card shadow-md z-10 lg:hidden border-b border-border">
-          <div className="px-4 py-3">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setSidebarOpen(true)}
-            >
-              <Menu className="h-6 w-6" />
-            </Button>
-          </div>
-        </div>
+        <ModulePageHeader
+          title="Follow-ups"
+          subtitle={`Monthly visits and check-ins across every programme · ${filteredRecords.length} shown`}
+        />
 
-        {/* Main content */}
-        <main className="flex-1 overflow-y-auto p-6 space-y-6">
-          {/* Header */}
-          <div className="flex justify-between items-center">
-            <div>
-              <h1 className="text-3xl font-bold">
-                Tracking Dashboard
-                <span className="ml-2 text-lg font-semibold text-muted-foreground align-middle">
-                  ({filteredRecords.length})
-                </span>
-              </h1>
-              <p className="text-muted-foreground">
-                Monitor and manage follow-ups across all modules
-              </p>
-            </div>
-            {/* <Button onClick={() => setAddModalOpen(true)}>
-          <Plus className="h-4 w-4 mr-2" />
-          Add Follow-up
-        </Button> */}
-          </div>
-
+        <main className="flex-1 overflow-y-auto space-y-6">
           {/* Stats Cards */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <Card>

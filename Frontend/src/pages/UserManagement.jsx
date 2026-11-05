@@ -56,7 +56,7 @@ import {
   UserPlus,
   UserCog,
 } from "lucide-react";
-import Sidebar from "../components/Sidebar";
+import { ModulePageHeader, normalizePagination } from "@/components/module/ModuleKit";
 import axios from "axios";
 
 const API_URL = import.meta.env.VITE_API_URL || "https://seva-kendra-backend.vercel.app/api/v1";
@@ -79,7 +79,6 @@ const PERMISSION_ACTIONS = {
 };
 
 const UserManagement = () => {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -124,7 +123,7 @@ const UserManagement = () => {
       });
 
       setUsers(response.data.data.users);
-      setPagination(response.data.data.pagination);
+      setPagination(normalizePagination(response.data.data.pagination));
     } catch (error) {
       toast.error("Failed to fetch users");
       console.error("Error fetching users:", error);
@@ -258,44 +257,23 @@ const UserManagement = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background flex">
-      <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
+    <div className="min-h-full bg-background">
+      <div className="flex flex-col">
+        <ModulePageHeader
+          title="Users & access"
+          subtitle="Add staff accounts and choose which programmes each person can see or change."
+          actions={
+            <Button onClick={() => setIsCreateModalOpen(true)}>
+              <Plus />
+              Add user
+            </Button>
+          }
+        />
 
-      <div className="flex-1 flex flex-col lg:ml-0">
-        {/* Mobile Header */}
-        <div className="lg:hidden bg-card shadow-lg border-b border-border p-4 flex items-center justify-between">
-          <h1 className="text-xl font-bold text-foreground flex items-center gap-2">
-            <Users className="h-6 w-6" />
-            User Management
-          </h1>
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={() => setSidebarOpen(!sidebarOpen)}
-          >
-            <Menu className="h-5 w-5" />
-          </Button>
-        </div>
-
-        {/* Main Content */}
-        <div className="flex-1 p-4 md:p-6 space-y-6">
-          <Card className="shadow-lg">
-            <CardHeader>
-              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                <div>
-                  <CardTitle className="flex items-center gap-2">
-                    <Users className="h-6 w-6" />
-                    User Management
-                  </CardTitle>
-                  <CardDescription>
-                    Manage system users and their permissions
-                  </CardDescription>
-                </div>
-                <Button onClick={() => setIsCreateModalOpen(true)}>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add User
-                </Button>
-              </div>
+        <div className="shell-main space-y-6">
+          <Card>
+            <CardHeader className="pb-4">
+              <CardTitle>Staff accounts</CardTitle>
             </CardHeader>
 
             <CardContent>

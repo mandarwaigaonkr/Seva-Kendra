@@ -1,11 +1,10 @@
 import React from "react";
 import { FileSpreadsheet } from "lucide-react";
 
-import { Card, CardContent } from "@/components/ui/card";
 import ExcelBulkImportButton from "./ExcelBulkImportButton";
 
 /**
- * Standard "Bulk import" card used on every module page.
+ * Standard "Add many at once" strip used on every module page.
  *
  * <ExcelImportPanel template={addictionImportTemplate} createRecord={addictionAPI.create} onImported={fetchRecords} />
  */
@@ -15,35 +14,25 @@ const ExcelImportPanel = ({ template, createRecord, onImported, title, descripti
   const totalCount = (template?.fields || []).length;
 
   return (
-    <Card className={`mb-6 bg-card shadow-sm ${className}`}>
-      <CardContent className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 p-4 sm:p-5">
-        <div className="flex items-start gap-3 min-w-0">
-          <span className="rounded-lg bg-primary/10 p-2.5 text-primary shrink-0">
-            <FileSpreadsheet className="h-5 w-5" />
-          </span>
-          <div className="space-y-1 min-w-0">
-            <h3 className="font-semibold text-foreground leading-tight">Bulk import {name}</h3>
-            <p className="text-sm text-muted-foreground">
-              {description ||
-                "Download the template, fill one record per row, then upload. You'll see a preview and can fix problems before anything is saved."}
-            </p>
-            {totalCount > 0 && (
-              <p className="text-xs text-muted-foreground">
-                {totalCount} columns · {requiredCount} required (marked *) · dates as DD/MM/YYYY
-              </p>
-            )}
-          </div>
+    <section
+      aria-label={`Add many ${name} from Excel`}
+      className={`mb-4 flex flex-col gap-3 rounded-lg border border-dashed border-input bg-card/60 px-4 py-3 sm:flex-row sm:items-center sm:justify-between ${className}`}
+    >
+      <div className="flex min-w-0 items-start gap-3">
+        <FileSpreadsheet className="mt-0.5 h-5 w-5 shrink-0 text-success" aria-hidden />
+        <div className="min-w-0">
+          <p className="text-[0.9375rem] font-medium text-foreground">Have a spreadsheet? Add many {name} at once</p>
+          <p className="text-sm text-muted-foreground">
+            {description ||
+              `Download the template, fill one row per person, then upload it. You can check everything before it is saved.`}
+            {totalCount > 0 && ` ${requiredCount} of ${totalCount} columns are required; write dates as DD/MM/YYYY.`}
+          </p>
         </div>
-        <div className="shrink-0">
-          <ExcelBulkImportButton
-            template={template}
-            title={name}
-            createRecord={createRecord}
-            onImported={onImported}
-          />
-        </div>
-      </CardContent>
-    </Card>
+      </div>
+      <div className="shrink-0">
+        <ExcelBulkImportButton template={template} title={name} createRecord={createRecord} onImported={onImported} />
+      </div>
+    </section>
   );
 };
 

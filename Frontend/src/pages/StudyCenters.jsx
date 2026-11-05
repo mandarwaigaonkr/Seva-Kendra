@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
+import { normalizePagination } from "@/components/module/ModuleKit";
+import { FilterBar } from "@/components/module/ModuleKit";
 import { toast } from "sonner";
 import {
   Card,
@@ -385,7 +387,7 @@ const StudyCenters = () => {
 
       const response = await studyCenterAPI.getAll(params);
       setStudyCenters(response.data.data);
-      setPagination(response.data.pagination);
+      setPagination(normalizePagination(response.data.pagination));
     } catch (error) {
       toast.error("Failed to fetch study centers");
       console.error("Error fetching study centers:", error);
@@ -671,14 +673,7 @@ const StudyCenters = () => {
             />
 
             {/* Search and Filters */}
-            <Card>
-              <CardHeader className="py-3">
-                <CardTitle className="flex items-center gap-2 text-base font-semibold">
-                  <Filter className="h-4 w-4" aria-hidden="true" />
-                  Search & Filters
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="pt-2 pb-3">
+            <FilterBar>
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
                   <div className="relative">
                     <Search
@@ -771,8 +766,7 @@ const StudyCenters = () => {
                     Leader filter (coming soon)
                   </Badge>
                 </div>
-              </CardContent>
-            </Card>
+              </FilterBar>
 
             {/* Bulk Import */}
             {canCreate("education") && (

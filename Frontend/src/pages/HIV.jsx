@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { FilterBar } from "@/components/module/ModuleKit";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -261,7 +262,7 @@ const HIV = () => {
             canCreate("health") && (
               <Button
               onClick={() => setIsCreateModalOpen(true)}
-              className="shadow-md hover:shadow-lg transition-all duration-200"
+              className="shadow-md transition-colors duration-150"
               >
               <Plus className="h-4 w-4 mr-2" />
               Add HIV Record
@@ -282,14 +283,7 @@ const HIV = () => {
               "Maintain strict confidentiality of HIV status in all records.",
             ]}
           />
-          <Card className="mb-6 shadow-md hover:shadow-lg transition-shadow duration-300">
-            <CardHeader className="bg-background from-slate-50 to-white">
-              <CardTitle className="flex items-center space-x-2">
-                <Filter className="h-5 w-5 text-red-600" />
-                <span>Filters</span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
+          <FilterBar>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
                 <div>
                   <Label htmlFor="search">Search by Name</Label>
@@ -387,8 +381,7 @@ const HIV = () => {
                   </Button>
                 </div>
               </div>
-            </CardContent>
-          </Card>
+            </FilterBar>
 
           {/* Bulk Import */}
           {canCreate("health") && (

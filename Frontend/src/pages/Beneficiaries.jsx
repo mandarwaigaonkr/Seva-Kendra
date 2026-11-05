@@ -417,7 +417,7 @@ export default function Beneficiaries() {
         </div>
         <Button
           onClick={handleAdd}
-          className="shadow-md hover:shadow-lg transition-all duration-200"
+          className="shadow-md transition-colors duration-150"
         >
           <Plus className="w-4 h-4 mr-2" />
           Add Beneficiary
@@ -437,7 +437,7 @@ export default function Beneficiaries() {
       />
 
       {/* Filters */}
-      <Card className="mb-6 shadow-md hover:shadow-lg transition-shadow duration-300">
+      <Card className="mb-6 shadow-md transition-shadow duration-300">
         <CardContent className="pt-6">
           <div className="flex flex-col sm:flex-row gap-4">
             <div className="relative flex-1">

@@ -2,153 +2,228 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * Seva Kendra design tokens.
+ * Light "stone" canvas, white working surfaces, one jade accent for anything you can act on.
+ * Domain colours (education / health / social justice) are wayfinding marks only — dots, icons,
+ * the active-section bar — never large fills.
+ */
 @layer base {
   :root {
-    /* Professional dark theme - optimized for readability and contrast */
-    --background: 222 47% 11%; /* Dark blue-gray background */
-    --foreground: 210 40% 98%; /* Light text for maximum contrast */
-    --card: 222 47% 16%; /* Lighter than background for better distinction */
-    --card-foreground: 210 40% 98%; /* Bright light text on cards */
-    --popover: 222 47% 16%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 200 95% 55%; /* Brighter blue for dark mode */
+    --background: 80 13% 95.5%;      /* L0 canvas  #F4F5F2 */
+    --foreground: 150 14% 11%;       /* ink        #18201C */
+    --card: 0 0% 100%;               /* L1 surface #FFFFFF */
+    --card-foreground: 150 14% 11%;
+    --popover: 0 0% 100%;            /* L2 overlay */
+    --popover-foreground: 150 14% 11%;
+    --sidebar: 90 9% 92%;            /* chrome     #E9ECE6 */
+
+    --primary: 164 69% 25%;          /* jade       #146C54 */
+    --primary-hover: 164 72% 20%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 217 33% 22%; /* Slightly lighter dark gray-blue */
-    --secondary-foreground: 210 40% 98%; /* Bright light text */
-    --muted: 217 33% 28%; /* Lighter muted background */
-    --muted-foreground: 215 20% 75%; /* Much lighter gray for better visibility */
-    --accent: 185 80% 55%; /* Brighter teal accent */
-    --accent-foreground: 0 0% 100%;
-    --destructive: 0 84.2% 60.2%;
+    --primary-soft: 158 40% 93%;     /* tint for selected rows / active nav */
+
+    --secondary: 90 10% 93%;
+    --secondary-foreground: 150 14% 11%;
+    --muted: 90 10% 94%;
+    --muted-foreground: 147 5% 37%;  /* #59625D — 6:1 on white */
+    --accent: 120 12% 94%;           /* hover wash for ghost / menu items */
+    --accent-foreground: 150 14% 11%;
+
+    --destructive: 4 76% 40%;        /* #B42318 */
     --destructive-foreground: 0 0% 100%;
-    --border: 217 33% 28%; /* Lighter borders for better visibility */
-    --input: 217 33% 22%; /* Lighter input backgrounds for better contrast */
-    --ring: 200 95% 55%;
-    --radius: 0.75rem;
-    
-    /* Success and info colors - adjusted for dark mode */
-    --success: 142 76% 50%;
+    --success: 142 72% 29%;
     --success-foreground: 0 0% 100%;
-    --info: 200 95% 55%;
-    --info-foreground: 0 0% 100%;
-    --warning: 38 92% 60%;
+    --warning: 32 95% 35%;
     --warning-foreground: 0 0% 100%;
+    --info: 221 70% 45%;
+    --info-foreground: 0 0% 100%;
+
+    --border: 100 9% 87%;            /* hairlines  #DCE0DA */
+    --input: 96 8% 76%;              /* field edge — 3:1 against white */
+    --ring: 164 69% 30%;
+    --radius: 0.625rem;
+
+    --domain-education: 227 62% 50%;
+    --domain-health: 0 64% 46%;
+    --domain-social: 36 100% 30%;
+
+    --motion-fast: 100ms;
+    --motion-base: 150ms;
+    --motion-slow: 200ms;
+    --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+    --ease-in: cubic-bezier(0.7, 0, 0.84, 0);
+
+    color-scheme: light;
+  }
+
+  /* Dark: "night ledger" — green-black canvas, surfaces step up in lightness, jade brightens for contrast. */
+  .dark {
+    --background: 150 10% 7.5%;      /* L0 #121614 */
+    --foreground: 90 12% 93%;
+    --card: 150 8% 10.5%;            /* L1 */
+    --card-foreground: 90 12% 93%;
+    --popover: 150 8% 13%;           /* L2 */
+    --popover-foreground: 90 12% 93%;
+    --sidebar: 150 9% 9%;
+    --primary: 158 52% 46%;          /* jade, lifted for dark */
+    --primary-hover: 158 52% 52%;
+    --primary-foreground: 150 40% 6%;
+    --primary-soft: 158 30% 15%;
+    --secondary: 150 6% 16%;
+    --secondary-foreground: 90 12% 93%;
+    --muted: 150 6% 14%;
+    --muted-foreground: 100 6% 66%;
+    --accent: 150 7% 16%;
+    --accent-foreground: 90 12% 93%;
+    --destructive: 4 72% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --success: 145 50% 50%;
+    --warning: 36 90% 56%;
+    --info: 217 85% 68%;
+    --border: 150 6% 18%;
+    --input: 150 5% 30%;
+    --ring: 158 52% 52%;
+    --domain-education: 228 80% 72%;
+    --domain-health: 2 75% 65%;
+    --domain-social: 40 85% 55%;
+    color-scheme: dark;
   }
 }
+
+/* Theme switch: the new theme is revealed as a growing circle (driven from ThemeContext). */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+::view-transition-new(root) {
+  z-index: 2;
+}
+
+/* Elevation in dark comes from a faint top edge light, not shadows. */
+.dark .shadow-sm,
+.dark .shadow,
+.dark .shadow-md {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+/* A handful of pages use light-only tinted backgrounds / dark text; give them dark equivalents. */
+.dark .bg-blue-50, .dark .bg-blue-100 { background-color: hsl(var(--info) / 0.12); }
+.dark .bg-green-50, .dark .bg-green-100 { background-color: hsl(var(--success) / 0.12); }
+.dark .bg-yellow-50, .dark .bg-yellow-100, .dark .bg-amber-50, .dark .bg-amber-100 { background-color: hsl(var(--warning) / 0.12); }
+.dark .bg-red-50, .dark .bg-red-100 { background-color: hsl(var(--destructive) / 0.12); }
+.dark .bg-slate-50, .dark .bg-gray-50, .dark .bg-gray-100, .dark .bg-white { background-color: hsl(var(--muted)); }
+.dark .text-blue-900, .dark .text-blue-800, .dark .text-blue-700, .dark .text-blue-600 { color: hsl(var(--info)); }
+.dark .text-green-800, .dark .text-green-700, .dark .text-green-600, .dark .text-emerald-700, .dark .text-emerald-600 { color: hsl(var(--success)); }
+.dark .text-red-800, .dark .text-red-700, .dark .text-red-600 { color: hsl(var(--destructive)); }
+.dark .text-amber-700, .dark .text-amber-600, .dark .text-yellow-600 { color: hsl(var(--warning)); }
+.dark .text-purple-600, .dark .text-pink-600 { color: hsl(270 70% 75%); }
+.dark .text-slate-700 { color: hsl(var(--foreground)); }
+.dark .border-blue-200, .dark .border-slate-200, .dark .border-red-300 { border-color: hsl(var(--border)); }
 
 @layer base {
   * {
     @apply border-border;
   }
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-rendering: optimizeLegibility;
+  }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground font-sans antialiased;
+    font-size: 1rem;
+    line-height: 1.55;
+  }
+  h1, h2, h3, h4 {
+    line-height: 1.2;
+    font-weight: 600;
+  }
+  /* One focus language everywhere: a 2px jade ring, keyboard only. */
+  :focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
+  }
+  button, [role="button"], a, summary, label[for] {
+    -webkit-tap-highlight-color: transparent;
+  }
+  ::selection {
+    background: hsl(var(--primary) / 0.18);
   }
 }
 
-/* Custom health organization styles */
-.health-gradient {
-  background: linear-gradient(
-    135deg,
-    hsl(var(--primary)) 0%,
-    hsl(var(--accent)) 100%
-  );
+@layer components {
+  /* Main page column: capped and centred inside the shell (viewports: wide = 1280px). */
+  .page {
+    @apply w-full mx-auto px-4 sm:px-6 lg:px-8 py-6;
+    max-width: 1280px;
+  }
+  /* Side padding that also centres content to a 1280px column — header and main share it so they line up. */
+  .shell-gutter {
+    padding-inline: max(1rem, calc((100% - 1280px) / 2 + 1rem));
+  }
+  @media (min-width: 640px) {
+    .shell-gutter {
+      padding-inline: max(1.5rem, calc((100% - 1280px) / 2 + 1.5rem));
+    }
+  }
 }
 
-.health-card-shadow {
-  box-shadow: 0 10px 25px -5px rgba(14, 116, 144, 0.15),
-    0 10px 10px -5px rgba(14, 116, 144, 0.08);
+/* Module pages render <main className="flex-1 overflow-auto p-6">; give every one the same centred column. */
+#app-content main,
+#app-content .shell-main {
+  padding-inline: max(1rem, calc((100% - 1280px) / 2 + 1rem));
+  padding-block: 1.5rem 3rem;
+}
+@media (min-width: 640px) {
+  #app-content main,
+  #app-content .shell-main {
+    padding-inline: max(1.5rem, calc((100% - 1280px) / 2 + 1.5rem));
+  }
 }
 
+/* Legacy utilities still referenced by a few pages — kept, now quiet. */
 .health-input-focus:focus {
-  border-color: hsl(var(--primary));
-  box-shadow: 0 0 0 3px hsl(var(--primary) / 0.1);
+  border-color: hsl(var(--ring));
 }
-
-/* Enhanced shadow utilities */
-.shadow-soft {
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06), 0 1px 3px rgba(0, 0, 0, 0.04);
-}
-
-.shadow-elevated {
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08), 0 2px 6px rgba(0, 0, 0, 0.06);
-}
-
+.shadow-soft,
+.shadow-elevated,
 .shadow-floating {
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12), 0 4px 12px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 1px 2px rgba(16, 24, 20, 0.05);
 }
 
-/* Date input calendar icon visibility fix for dark mode */
-input[type="date"]::-webkit-calendar-picker-indicator,
-input[type="datetime-local"]::-webkit-calendar-picker-indicator,
-input[type="time"]::-webkit-calendar-picker-indicator {
+/* Native date pickers follow the theme. */
+.dark input[type="date"]::-webkit-calendar-picker-indicator,
+.dark input[type="datetime-local"]::-webkit-calendar-picker-indicator,
+.dark input[type="time"]::-webkit-calendar-picker-indicator {
   filter: invert(1);
+}
+input[type="date"]::-webkit-calendar-picker-indicator {
   cursor: pointer;
-  opacity: 0.8;
 }
 
-input[type="date"]::-webkit-calendar-picker-indicator:hover,
-input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover,
-input[type="time"]::-webkit-calendar-picker-indicator:hover {
-  opacity: 1;
-}
-
-/* Color palette utilities for consistent theming */
-.bg-primary-gradient {
-  background: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--accent)) 100%);
-}
-
-.bg-health-gradient {
-  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
-}
-
-.bg-education-gradient {
-  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
-}
-
-.bg-social-gradient {
-  background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
-}
-
-/* Hover states for interactive elements */
-.card-hover {
-  @apply transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5;
-}
-
-.button-hover {
-  @apply transition-all duration-200 hover:shadow-md hover:scale-105 active:scale-95;
-}
-
-/* Text utilities for consistent visibility */
+/* Pages written for the old dark theme used gray/white text utilities as "foreground" / "muted".
+   Map them to tokens so they read correctly on the light canvas. */
 .text-gray-900,
 .text-gray-800,
-.text-gray-700 {
+.text-gray-700,
+.text-black {
   color: hsl(var(--foreground));
 }
-
 .text-gray-600,
-.text-gray-500 {
-  color: hsl(var(--muted-foreground));
-}
-
+.text-gray-500,
 .text-gray-400,
 .text-gray-300 {
   color: hsl(var(--muted-foreground));
 }
 
-.text-black {
-  color: hsl(var(--foreground));
-}
-.text-white {
-  color: hsl(var(--primary-foreground));
-}
-
-/* Recharts theming */
+/* Recharts */
 .recharts-default-tooltip {
-  background: hsl(var(--card));
-  border: 1px solid hsl(var(--border));
+  background: hsl(var(--popover)) !important;
+  border: 1px solid hsl(var(--border)) !important;
   color: hsl(var(--foreground));
   border-radius: 0.5rem;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 16px rgba(16, 24, 20, 0.08);
 }
 .recharts-tooltip-label {
   color: hsl(var(--foreground));
@@ -162,58 +237,22 @@ input[type="time"]::-webkit-calendar-picker-indicator:hover {
   fill: hsl(var(--muted-foreground));
 }
 .recharts-legend-item-text {
-  color: hsl(var(--muted-foreground));
+  color: hsl(var(--muted-foreground)) !important;
 }
 
-/* Glass utility for panels/cards */
-.glass-card {
-  background-color: hsl(var(--card) / 0.95);
-  -webkit-backdrop-filter: blur(10px);
-  backdrop-filter: blur(10px);
-  border: 1px solid hsl(var(--border));
+/* Quiet scrollbars */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--input)) transparent;
 }
 
-/* Gradient border utility */
-.border-gradient {
-  position: relative;
-}
-.border-gradient::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  padding: 1px;
-  border-radius: inherit;
-  background: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--accent)));
-  -webkit-mask: 
-    linear-gradient(#fff 0 0) content-box, 
-    linear-gradient(#fff 0 0);
-  -webkit-mask-composite: xor;
-          mask-composite: exclude;
-  pointer-events: none;
-}
-
-/* Scrollbar styling */
-*::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
-}
-*::-webkit-scrollbar-thumb {
-  background-color: hsl(var(--secondary));
-  border-radius: 8px;
-  border: 2px solid hsl(var(--background));
-}
-*::-webkit-scrollbar-track {
-  background: hsl(var(--background));
-}
-
-/* Text selection */
-::selection {
-  background: hsl(var(--primary) / 0.25);
-  color: hsl(var(--foreground));
-}
-
-/* Focus ring helper */
-.ring-focus {
-  outline: none;
-  box-shadow: 0 0 0 3px hsl(var(--ring) / 0.35);
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+    scroll-behavior: auto !important;
+  }
 }

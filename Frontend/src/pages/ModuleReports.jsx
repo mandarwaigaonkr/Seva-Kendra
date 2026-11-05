@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from "react";
+import { FilterBar, ModulePageHeader } from "@/components/module/ModuleKit";
 import sevaLogo from "../assets/seva_logo.png";
 import usePermissions from "../hooks/usePermissions";
 import {
@@ -1368,66 +1369,24 @@ const ModuleReports = () => {
   const categoryLabel = getCategoryLabel(category);
 
   return (
-    <div className="min-h-screen bg-background lg:flex">
+    <div className="min-h-full bg-background">
       <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
 
       <div className="flex-1 lg:ml-0">
-        {/* Mobile Header with Menu */}
-        <div className="lg:hidden fixed top-0 left-0 right-0 z-40 bg-card shadow-md border-b">
-          <div className="flex items-center justify-between px-4 py-3">
-            <button
-              onClick={() => setSidebarOpen(true)}
-              className="p-2 rounded-md hover:bg-secondary"
-            >
-              <Menu className="w-6 h-6 text-foreground" />
-            </button>
-            <h1 className="text-lg font-semibold text-foreground">
-              Module Reports
-            </h1>
-            <div className="w-10"></div>
-          </div>
-        </div>
+        <ModulePageHeader
+          title="Reports"
+          subtitle="Choose a programme, a section and dates, then create a report you can save as PDF or Excel."
+          actions={
+            <Button variant="outline" onClick={handleReset}>
+              <RefreshCw />
+              Clear choices
+            </Button>
+          }
+        />
 
-        <main className="py-8 px-4 sm:px-6 lg:px-8 mt-16 lg:mt-0">
-          {/* Header */}
-          <div className="mb-8">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-              <div>
-                <h1 className="text-3xl sm:text-4xl font-bold text-foreground flex items-center gap-3">
-                  <div className="p-2 bg-gradient-to-br from-primary to-accent rounded-xl shadow-lg">
-                    <FileText className="w-7 h-7 text-white" />
-                  </div>
-                  Module Reports
-                </h1>
-                <p className="mt-3 text-muted-foreground text-sm sm:text-base">
-                  Generate comprehensive reports for Education and Health
-                  modules
-                </p>
-              </div>
-              <Button
-                variant="outline"
-                onClick={handleReset}
-                className="flex items-center gap-2 border-2 hover:bg-secondary/50 transition-all"
-              >
-                <RefreshCw className="w-4 h-4" />
-                Reset All
-              </Button>
-            </div>
-          </div>
-
+        <main>
           {/* Filters Section */}
-          <Card className="mb-6 shadow-lg border border-border overflow-hidden">
-            <CardHeader className="bg-gradient-to-r from-primary to-accent text-white">
-              <CardTitle className="flex items-center gap-2 text-white">
-                <Filter className="w-5 h-5" />
-                Report Configuration
-              </CardTitle>
-              <CardDescription className="text-primary-foreground/80">
-                Select module, report parameters and apply filters to generate
-                customized reports
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="pt-6">
+          <FilterBar>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {/* Module Selection */}
                 <div className="space-y-2">
@@ -1515,7 +1474,7 @@ const ModuleReports = () => {
                 <Button
                   onClick={handleGenerateReport}
                   disabled={loading || !module || !category}
-                  className="flex items-center gap-2 bg-gradient-to-r from-primary to-accent hover:from-primary/90 hover:to-accent/90 shadow-md hover:shadow-lg transition-all"
+                  className="flex items-center gap-2"
                 >
                   {loading ? (
                     <>
@@ -1535,7 +1494,7 @@ const ModuleReports = () => {
                     variant="outline"
                     onClick={handleExportPDF}
                     disabled={!reportData}
-                    className="flex items-center gap-2 border-2 hover:bg-destructive/10 hover:border-destructive transition-all"
+                    className="flex items-center gap-2 border-2 hover:bg-destructive/10 hover:border-destructive transition-colors"
                   >
                     <Download className="w-4 h-4" />
                     Export PDF
@@ -1547,15 +1506,14 @@ const ModuleReports = () => {
                     variant="outline"
                     onClick={handleExportExcel}
                     disabled={!reportData}
-                    className="flex items-center gap-2 border-2 hover:bg-success/10 hover:border-success transition-all"
+                    className="flex items-center gap-2 border-2 hover:bg-success/10 hover:border-success transition-colors"
                   >
                     <Download className="w-4 h-4" />
                     Export Excel
                   </Button>
                 )}
               </div>
-            </CardContent>
-          </Card>
+            </FilterBar>
 
           {/* Report Results */}
           <div id="module-report-content" className="space-y-6">
@@ -1563,7 +1521,7 @@ const ModuleReports = () => {
               <>
                 {/* Summary Cards */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
-                  <Card className="border border-border shadow-lg hover:shadow-xl transition-shadow bg-gradient-to-br from-card to-card/50">
+                  <Card className="border border-border shadow-lg transition-shadow">
                     <CardHeader className="pb-3">
                       <CardTitle className="text-sm font-medium text-primary">
                         Total Records
@@ -1581,7 +1539,7 @@ const ModuleReports = () => {
                     </CardContent>
                   </Card>
 
-                  <Card className="border border-border shadow-lg hover:shadow-xl transition-shadow bg-gradient-to-br from-card to-card/50">
+                  <Card className="border border-border shadow-lg transition-shadow">
                     <CardHeader className="pb-3">
                       <CardTitle className="text-sm font-medium text-success">
                         Active
@@ -1599,7 +1557,7 @@ const ModuleReports = () => {
                     </CardContent>
                   </Card>
 
-                  <Card className="border border-border shadow-lg hover:shadow-xl transition-shadow bg-gradient-to-br from-card to-card/50">
+                  <Card className="border border-border shadow-lg transition-shadow">
                     <CardHeader className="pb-3">
                       <CardTitle className="text-sm font-medium text-warning">
                         Pending
@@ -1617,7 +1575,7 @@ const ModuleReports = () => {
                     </CardContent>
                   </Card>
 
-                  <Card className="border border-border shadow-lg hover:shadow-xl transition-shadow bg-gradient-to-br from-card to-card/50">
+                  <Card className="border border-border shadow-lg transition-shadow">
                     <CardHeader className="pb-3">
                       <CardTitle className="text-sm font-medium text-accent">
                         Completion Rate
@@ -1638,8 +1596,8 @@ const ModuleReports = () => {
 
                 {/* Data Table */}
                 <Card className="border border-border shadow-lg">
-                  <CardHeader className="bg-gradient-to-r from-primary to-accent border-b border-border">
-                    <CardTitle className="flex items-center gap-2 text-white">
+                  <CardHeader className="border-b border-border bg-muted/70">
+                    <CardTitle className="flex items-center gap-2">
                       <FileText className="w-5 h-5" />
                       Detailed Report Data
                     </CardTitle>
@@ -1732,9 +1690,9 @@ const ModuleReports = () => {
                 {/* Chart Visualization */}
                 {chartData && (
                   <Card className="border border-border shadow-lg">
-                    <CardHeader className="bg-gradient-to-r from-primary to-accent border-b border-border">
+                    <CardHeader className="border-b border-border bg-muted/70">
                       <div className="flex items-center justify-between flex-wrap gap-3">
-                        <CardTitle className="flex items-center gap-2 text-white">
+                        <CardTitle className="flex items-center gap-2">
                           <BarChart3 className="w-5 h-5" />
                           Visual Analytics - Monthly Trend
                         </CardTitle>
@@ -1956,7 +1914,7 @@ const ModuleReports = () => {
               <Card className="border border-border shadow-lg">
                 <CardContent className="py-16">
                   <div className="text-center">
-                    <div className="inline-block p-6 bg-gradient-to-br from-primary/20 to-accent/20 rounded-full mb-6">
+                    <div className="mb-4 inline-block rounded-full bg-muted p-4">
                       <Calendar className="w-16 h-16 text-primary" />
                     </div>
                     <h3 className="text-xl font-bold text-foreground mb-3">
