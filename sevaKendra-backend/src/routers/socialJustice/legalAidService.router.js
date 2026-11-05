@@ -19,6 +19,7 @@ import {
   generateCaseReport,
 } from "../../modules/socialJustice/controllers/legalAidService.controller.js";
 import { verifyTokenExists } from "../../middleware/authMiddleware.js";
+import { checkPermission } from "../../middleware/permissionMiddleware.js";
 import { createAutoFollowUp } from "../../middleware/autoTracking.middleware.js";
 
 const router = Router();
@@ -26,49 +27,49 @@ const router = Router();
 // CRUD routes
 router.post(
   "/",
-  verifyTokenExists,
+  verifyTokenExists, checkPermission("socialJustice", "create"),
   createAutoFollowUp("LegalAid"),
   createLegalAidService
 );
-router.get("/", verifyTokenExists, getAllLegalAidServices);
-router.get("/stats", verifyTokenExists, getLegalAidServiceStats);
-router.get("/follow-up", verifyTokenExists, getCasesRequiringFollowUp);
-router.get("/report", verifyTokenExists, generateCaseReport);
-router.get("/:id", verifyTokenExists, getLegalAidServiceById);
-router.put("/:id", verifyTokenExists, updateLegalAidService);
-router.delete("/:id", verifyTokenExists, deleteLegalAidService);
+router.get("/", verifyTokenExists, checkPermission("socialJustice", "view"), getAllLegalAidServices);
+router.get("/stats", verifyTokenExists, checkPermission("socialJustice", "view"), getLegalAidServiceStats);
+router.get("/follow-up", verifyTokenExists, checkPermission("socialJustice", "view"), getCasesRequiringFollowUp);
+router.get("/report", verifyTokenExists, checkPermission("socialJustice", "view"), generateCaseReport);
+router.get("/:id", verifyTokenExists, checkPermission("socialJustice", "view"), getLegalAidServiceById);
+router.put("/:id", verifyTokenExists, checkPermission("socialJustice", "edit"), updateLegalAidService);
+router.delete("/:id", verifyTokenExists, checkPermission("socialJustice", "delete"), deleteLegalAidService);
 
 // Filter routes
-router.get("/ward/:wardNo", verifyTokenExists, getLegalAidServicesByWard);
+router.get("/ward/:wardNo", verifyTokenExists, checkPermission("socialJustice", "view"), getLegalAidServicesByWard);
 router.get(
   "/habitation/:habitation",
-  verifyTokenExists,
+  verifyTokenExists, checkPermission("socialJustice", "view"),
   getLegalAidServicesByHabitation
 );
 router.get(
   "/case-type/:caseType",
-  verifyTokenExists,
+  verifyTokenExists, checkPermission("socialJustice", "view"),
   getLegalAidServicesByCaseType
 );
 router.get(
   "/case-status/:caseStatus",
-  verifyTokenExists,
+  verifyTokenExists, checkPermission("socialJustice", "view"),
   getLegalAidServicesByCaseStatus
 );
 router.get(
   "/priority/:priorityLevel",
-  verifyTokenExists,
+  verifyTokenExists, checkPermission("socialJustice", "view"),
   getLegalAidServicesByPriority
 );
 
 // Special action routes
-router.get("/:id/timeline", verifyTokenExists, getCaseTimeline);
-router.post("/:id/interventions", verifyTokenExists, addInterventionStep);
+router.get("/:id/timeline", verifyTokenExists, checkPermission("socialJustice", "view"), getCaseTimeline);
+router.post("/:id/interventions", verifyTokenExists, checkPermission("socialJustice", "edit"), addInterventionStep);
 router.put(
   "/:id/interventions/:stepId",
-  verifyTokenExists,
+  verifyTokenExists, checkPermission("socialJustice", "edit"),
   updateInterventionStep
 );
-router.put("/:id/status", verifyTokenExists, updateCaseStatus);
+router.put("/:id/status", verifyTokenExists, checkPermission("socialJustice", "edit"), updateCaseStatus);
 
 export default router;

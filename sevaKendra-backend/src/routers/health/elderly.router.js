@@ -2,19 +2,20 @@ import { Router } from "express";
 const router = Router();
 import elderlyController from "../../modules/health/controllers/elderly.controller.js";
 import { verifyTokenExists } from "../../middleware/authMiddleware.js";
+import { checkPermission } from "../../middleware/permissionMiddleware.js";
 import { createAutoFollowUp } from "../../middleware/autoTracking.middleware.js";
 
 // Routes with authentication
-router.get("/", verifyTokenExists, elderlyController.getAllElderly);
-router.get("/stats", verifyTokenExists, elderlyController.getElderlyStats);
-router.get("/:id", verifyTokenExists, elderlyController.getElderlyById);
+router.get("/", verifyTokenExists, checkPermission("health", "view"), elderlyController.getAllElderly);
+router.get("/stats", verifyTokenExists, checkPermission("health", "view"), elderlyController.getElderlyStats);
+router.get("/:id", verifyTokenExists, checkPermission("health", "view"), elderlyController.getElderlyById);
 router.post(
   "/",
-  verifyTokenExists,
+  verifyTokenExists, checkPermission("health", "create"),
   createAutoFollowUp("Elderly"),
   elderlyController.createElderly
 );
-router.put("/:id", verifyTokenExists, elderlyController.updateElderly);
-router.delete("/:id", verifyTokenExists, elderlyController.deleteElderly);
+router.put("/:id", verifyTokenExists, checkPermission("health", "edit"), elderlyController.updateElderly);
+router.delete("/:id", verifyTokenExists, checkPermission("health", "delete"), elderlyController.deleteElderly);
 
 export default router;

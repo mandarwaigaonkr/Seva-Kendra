@@ -39,6 +39,7 @@ CRM for an NGO in Kolkata. Three domains — **Education**, **Health**, **Social
 - `src/lib/api.js` interceptor returns `response.data` and toasts every error; rejected errors carry `.status`. Wrap bulk calls in `runWithoutErrorToasts`.
 - Backend `errorHandler` returns `{ message, success:false }`; Social Justice models normalise enum case in `pre("validate")`.
 - `householdCode` is `unique` in several health/education models (one record per household).
+- Every module route runs `verifyTokenExists` then `checkPermission("<domain>", action)`: GET → view, POST `/` → create, POST `/:id/...` and PUT → edit, DELETE → delete. New routes follow the same pattern; default users have `view` on all three domains.
 - `TBHIVAddict.jsx` is not routed (dead page). `/auth/dummy-login` is dev-only.
 - ESLint prints many `no-unused-vars` warnings for JSX-only identifiers — pre-existing noise; errors are what count.
 - Git `autocrlf` normalises line endings on commit; mixed endings in the working tree are fine.
@@ -54,7 +55,6 @@ A change is done when every one of these is green:
 
 ## Open backend issues (awaiting a decision from the user)
 
-- No `checkPermission` on create/update/delete for Elderly, Mother & Child, PWD, Teachers, Group Leaders, Schools, Workshops, Legal Aid, Entitlements.
 - `entitlements.idCode` is `unique` but optional and not `sparse` → only one record may omit it.
 - `Entitlements.getStats` groups on `$idProofDetails.status` (should be `idProofAndDomicile`).
 - `studyCenter.service` search runs `$regex` against the `groupLeader` ObjectId.

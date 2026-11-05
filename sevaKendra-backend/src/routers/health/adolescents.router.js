@@ -2,26 +2,27 @@ import { Router } from "express";
 const router = Router();
 import adolescentsController from "../../modules/health/controllers/adolescents.controller.js";
 import { verifyTokenExists } from "../../middleware/authMiddleware.js";
+import { checkPermission } from "../../middleware/permissionMiddleware.js";
 import { createAutoFollowUp } from "../../middleware/autoTracking.middleware.js";
 
 // Routes with authentication
-router.get("/", verifyTokenExists, adolescentsController.getAllAdolescents);
+router.get("/", verifyTokenExists, checkPermission("health", "view"), adolescentsController.getAllAdolescents);
 router.get(
   "/stats",
-  verifyTokenExists,
+  verifyTokenExists, checkPermission("health", "view"),
   adolescentsController.getAdolescentStats
 );
-router.get("/:id", verifyTokenExists, adolescentsController.getAdolescentById);
+router.get("/:id", verifyTokenExists, checkPermission("health", "view"), adolescentsController.getAdolescentById);
 router.post(
   "/",
-  verifyTokenExists,
+  verifyTokenExists, checkPermission("health", "create"),
   createAutoFollowUp("Adolescents"),
   adolescentsController.createAdolescent
 );
-router.put("/:id", verifyTokenExists, adolescentsController.updateAdolescent);
+router.put("/:id", verifyTokenExists, checkPermission("health", "edit"), adolescentsController.updateAdolescent);
 router.delete(
   "/:id",
-  verifyTokenExists,
+  verifyTokenExists, checkPermission("health", "delete"),
   adolescentsController.deleteAdolescent
 );
 

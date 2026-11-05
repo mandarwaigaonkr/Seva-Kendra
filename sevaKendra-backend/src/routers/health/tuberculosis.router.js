@@ -2,34 +2,35 @@ import { Router } from "express";
 const router = Router();
 import tuberculosisController from "../../modules/health/controllers/tuberculosis.controller.js";
 import { verifyTokenExists } from "../../middleware/authMiddleware.js";
+import { checkPermission } from "../../middleware/permissionMiddleware.js";
 import { createAutoFollowUp } from "../../middleware/autoTracking.middleware.js";
 
 // Routes with authentication
-router.get("/", verifyTokenExists, tuberculosisController.getAllTuberculosis);
+router.get("/", verifyTokenExists, checkPermission("health", "view"), tuberculosisController.getAllTuberculosis);
 router.get(
   "/stats",
-  verifyTokenExists,
+  verifyTokenExists, checkPermission("health", "view"),
   tuberculosisController.getTuberculosisStats
 );
 router.get(
   "/:id",
-  verifyTokenExists,
+  verifyTokenExists, checkPermission("health", "view"),
   tuberculosisController.getTuberculosisById
 );
 router.post(
   "/",
-  verifyTokenExists,
+  verifyTokenExists, checkPermission("health", "create"),
   createAutoFollowUp("Tuberculosis"),
   tuberculosisController.createTuberculosis
 );
 router.put(
   "/:id",
-  verifyTokenExists,
+  verifyTokenExists, checkPermission("health", "edit"),
   tuberculosisController.updateTuberculosis
 );
 router.delete(
   "/:id",
-  verifyTokenExists,
+  verifyTokenExists, checkPermission("health", "delete"),
   tuberculosisController.deleteTuberculosis
 );
 
