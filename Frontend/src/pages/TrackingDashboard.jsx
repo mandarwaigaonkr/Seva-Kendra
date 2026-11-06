@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { ModulePageHeader } from "@/components/module/ModuleKit";
 import {
   Calendar,
   Filter,
@@ -142,8 +143,8 @@ const TrackingDashboard = () => {
     "StudyCenters",
     "CBUCBODetails",
     "Entitlements",
-    "LegalAidService",
-    "WorkshopsAwareness",
+    "LegalAid",
+    "Workshops",
   ];
 
   const priorities = ["Low", "Medium", "High", "Urgent"];
@@ -154,11 +155,18 @@ const TrackingDashboard = () => {
     "Cancelled",
     "On Hold",
   ];
+  // Completed / Cancelled are set by the Complete and Cancel actions (which also schedule the
+  // next monthly follow-up), so the forms only offer the open statuses.
+  const openStatuses = ["Pending", "In Progress", "On Hold"];
 
   useEffect(() => {
     fetchTrackingRecords();
-    fetchStats();
   }, []);
+
+  // "Completed this month" comes from the server; refetch it for the chosen module.
+  useEffect(() => {
+    fetchStats();
+  }, [moduleFilter]);
 
   useEffect(() => {
     applyFilters();
@@ -187,6 +195,10 @@ const TrackingDashboard = () => {
     }
   };
 
+  // Completed follow-ups leave the active list, so "completed this month" comes from the
+  // server's stats; the other cards are counted from the filtered list.
+  const [serverStats, setServerStats] = useState({});
+
   const fetchStats = async () => {
     try {
       // Pass moduleFilter to stats API if we want global stats for that module
@@ -196,7 +208,7 @@ const TrackingDashboard = () => {
       console.log("Stats data:", response.data);
       const statsData = response.data.data || response.data || {};
       console.log("Setting stats to:", statsData);
-      setStats(statsData);
+      setServerStats(statsData);
     } catch (error) {
       console.error("Error fetching stats:", error);
     }
@@ -244,7 +256,6 @@ const TrackingDashboard = () => {
       total: filtered.length,
       overdue: filtered.filter((r) => isOverdue(r)).length,
       inProgress: filtered.filter((r) => r.status?.toLowerCase() === "in progress").length,
-      completedThisMonth: filtered.filter((r) => r.status?.toLowerCase() === "completed").length,
     };
     setStats(newStats);
   };
@@ -520,40 +531,12 @@ const TrackingDashboard = () => {
       <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
 
       <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Top bar */}
-        <div className="bg-card shadow-md z-10 lg:hidden border-b border-border">
-          <div className="px-4 py-3">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setSidebarOpen(true)}
-            >
-              <Menu className="h-6 w-6" />
-            </Button>
-          </div>
-        </div>
+        <ModulePageHeader
+          title="Follow-ups"
+          subtitle={`Monthly visits and check-ins across every programme · ${filteredRecords.length} shown`}
+        />
 
-        {/* Main content */}
-        <main className="flex-1 overflow-y-auto p-6 space-y-6">
-          {/* Header */}
-          <div className="flex justify-between items-center">
-            <div>
-              <h1 className="text-3xl font-bold">
-                Tracking Dashboard
-                <span className="ml-2 text-lg font-semibold text-muted-foreground align-middle">
-                  ({filteredRecords.length})
-                </span>
-              </h1>
-              <p className="text-muted-foreground">
-                Monitor and manage follow-ups across all modules
-              </p>
-            </div>
-            {/* <Button onClick={() => setAddModalOpen(true)}>
-          <Plus className="h-4 w-4 mr-2" />
-          Add Follow-up
-        </Button> */}
-          </div>
-
+        <main className="flex-1 overflow-y-auto space-y-6">
           {/* Stats Cards */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <Card>
@@ -573,7 +556,7 @@ const TrackingDashboard = () => {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-red-600">
+                <div className="text-2xl font-bold text-destructive">
                   {stats.overdue || 0}
                 </div>
               </CardContent>
@@ -585,7 +568,7 @@ const TrackingDashboard = () => {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-blue-600">
+                <div className="text-2xl font-bold text-info">
                   {stats.inProgress || 0}
                 </div>
               </CardContent>
@@ -597,8 +580,8 @@ const TrackingDashboard = () => {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-green-600">
-                  {stats.completedThisMonth || 0}
+                <div className="text-2xl font-bold text-success">
+                  {serverStats.completedThisMonth || 0}
                 </div>
               </CardContent>
             </Card>
@@ -1075,7 +1058,7 @@ const TrackingDashboard = () => {
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          {statuses.map((status) => (
+                          {openStatuses.map((status) => (
                             <SelectItem key={status} value={status}>
                               {status}
                             </SelectItem>
@@ -1222,7 +1205,7 @@ const TrackingDashboard = () => {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        {statuses.map((status) => (
+                        {openStatuses.map((status) => (
                           <SelectItem key={status} value={status}>
                             {status}
                           </SelectItem>
@@ -1284,7 +1267,7 @@ const TrackingDashboard = () => {
                 <AlertDialogCancel>Cancel</AlertDialogCancel>
                 <AlertDialogAction
                   onClick={handleDeleteConfirm}
-                  className="bg-red-600 hover:bg-red-700"
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                 >
                   Delete
                 </AlertDialogAction>

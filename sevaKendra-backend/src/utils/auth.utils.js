@@ -2,15 +2,25 @@ import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import { appConfig } from "../config/appConfig.js";
 
-export const generateToken = async (data, expiryTime) => {
-  const options = {
-    expiresIn: expiryTime ?? "5d",
-  };
-  return jwt.sign({ ...data }, appConfig.jwtSecret, options);
+if (appConfig.jwtSecret && appConfig.jwtSecret.length < 32) {
+  console.warn("JWT_SECRET is shorter than 32 characters; use a long random value.");
+}
+
+const requireSecret = () => {
+  if (!appConfig.jwtSecret) throw new Error("JWT_SECRET is not set");
+  return appConfig.jwtSecret;
 };
 
-export const decodeToken = async (req, res, next) => {
-  if (!req.headers.authorization?.startsWith("Bearer")) {
+export const generateToken = async (data, expiryTime) => {
+  const options = {
+    algorithm: "HS256",
+    expiresIn: expiryTime ?? "5d",
+  };
+  return jwt.sign({ ...data }, requireSecret(), options);
+};
+
+export const decodeToken = async (req, res) => {
+  if (!req.headers.authorization?.startsWith("Bearer ")) {
     res.status(401).send({ message: "Not Authorized,No token" });
     return null;
   }
@@ -22,7 +32,7 @@ export const decodeToken = async (req, res, next) => {
   }
 
   try {
-    const decoded = jwt.verify(token, appConfig.jwtSecret);
+    const decoded = jwt.verify(token, requireSecret(), { algorithms: ["HS256"] });
     return decoded || null;
   } catch (error) {
     res.status(401).send({ message: "Not Authorized" });

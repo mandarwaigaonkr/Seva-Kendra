@@ -1,4 +1,6 @@
+import { FormSheet, FormSheetContent, FormSheetDescription, FormSheetFooter, FormSheetHeader, FormSheetTitle } from "@/components/module/FormSheet";
 import React, { useState, useEffect } from "react";
+import { normalizePagination } from "@/components/module/ModuleKit";
 import { toast } from "sonner";
 import {
   Card,
@@ -73,15 +75,23 @@ import {
   Eye,
   Download,
   RefreshCw,
-  Menu,
-  FileSpreadsheet,
 } from "lucide-react";
 import { elderlyAPI } from "../services/api";
 import Sidebar from "../components/Sidebar";
 import usePermissions from "../hooks/usePermissions";
 import { getWardOptions } from "../lib/formOptions";
 import GuidelinesCard from "../components/GuidelinesCard";
-import ExcelBulkImportButton from "../components/ExcelBulkImportButton";
+import ExcelImportPanel from "../components/ExcelImportPanel";
+import elderlyImportTemplate from "../lib/excelImport/templates/elderly";
+import {
+  ModulePageHeader,
+  StatusBadge,
+  tableState,
+  formatDate,
+  formatWard,
+  toDateInput,
+} from "../components/module/ModuleKit";
+import { FilterBar } from "@/components/module/ModuleKit";
 
 const WardCombobox = ({ id, value, onChange, options, placeholder }) => {
   const [open, setOpen] = useState(false);
@@ -205,7 +215,7 @@ const Elderly = () => {
 
       const response = await elderlyAPI.getAll(params);
       setElderly(response.data.elderly);
-      setPagination(response.data.pagination);
+      setPagination(normalizePagination(response.data.pagination));
     } catch (error) {
       toast.error("Failed to fetch elderly records");
       console.error("Error fetching elderly records:", error);
@@ -230,6 +240,8 @@ const Elderly = () => {
               .map((item) => item.trim())
               .filter(Boolean)
           : [],
+        // Optional enum: Mongoose rejects "" as a value, so omit it when unset.
+        statusOfBankAccount: formData.statusOfBankAccount || undefined,
       };
 
       if (selectedElderly) {
@@ -308,21 +320,13 @@ const Elderly = () => {
       habitation: elderlyRecord.habitation || "",
       projectResponsible: elderlyRecord.projectResponsible || "",
       nameOfLocalSelfGovernment: elderlyRecord.nameOfLocalSelfGovernment || "",
-      dateOfReporting: elderlyRecord.dateOfReporting
-        ? new Date(elderlyRecord.dateOfReporting).toISOString().split("T")[0]
-        : "",
+      dateOfReporting: toDateInput(elderlyRecord.dateOfReporting),
       reportedBy: elderlyRecord.reportedBy || "",
-      dateOfMedicalScreening: elderlyRecord.dateOfMedicalScreening
-        ? new Date(elderlyRecord.dateOfMedicalScreening)
-            .toISOString()
-            .split("T")[0]
-        : "",
+      dateOfMedicalScreening: toDateInput(elderlyRecord.dateOfMedicalScreening),
       medicalScreeningResults: elderlyRecord.medicalScreeningResults || "",
-      dateOfPsychologicalAssessment: elderlyRecord.dateOfPsychologicalAssessment
-        ? new Date(elderlyRecord.dateOfPsychologicalAssessment)
-            .toISOString()
-            .split("T")[0]
-        : "",
+      dateOfPsychologicalAssessment: toDateInput(
+        elderlyRecord.dateOfPsychologicalAssessment
+      ),
       psychologicalScreeningResults:
         elderlyRecord.psychologicalScreeningResults || "",
       natureOfIssue: Array.isArray(elderlyRecord.natureOfIssue)
@@ -375,33 +379,20 @@ const Elderly = () => {
       <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
 
       <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Header */}
-        <header className="bg-background shadow-sm border-b border-border">
-          <div className="flex items-center justify-between px-6 py-4">
-            <div className="flex items-center space-x-4">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setSidebarOpen(!sidebarOpen)}
-                className="lg:hidden"
-              >
-                <Menu className="h-6 w-6" />
-              </Button>
-              <div className="flex items-center space-x-2">
-                <Users className="h-6 w-6 text-blue-600" />
-                <h1 className="text-2xl font-bold text-foreground">
-                  Elderly Care
-                </h1>
-              </div>
-            </div>
-            {canCreate("health") && (
+        <ModulePageHeader
+          icon={Users}
+          title="Elderly Care"
+          subtitle="Senior citizens (60+): screening, care plans and benefit linkages"
+          onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
+          actions={
+            canCreate("health") && (
               <Button onClick={() => setIsCreateModalOpen(true)}>
                 <Plus className="h-4 w-4 mr-2" />
                 Add Elderly Record
               </Button>
-            )}
-          </div>
-        </header>
+            )
+          }
+        />
 
         {/* Main Content */}
         <main className="flex-1 overflow-auto p-6">
@@ -417,14 +408,7 @@ const Elderly = () => {
             ]}
           />
           {/* Filters */}
-          <Card className="mb-6">
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <Filter className="h-5 w-5" />
-                <span>Filters</span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
+          <FilterBar>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
                 <div>
                   <Label htmlFor="search">Search</Label>
@@ -480,6 +464,7 @@ const Elderly = () => {
                       <SelectItem value="Not Available">Not Available</SelectItem>
                       <SelectItem value="In Process">In Process</SelectItem>
                       <SelectItem value="Blocked">Blocked</SelectItem>
+                      <SelectItem value="Other">Other</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -489,68 +474,15 @@ const Elderly = () => {
                   </Button>
                 </div>
               </div>
-            </CardContent>
-          </Card>
+            </FilterBar>
 
-          {/* Bulk Import Card */}
+          {/* Bulk Import */}
           {canCreate("health") && (
-            <Card className="border border-muted bg-card shadow-sm mb-6">
-              <CardContent className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4">
-                <div className="space-y-1">
-                  <h3 className="font-semibold text-foreground flex items-center gap-2">
-                    <FileSpreadsheet className="h-5 w-5 text-green-600" />
-                    Bulk Import Elderly Records
-                  </h3>
-                  <p className="text-xs text-muted-foreground">
-                    Download the template, fill it in, and upload it to import records in bulk.
-                  </p>
-                </div>
-                <ExcelBulkImportButton
-                  label="Import Excel"
-                  description=""
-                  templateFields={[
-                    { label: "Household Code", key: "householdCode" },
-                    { label: "Unique ID", key: "uniqueId" },
-                    { label: "Name", key: "name" },
-                    { label: "Gender", key: "gender", options: ["Male", "Female", "Other"] },
-                    { label: "Age", key: "age" },
-                    { label: "Date of Birth", key: "dob" },
-                    { label: "Head of Household", key: "headOfHousehold" },
-                    { label: "Contact Number", key: "contactNo" },
-                    { label: "Ward Number", key: "wardNo" },
-                    { label: "Habitation", key: "habitation" },
-                    { label: "Project Responsible", key: "projectResponsible" },
-                    { label: "Date of Reporting", key: "dateOfReporting" },
-                    { label: "Reported By", key: "reportedBy" },
-                    { label: "Nature of Issue", key: "natureOfIssue", options: ["Chronic Disease", "Mental Health", "Mobility Issues", "Financial Dependency", "Social Isolation", "Other"] },
-                    { label: "Has Bank Account", key: "hasBankAccount", options: ["Yes", "No"] },
-                    { label: "Remarks", key: "remarks" },
-                  ]}
-                  sampleRow={{
-                    householdCode: "HH-701",
-                    uniqueId: "ELD-001",
-                    name: "Ram Chandra Das",
-                    gender: "Male",
-                    age: "72",
-                    dob: "1952-03-15",
-                    headOfHousehold: "Suresh Das",
-                    contactNo: "9876543210",
-                    wardNo: "12",
-                    habitation: "Santipara",
-                    projectResponsible: "Rekha Devi",
-                    dateOfReporting: "2024-01-10",
-                    reportedBy: "Field Worker A",
-                    natureOfIssue: "Chronic Disease",
-                    hasBankAccount: "Yes",
-                    remarks: "Needs regular medical follow-up",
-                  }}
-                  createRecord={async (payload) => {
-                    await elderlyAPI.create(payload);
-                  }}
-                  onImported={fetchElderly}
-                />
-              </CardContent>
-            </Card>
+            <ExcelImportPanel
+              template={elderlyImportTemplate}
+              createRecord={elderlyAPI.create}
+              onImported={fetchElderly}
+            />
           )}
 
           {/* Elderly Records Table */}
@@ -589,22 +521,15 @@ const Elderly = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {loading ? (
-                      <TableRow>
-                        <TableCell colSpan={9} className="text-center py-4">
-                          <RefreshCw className="h-4 w-4 animate-spin mx-auto" />
-                        </TableCell>
-                      </TableRow>
-                    ) : elderly.length === 0 ? (
-                      <TableRow>
-                        <TableCell
-                          colSpan={9}
-                          className="text-center py-4 text-muted-foreground"
-                        >
-                          No elderly records found
-                        </TableCell>
-                      </TableRow>
-                    ) : (
+                    {tableState({
+                      loading,
+                      count: elderly.length,
+                      colSpan: 9,
+                      filtered:
+                        Boolean(searchTerm) ||
+                        Object.values(filters).some((v) => v && v !== "all"),
+                    })}
+                    {!loading &&
                       elderly.map((elderlyRecord) => (
                         <TableRow key={elderlyRecord._id}>
                           <TableCell className="font-medium">
@@ -625,21 +550,14 @@ const Elderly = () => {
                             </p>
                           </TableCell>
                           <TableCell>
-                            Ward {elderlyRecord.wardNo},{" "}
+                            {formatWard(elderlyRecord.wardNo)},{" "}
                             {elderlyRecord.habitation}
                           </TableCell>
                           <TableCell>{elderlyRecord.contactNo}</TableCell>
                           <TableCell>
-                            <Badge
-                              variant={
-                                elderlyRecord.statusOfBankAccount ===
-                                "Available"
-                                  ? "default"
-                                  : "secondary"
-                              }
-                            >
-                              {elderlyRecord.statusOfBankAccount}
-                            </Badge>
+                            <StatusBadge
+                              value={elderlyRecord.statusOfBankAccount}
+                            />
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center space-x-2">
@@ -647,6 +565,7 @@ const Elderly = () => {
                                 variant="ghost"
                                 size="sm"
                                 onClick={() => handleView(elderlyRecord)}
+                                aria-label="View elderly record"
                               >
                                 <Eye className="h-4 w-4" />
                               </Button>
@@ -655,6 +574,7 @@ const Elderly = () => {
                                   variant="ghost"
                                   size="sm"
                                   onClick={() => handleEdit(elderlyRecord)}
+                                  aria-label="Edit elderly record"
                                 >
                                   <Edit className="h-4 w-4" />
                                 </Button>
@@ -662,7 +582,11 @@ const Elderly = () => {
                               {canDelete("health") && (
                                 <AlertDialog>
                                   <AlertDialogTrigger asChild>
-                                    <Button variant="ghost" size="sm">
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      aria-label="Delete elderly record"
+                                    >
                                       <Trash2 className="h-4 w-4" />
                                     </Button>
                                   </AlertDialogTrigger>
@@ -694,8 +618,7 @@ const Elderly = () => {
                             </div>
                           </TableCell>
                         </TableRow>
-                      ))
-                    )}
+                      ))}
                   </TableBody>
                 </Table>
               </div>
@@ -752,16 +675,16 @@ const Elderly = () => {
       </div>
 
       {/* Create Modal */}
-      <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Add New Elderly Record</DialogTitle>
-            <DialogDescription>
+      <FormSheet open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
+        <FormSheetContent>
+          <FormSheetHeader>
+            <FormSheetTitle>Add New Elderly Record</FormSheetTitle>
+            <FormSheetDescription>
               Fill in the details for the new elderly record.
-            </DialogDescription>
-          </DialogHeader>
+            </FormSheetDescription>
+          </FormSheetHeader>
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="householdCode">Household Code *</Label>
                 <Input
@@ -1011,7 +934,7 @@ const Elderly = () => {
                 placeholder="Personalized care plan details"
               />
             </div>
-            <DialogFooter>
+            <FormSheetFooter>
               <Button
                 type="button"
                 variant="outline"
@@ -1020,22 +943,22 @@ const Elderly = () => {
                 Cancel
               </Button>
               <Button type="submit">Create Elderly Record</Button>
-            </DialogFooter>
+            </FormSheetFooter>
           </form>
-        </DialogContent>
-      </Dialog>
+        </FormSheetContent>
+      </FormSheet>
 
       {/* Edit Modal */}
-      <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Edit Elderly Record</DialogTitle>
-            <DialogDescription>
+      <FormSheet open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
+        <FormSheetContent>
+          <FormSheetHeader>
+            <FormSheetTitle>Edit Elderly Record</FormSheetTitle>
+            <FormSheetDescription>
               Update the elderly record details.
-            </DialogDescription>
-          </DialogHeader>
+            </FormSheetDescription>
+          </FormSheetHeader>
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="edit-householdCode">Household Code *</Label>
                 <Input
@@ -1293,7 +1216,7 @@ const Elderly = () => {
                 placeholder="Personalized care plan details"
               />
             </div>
-            <DialogFooter>
+            <FormSheetFooter>
               <Button
                 type="button"
                 variant="outline"
@@ -1302,10 +1225,10 @@ const Elderly = () => {
                 Cancel
               </Button>
               <Button type="submit">Update Elderly Record</Button>
-            </DialogFooter>
+            </FormSheetFooter>
           </form>
-        </DialogContent>
-      </Dialog>
+        </FormSheetContent>
+      </FormSheet>
 
       {/* View Modal */}
       <Dialog open={isViewModalOpen} onOpenChange={setIsViewModalOpen}>
@@ -1346,7 +1269,7 @@ const Elderly = () => {
                 </div>
                 <div>
                   <Label className="font-semibold">Ward No</Label>
-                  <p>{selectedElderly.wardNo}</p>
+                  <p>{formatWard(selectedElderly.wardNo)}</p>
                 </div>
                 <div>
                   <Label className="font-semibold">Habitation</Label>
@@ -1365,9 +1288,7 @@ const Elderly = () => {
                 <div>
                   <Label className="font-semibold">Date of Reporting</Label>
                   <p>
-                    {new Date(
-                      selectedElderly.dateOfReporting
-                    ).toLocaleDateString()}
+                    {formatDate(selectedElderly.dateOfReporting)}
                   </p>
                 </div>
                 <div>
@@ -1376,15 +1297,9 @@ const Elderly = () => {
                 </div>
                 <div>
                   <Label className="font-semibold">Bank Account Status</Label>
-                  <Badge
-                    variant={
-                      selectedElderly.statusOfBankAccount === "Available"
-                        ? "default"
-                        : "secondary"
-                    }
-                  >
-                    {selectedElderly.statusOfBankAccount}
-                  </Badge>
+                  <div>
+                    <StatusBadge value={selectedElderly.statusOfBankAccount} />
+                  </div>
                 </div>
                 {selectedElderly.dateOfMedicalScreening && (
                   <div>
@@ -1392,9 +1307,7 @@ const Elderly = () => {
                       Medical Screening Date
                     </Label>
                     <p>
-                      {new Date(
-                        selectedElderly.dateOfMedicalScreening
-                      ).toLocaleDateString()}
+                      {formatDate(selectedElderly.dateOfMedicalScreening)}
                     </p>
                   </div>
                 )}
@@ -1404,9 +1317,7 @@ const Elderly = () => {
                       Psychological Assessment Date
                     </Label>
                     <p>
-                      {new Date(
-                        selectedElderly.dateOfPsychologicalAssessment
-                      ).toLocaleDateString()}
+                      {formatDate(selectedElderly.dateOfPsychologicalAssessment)}
                     </p>
                   </div>
                 )}

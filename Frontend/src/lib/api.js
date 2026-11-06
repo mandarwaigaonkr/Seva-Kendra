@@ -7,6 +7,20 @@ const defaultBaseUrl = import.meta.env.PROD
   ? "https://seva-kendra-backend.vercel.app/api/v1" // Fallback - should ideally be set in Vercel
   : "http://localhost:5000/api/v1";
 
+// While > 0, the response interceptor does not toast errors. Callers that
+// report errors themselves (bulk Excel import) wrap their requests in
+// runWithoutErrorToasts so a 200-row import doesn't produce 200 toasts.
+let silentErrorDepth = 0;
+
+export const runWithoutErrorToasts = async (fn) => {
+  silentErrorDepth += 1;
+  try {
+    return await fn();
+  } finally {
+    silentErrorDepth -= 1;
+  }
+};
+
 // Create axios instance with default config
 const api = axios.create({  
   baseURL: import.meta.env.VITE_API_URL || defaultBaseUrl,
@@ -50,12 +64,17 @@ api.interceptors.response.use(
 
       if (status === 401) {
         // Handle unauthorized access
-        errorMessage = data?.message || "Session expired. Please login again.";
-        toast.error(errorMessage);
+        errorMessage = data?.message || "Session expired. Please sign in again.";
         localStorage.removeItem("authToken");
         localStorage.removeItem("user");
-        window.location.href = "/signin";
-        return Promise.reject(new Error(errorMessage));
+        const sessionError = Object.assign(new Error(errorMessage), { status });
+        // During a bulk import the caller stops, shows what was saved and offers sign-in;
+        // redirecting here would throw that result away.
+        if (silentErrorDepth === 0) {
+          toast.error(errorMessage);
+          window.location.href = "/signin";
+        }
+        return Promise.reject(sessionError);
       }
 
       // Extract error message from various possible formats
@@ -95,10 +114,12 @@ api.interceptors.response.use(
       console.error("Request Setup Error:", error.message);
     }
 
-    // Show error toast
-    toast.error(errorMessage);
+    // Show error toast (suppressed while a caller handles errors itself, e.g. bulk import)
+    if (silentErrorDepth === 0) {
+      toast.error(errorMessage);
+    }
 
-    return Promise.reject(new Error(errorMessage));
+    return Promise.reject(Object.assign(new Error(errorMessage), { status: error.response?.status }));
   }
 );
 

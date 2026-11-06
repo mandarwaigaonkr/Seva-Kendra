@@ -2,6 +2,48 @@ import { UserStatus, UserRole } from "./user.enum.js";
 import { DefaultPermissions } from "./permission.enum.js";
 import { generateAPIError } from "../../errors/apiError.js";
 import User from "./user.model.js";
+import { escapeRegex } from "../../utils/regex.utils.js";
+
+const MIN_PASSWORD_LENGTH = 8;
+const KNOWN_PERMISSIONS = new Set(DefaultPermissions.ADMIN);
+
+const assertPassword = async (password) => {
+  if (typeof password !== "string" || password.length < MIN_PASSWORD_LENGTH) {
+    throw await generateAPIError(`Password must be at least ${MIN_PASSWORD_LENGTH} characters`, 400);
+  }
+};
+
+const assertRole = async (role) => {
+  if (role !== undefined && !Object.values(UserRole).includes(role)) {
+    throw await generateAPIError("Unknown role", 400);
+  }
+};
+
+const assertStatus = async (status) => {
+  if (status !== undefined && !Object.values(UserStatus).includes(status)) {
+    throw await generateAPIError("Unknown status", 400);
+  }
+};
+
+const cleanPermissions = async (permissions) => {
+  if (!Array.isArray(permissions) || permissions.some((p) => !KNOWN_PERMISSIONS.has(p))) {
+    throw await generateAPIError("Permissions must be a list of known permissions", 400);
+  }
+  return [...new Set(permissions)];
+};
+
+/** Refuses a change that would leave no active admin who can sign in. */
+const assertNotLastActiveAdmin = async (user) => {
+  if (user.role !== UserRole.ADMIN || user.status !== UserStatus.ACTIVE) return;
+  const others = await User.countDocuments({
+    _id: { $ne: user._id },
+    role: UserRole.ADMIN,
+    status: UserStatus.ACTIVE,
+  });
+  if (others === 0) {
+    throw await generateAPIError("This is the last active admin. Make another user an admin first.", 400);
+  }
+};
 
 export const createUser = async (payload) => {
   if (!payload.status) payload.status = UserStatus.ACTIVE;
@@ -36,9 +78,9 @@ export const getAllUsers = async (query) => {
   
   if (search) {
     filter.$or = [
-      { firstName: { $regex: search, $options: "i" } },
-      { lastName: { $regex: search, $options: "i" } },
-      { email: { $regex: search, $options: "i" } },
+      { firstName: { $regex: escapeRegex(search), $options: "i" } },
+      { lastName: { $regex: escapeRegex(search), $options: "i" } },
+      { email: { $regex: escapeRegex(search), $options: "i" } },
     ];
   }
   
@@ -93,7 +135,14 @@ export const getUserById = async (userId) => {
  */
 export const createUserByAdmin = async (userData, adminId) => {
   const { email, password, firstName, lastName, role, permissions } = userData;
-  
+
+  if (typeof email !== "string" || !email.trim()) {
+    throw await generateAPIError("Email is required", 400);
+  }
+  await assertPassword(password);
+  await assertRole(role);
+  const cleanedPermissions = permissions === undefined ? undefined : await cleanPermissions(permissions);
+
   const existingUser = await User.findOne({ email: email.toLowerCase() });
   if (existingUser) {
     throw await generateAPIError("User with this email already exists", 400);
@@ -106,7 +155,7 @@ export const createUserByAdmin = async (userData, adminId) => {
     lastName,
     role: role || UserRole.USER,
     status: UserStatus.ACTIVE,
-    permissions: permissions || (role === UserRole.ADMIN ? DefaultPermissions.ADMIN : DefaultPermissions.USER),
+    permissions: cleanedPermissions || (role === UserRole.ADMIN ? DefaultPermissions.ADMIN : DefaultPermissions.USER),
     createdBy: adminId,
   });
   
@@ -129,7 +178,16 @@ export const updateUser = async (userId, updateData) => {
   }
   
   const { email, firstName, lastName, role, status, permissions, password } = updateData;
-  
+
+  await assertRole(role);
+  await assertStatus(status);
+  if (password) await assertPassword(password);
+  const cleanedPermissions = permissions === undefined ? undefined : await cleanPermissions(permissions);
+
+  const losesAdmin =
+    (role && role !== UserRole.ADMIN) || (status && status !== UserStatus.ACTIVE);
+  if (losesAdmin) await assertNotLastActiveAdmin(user);
+
   if (email && email !== user.email) {
     const existingUser = await User.findOne({ email: email.toLowerCase() });
     if (existingUser) {
@@ -140,9 +198,16 @@ export const updateUser = async (userId, updateData) => {
   
   if (firstName) user.firstName = firstName;
   if (lastName) user.lastName = lastName;
-  if (role) user.role = role;
+  if (role && role !== user.role) {
+    user.role = role;
+    // A role change resets permissions to that role's defaults unless new ones are given,
+    // so a demoted admin does not keep admin permissions.
+    if (!cleanedPermissions) {
+      user.permissions = role === UserRole.ADMIN ? DefaultPermissions.ADMIN : DefaultPermissions.USER;
+    }
+  }
   if (status) user.status = status;
-  if (permissions) user.permissions = permissions;
+  if (cleanedPermissions) user.permissions = cleanedPermissions;
   
   if (password) {
     user.password = password;
@@ -166,13 +231,8 @@ export const deleteUser = async (userId) => {
     throw await generateAPIError("User not found", 404);
   }
   
-  if (user.role === UserRole.ADMIN) {
-    const adminCount = await User.countDocuments({ role: UserRole.ADMIN });
-    if (adminCount <= 1) {
-      throw await generateAPIError("Cannot delete the last admin user", 400);
-    }
-  }
-  
+  await assertNotLastActiveAdmin(user);
+
   await User.findByIdAndDelete(userId);
   
   return { message: "User deleted successfully" };
@@ -191,8 +251,8 @@ export const updateUserPermissions = async (userId, permissions) => {
   if (user.role === UserRole.ADMIN) {
     throw await generateAPIError("Cannot modify admin permissions directly", 400);
   }
-  
-  user.permissions = permissions;
+
+  user.permissions = await cleanPermissions(permissions);
   await user.save();
   
   const userObj = user.toObject();

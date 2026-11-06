@@ -10,77 +10,56 @@ import {
   getWorkshopsAwarenessByHabitation,
   getWorkshopsAwarenessByGroupType,
   getWorkshopsAwarenessByCategory,
-  addParticipant,
-  updateParticipantAttendance,
-  addLearningObjective,
-  updateLearningObjective,
-  addFollowUpAction,
-  updateFollowUpActionStatus,
   getWorkshopsRequiringFollowUp,
   generateEffectivenessReport,
   getUpcomingWorkshops,
 } from "../../modules/socialJustice/controllers/workshopsAwareness.controller.js";
 import { verifyTokenExists } from "../../middleware/authMiddleware.js";
-import { createAutoFollowUp } from "../../middleware/autoTracking.middleware.js";
+import { checkPermission } from "../../middleware/permissionMiddleware.js";
+import { createAutoFollowUp, closeFollowUpsOnDelete } from "../../middleware/autoTracking.middleware.js";
 
 const router = Router();
 
 // CRUD routes
 router.post(
   "/",
-  verifyTokenExists,
+  verifyTokenExists, checkPermission("socialJustice", "create"),
   createAutoFollowUp("Workshops"),
   createWorkshopsAwareness
 );
-router.get("/", verifyTokenExists, getAllWorkshopsAwareness);
-router.get("/stats", verifyTokenExists, getWorkshopsAwarenessStats);
-router.get("/follow-up", verifyTokenExists, getWorkshopsRequiringFollowUp);
-router.get("/upcoming", verifyTokenExists, getUpcomingWorkshops);
+router.get("/", verifyTokenExists, checkPermission("socialJustice", "view"), getAllWorkshopsAwareness);
+router.get("/stats", verifyTokenExists, checkPermission("socialJustice", "view"), getWorkshopsAwarenessStats);
+router.get("/follow-up", verifyTokenExists, checkPermission("socialJustice", "view"), getWorkshopsRequiringFollowUp);
+router.get("/upcoming", verifyTokenExists, checkPermission("socialJustice", "view"), getUpcomingWorkshops);
 router.get(
   "/effectiveness-report",
-  verifyTokenExists,
+  verifyTokenExists, checkPermission("socialJustice", "view"),
   generateEffectivenessReport
 );
-router.get("/:id", verifyTokenExists, getWorkshopsAwarenessById);
-router.put("/:id", verifyTokenExists, updateWorkshopsAwareness);
-router.delete("/:id", verifyTokenExists, deleteWorkshopsAwareness);
+router.get("/:id", verifyTokenExists, checkPermission("socialJustice", "view"), getWorkshopsAwarenessById);
+router.put("/:id", verifyTokenExists, checkPermission("socialJustice", "edit"), updateWorkshopsAwareness);
+router.delete("/:id", verifyTokenExists, checkPermission("socialJustice", "delete"), closeFollowUpsOnDelete("Workshops"), deleteWorkshopsAwareness);
 
 // Filter routes
-router.get("/ward/:wardNo", verifyTokenExists, getWorkshopsAwarenessByWard);
+router.get("/ward/:wardNo", verifyTokenExists, checkPermission("socialJustice", "view"), getWorkshopsAwarenessByWard);
 router.get(
   "/habitation/:habitation",
-  verifyTokenExists,
+  verifyTokenExists, checkPermission("socialJustice", "view"),
   getWorkshopsAwarenessByHabitation
 );
 router.get(
   "/group-type/:groupType",
-  verifyTokenExists,
+  verifyTokenExists, checkPermission("socialJustice", "view"),
   getWorkshopsAwarenessByGroupType
 );
 router.get(
   "/category/:trainingCategory",
-  verifyTokenExists,
+  verifyTokenExists, checkPermission("socialJustice", "view"),
   getWorkshopsAwarenessByCategory
 );
 
 // Special action routes
-router.post("/:id/participants", verifyTokenExists, addParticipant);
-router.put(
-  "/:id/participants/:participantId/attendance",
-  verifyTokenExists,
-  updateParticipantAttendance
-);
-router.post("/:id/objectives", verifyTokenExists, addLearningObjective);
-router.put(
-  "/:id/objectives/:objectiveId",
-  verifyTokenExists,
-  updateLearningObjective
-);
-router.post("/:id/follow-up-actions", verifyTokenExists, addFollowUpAction);
-router.put(
-  "/:id/follow-up-actions/:actionId/status",
-  verifyTokenExists,
-  updateFollowUpActionStatus
-);
 
+// Sub-item endpoints (members, participants, interventions, progress reports, ...) were
+// removed: they wrote to arrays these models do not have, and no screen used them.
 export default router;

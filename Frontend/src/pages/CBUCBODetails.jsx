@@ -1,3 +1,4 @@
+import { FormSheet, FormSheetContent, FormSheetDescription, FormSheetFooter, FormSheetHeader, FormSheetTitle } from "@/components/module/FormSheet";
 import React, { useState, useEffect } from "react";
 import { toast } from "sonner";
 import {
@@ -48,15 +49,12 @@ import {
 import { Badge } from "@/components/ui/badge";
 import {
   Users,
-  FileSpreadsheet,
   Plus,
   Search,
   Filter,
   Edit,
   Trash2,
   Eye,
-  RefreshCw,
-  Menu,
   Building2,
   Phone,
   MapPin,
@@ -82,7 +80,18 @@ import Sidebar from "../components/Sidebar";
 import usePermissions from "../hooks/usePermissions";
 import { getWardOptions } from "../lib/formOptions";
 import GuidelinesCard from "../components/GuidelinesCard";
-import ExcelBulkImportButton from "../components/ExcelBulkImportButton";
+import ExcelImportPanel from "../components/ExcelImportPanel";
+import cbucboImportTemplate, {
+  CBUCBO_GROUP_TYPES,
+} from "../lib/excelImport/templates/cbucboDetails";
+import {
+  ModulePageHeader,
+  tableState,
+  formatWard,
+  formatDate,
+  toDateInput,
+} from "../components/module/ModuleKit";
+import { FilterBar } from "@/components/module/ModuleKit";
 
 const WardCombobox = ({ id, value, onChange, options, placeholder }) => {
   const [open, setOpen] = useState(false);
@@ -99,7 +108,7 @@ const WardCombobox = ({ id, value, onChange, options, placeholder }) => {
           aria-controls={`${id}-list`}
           className="h-9 w-full justify-between bg-input px-3 text-left text-sm font-normal text-foreground"
         >
-          {selectedWard ? selectedWard.label : placeholder}
+          {selectedWard ? selectedWard.label : value || placeholder}
           <ChevronsUpDown className="ml-2 h-4 w-4 opacity-50 shrink-0" />
         </Button>
       </PopoverTrigger>
@@ -146,34 +155,44 @@ const WardCombobox = ({ id, value, onChange, options, placeholder }) => {
   );
 };
 
+const emptyForm = () => ({
+  groupId: "",
+  groupName: "",
+  groupType: "",
+  functionalArea: "",
+  wardNo: "",
+  habitation: "",
+  projectResponsible: "",
+  dateOfFormation: "",
+  totalMembers: "",
+  groupLeader: "",
+  contactNo: "",
+  groupMentor: "",
+  listOfCapacityBuildingTrainings: "",
+  trainingOutcomes: "",
+  actionPlanForGroup: "",
+  remarks: "",
+  progressReporting: {},
+  majorAchievements: "",
+  photoDocumentation: {
+    before: "",
+    intermediate: "",
+    after: "",
+  },
+});
+
 const CBUCBODetails = () => {
   const wardOptions = getWardOptions();
-  const { canCreate, canEdit, canDelete, canExport } = usePermissions();
-  const statusOptions = [
-    "Active",
-    "Inactive",
-    "Completed",
-    "Pending",
-    "In Progress",
-  ];
-
-  const groupTypeOptions = [
-    "CBU",
-    "CBO",
-    "SHG",
-    "Youth Group",
-    "Women Group",
-    "Farmer Group",
-    "Other",
-  ];
+  const { canCreate, canEdit, canDelete } = usePermissions();
+  const groupTypes = CBUCBO_GROUP_TYPES;
+  const today = new Date().toISOString().slice(0, 10);
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [cbucboDetails, setCbucboDetails] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [filters, setFilters] = useState({
-    status: "",
-    groupType: "",
+    groupType: "all",
   });
   const [pagination, setPagination] = useState({
     page: 1,
@@ -185,40 +204,9 @@ const CBUCBODetails = () => {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
-  const [formData, setFormData] = useState({
-    groupId: "",
-    groupName: "",
-    groupType: "",
-    functionalArea: "",
-    wardNo: "",
-    habitation: "",
-    projectResponsible: "",
-    dateOfFormation: "",
-    totalMembers: "",
-    groupLeader: "",
-    contactNo: "",
-    groupMentor: "",
-    listOfCapacityBuildingTrainings: "",
-    trainingOutcomes: "",
-    actionPlanForGroup: "",
-    remarks: "",
-    progressReporting: {},
-    majorAchievements: "",
-    photoDocumentation: {
-      before: "",
-      intermediate: "",
-      after: "",
-    },
-  });
+  const [formData, setFormData] = useState(emptyForm());
 
-  const groupTypes = [
-    "CBUCBO",
-    "SHG",
-    "Youth Group",
-    "Women Group",
-    "Farmer Producer Group",
-    "Other",
-  ];
+  const hasFilters = Boolean(searchTerm) || filters.groupType !== "all";
 
   // Fetch CBUCBO details
   const fetchCBUCBODetails = async () => {
@@ -226,7 +214,7 @@ const CBUCBODetails = () => {
     try {
       // Remove noop filters like 'all' or empty before calling API
       const sanitizedFilters = Object.fromEntries(
-        Object.entries(filters).filter(([_, v]) => v && v !== "all")
+        Object.entries(filters).filter(([, v]) => v && v !== "all")
       );
 
       const params = {
@@ -237,8 +225,6 @@ const CBUCBODetails = () => {
       };
 
       const response = await cbucboDetailsAPI.getAll(params);
-      console.log("CBUCBO API Response:", response);
-      console.log("CBUCBO data:", response.data);
 
       // Handle response data - backend returns { data: [...], pagination: {...} }
       if (response.data && response.data.data) {
@@ -293,10 +279,17 @@ const CBUCBODetails = () => {
   // Handle form submission
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!formData.groupType || !formData.wardNo) {
+      toast.error("Please select a Group Type and Ward");
+      return;
+    }
     try {
       const payload = { ...formData };
       if (!payload.contactNo || payload.contactNo.trim() === "") {
         delete payload.contactNo;
+      }
+      if (payload.totalMembers !== "") {
+        payload.totalMembers = Number(payload.totalMembers);
       }
 
       if (selectedGroup) {
@@ -322,31 +315,7 @@ const CBUCBODetails = () => {
 
   // Reset form
   const resetForm = () => {
-    setFormData({
-      groupId: "",
-      groupName: "",
-      groupType: "",
-      functionalArea: "",
-      wardNo: "",
-      habitation: "",
-      projectResponsible: "",
-      dateOfFormation: "",
-      totalMembers: "",
-      groupLeader: "",
-      contactNo: "",
-      groupMentor: "",
-      listOfCapacityBuildingTrainings: "",
-      trainingOutcomes: "",
-      actionPlanForGroup: "",
-      remarks: "",
-      progressReporting: {},
-      majorAchievements: "",
-      photoDocumentation: {
-        before: "",
-        intermediate: "",
-        after: "",
-      },
-    });
+    setFormData(emptyForm());
     setSelectedGroup(null);
   };
 
@@ -362,20 +331,239 @@ const CBUCBODetails = () => {
     }
   };
 
-  // Get status badge color
-  const getStatusColor = (status) => {
-    switch (status) {
-      case "Active":
-        return "bg-green-100 text-green-800 hover:bg-green-200";
-      case "Inactive":
-        return "bg-yellow-100 text-yellow-800 hover:bg-yellow-200";
-      case "Dissolved":
-        return "bg-red-100 text-red-800 hover:bg-red-200";
-      case "Merged":
-        return "bg-blue-100 text-blue-800 hover:bg-blue-200";
-      default:
-        return "bg-secondary text-foreground hover:bg-secondary/80";
-    }
+  const openEdit = (group) => {
+    setSelectedGroup(group);
+    setFormData({
+      groupId: group.groupId || "",
+      groupName: group.groupName || "",
+      groupType: group.groupType || "",
+      functionalArea: group.functionalArea || "",
+      wardNo: group.wardNo || "",
+      habitation: group.habitation || "",
+      projectResponsible: group.projectResponsible || "",
+      dateOfFormation: toDateInput(group.dateOfFormation),
+      totalMembers: group.totalMembers ?? "",
+      groupLeader: group.groupLeader || "",
+      contactNo: group.contactNo || "",
+      groupMentor: group.groupMentor || "",
+      listOfCapacityBuildingTrainings:
+        group.listOfCapacityBuildingTrainings || "",
+      trainingOutcomes: group.trainingOutcomes || "",
+      actionPlanForGroup: group.actionPlanForGroup || "",
+      remarks: group.remarks || "",
+      progressReporting: group.progressReporting || {},
+      majorAchievements: group.majorAchievements || "",
+      photoDocumentation: group.photoDocumentation || {
+        before: "",
+        intermediate: "",
+        after: "",
+      },
+    });
+    setIsEditModalOpen(true);
+  };
+
+  const setField = (key) => (e) =>
+    setFormData((prev) => ({ ...prev, [key]: e.target.value }));
+
+  // Shared create / edit fields — mirror cbucboDetails.model.js
+  const renderFormFields = (prefix) => {
+    const id = (name) => `${prefix}${name}`;
+    return (
+      <>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <Label htmlFor={id("groupId")}>Group ID *</Label>
+            <Input
+              id={id("groupId")}
+              value={formData.groupId}
+              onChange={setField("groupId")}
+              placeholder="e.g. CBO-001"
+              required
+            />
+          </div>
+          <div>
+            <Label htmlFor={id("groupName")}>Group Name *</Label>
+            <Input
+              id={id("groupName")}
+              value={formData.groupName}
+              onChange={setField("groupName")}
+              placeholder="Enter group name"
+              required
+            />
+          </div>
+          <div>
+            <Label htmlFor={id("groupType")}>Group Type *</Label>
+            <Select
+              value={formData.groupType}
+              onValueChange={(value) =>
+                setFormData((prev) => ({ ...prev, groupType: value }))
+              }
+            >
+              <SelectTrigger id={id("groupType")}>
+                <SelectValue placeholder="Select group type" />
+              </SelectTrigger>
+              <SelectContent>
+                {groupTypes.map((type) => (
+                  <SelectItem key={type} value={type}>
+                    {type}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label htmlFor={id("functionalArea")}>Functional Area *</Label>
+            <Input
+              id={id("functionalArea")}
+              value={formData.functionalArea}
+              onChange={setField("functionalArea")}
+              placeholder="Enter functional area"
+              required
+            />
+          </div>
+          <div>
+            <Label htmlFor={id("wardNo")}>Ward No *</Label>
+            <WardCombobox
+              id={id("wardNo")}
+              value={formData.wardNo}
+              onChange={(value) =>
+                setFormData((prev) => ({ ...prev, wardNo: value }))
+              }
+              options={wardOptions}
+              placeholder="Select ward"
+            />
+          </div>
+          <div>
+            <Label htmlFor={id("habitation")}>Habitation *</Label>
+            <Input
+              id={id("habitation")}
+              value={formData.habitation}
+              onChange={setField("habitation")}
+              placeholder="Enter habitation"
+              required
+            />
+          </div>
+          <div>
+            <Label htmlFor={id("projectResponsible")}>
+              Project Responsible *
+            </Label>
+            <Input
+              id={id("projectResponsible")}
+              value={formData.projectResponsible}
+              onChange={setField("projectResponsible")}
+              placeholder="Enter project responsible"
+              required
+            />
+          </div>
+          <div>
+            <Label htmlFor={id("dateOfFormation")}>Date of Formation *</Label>
+            <Input
+              id={id("dateOfFormation")}
+              type="date"
+              max={today}
+              value={formData.dateOfFormation}
+              onChange={setField("dateOfFormation")}
+              required
+            />
+          </div>
+          <div>
+            <Label htmlFor={id("totalMembers")}>Total Members *</Label>
+            <Input
+              id={id("totalMembers")}
+              type="number"
+              min="1"
+              step="1"
+              value={formData.totalMembers}
+              onChange={setField("totalMembers")}
+              placeholder="Enter total members"
+              required
+            />
+          </div>
+          <div>
+            <Label htmlFor={id("groupLeader")}>Group Leader *</Label>
+            <Input
+              id={id("groupLeader")}
+              value={formData.groupLeader}
+              onChange={setField("groupLeader")}
+              placeholder="Enter group leader name"
+              required
+            />
+          </div>
+          <div>
+            <Label htmlFor={id("contactNo")}>Contact Number</Label>
+            <Input
+              id={id("contactNo")}
+              type="tel"
+              value={formData.contactNo}
+              onChange={setField("contactNo")}
+              placeholder="10-digit mobile number"
+              pattern="[6-9][0-9]{9}"
+              title="10-digit mobile number starting with 6-9"
+            />
+          </div>
+          <div>
+            <Label htmlFor={id("groupMentor")}>Group Mentor</Label>
+            <Input
+              id={id("groupMentor")}
+              value={formData.groupMentor}
+              onChange={setField("groupMentor")}
+              placeholder="Enter group mentor"
+            />
+          </div>
+        </div>
+        <div className="grid grid-cols-1 gap-4">
+          <div>
+            <Label htmlFor={id("listOfCapacityBuildingTrainings")}>
+              List of Capacity Building Trainings
+            </Label>
+            <Textarea
+              id={id("listOfCapacityBuildingTrainings")}
+              value={formData.listOfCapacityBuildingTrainings}
+              onChange={setField("listOfCapacityBuildingTrainings")}
+              rows={2}
+            />
+          </div>
+          <div>
+            <Label htmlFor={id("trainingOutcomes")}>Training Outcomes</Label>
+            <Textarea
+              id={id("trainingOutcomes")}
+              value={formData.trainingOutcomes}
+              onChange={setField("trainingOutcomes")}
+              rows={2}
+            />
+          </div>
+          <div>
+            <Label htmlFor={id("actionPlanForGroup")}>
+              Action Plan for Group
+            </Label>
+            <Textarea
+              id={id("actionPlanForGroup")}
+              value={formData.actionPlanForGroup}
+              onChange={setField("actionPlanForGroup")}
+              rows={2}
+            />
+          </div>
+          <div>
+            <Label htmlFor={id("majorAchievements")}>Major Achievements</Label>
+            <Textarea
+              id={id("majorAchievements")}
+              value={formData.majorAchievements}
+              onChange={setField("majorAchievements")}
+              rows={2}
+            />
+          </div>
+          <div>
+            <Label htmlFor={id("remarks")}>Remarks</Label>
+            <Textarea
+              id={id("remarks")}
+              value={formData.remarks}
+              onChange={setField("remarks")}
+              rows={2}
+            />
+          </div>
+        </div>
+      </>
+    );
   };
 
   return (
@@ -389,103 +577,35 @@ const CBUCBODetails = () => {
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden lg:ml-0">
-        {/* Header */}
-        <header className="bg-background shadow-sm border-b border-border">
-          <div className="flex items-center justify-between px-6 py-4">
-            <div className="flex items-center space-x-4">
+        <ModulePageHeader
+          icon={Building2}
+          title="CBU/CBO Details"
+          subtitle="Community-based groups: membership, leadership and capacity building"
+          onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
+          actions={
+            canCreate("socialJustice") && (
               <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setSidebarOpen(!sidebarOpen)}
-                className="lg:hidden"
+                onClick={() => {
+                  resetForm();
+                  setIsCreateModalOpen(true);
+                }}
               >
-                <Menu className="h-6 w-6" />
-              </Button>
-              <div className="flex items-center space-x-2">
-                <Building2 className="h-6 w-6 text-purple-600" />
-                <h1 className="text-2xl font-bold text-foreground">
-                  CBUCBODetails
-                </h1>
-              </div>
-            </div>
-            {canCreate("socialJustice") && (
-              <Button onClick={() => setIsCreateModalOpen(true)}>
                 <Plus className="h-4 w-4 mr-2" />
                 Add CBUCBO Group
               </Button>
-            )}
-          </div>
-        </header>
+            )
+          }
+        />
 
         {/* Scrollable Content */}
         <div className="flex-1 overflow-y-auto">
           <div className="container mx-auto p-6 space-y-6">
-            {/* Bulk Import Card */}
-            {canCreate("socialJustice") && (
-              <Card className="border border-muted bg-card shadow-sm">
-                <CardContent className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4">
-                  <div className="space-y-1">
-                    <h3 className="font-semibold text-foreground flex items-center gap-2">
-                      <FileSpreadsheet className="h-5 w-5 text-green-600" />
-                      Bulk Import CBUCBO Groups
-                    </h3>
-                    <p className="text-xs text-muted-foreground">
-                      Download the template, fill it in, and upload it to import records in bulk.
-                    </p>
-                  </div>
-                  <ExcelBulkImportButton
-                    label="Import Excel"
-                    description=""
-                    templateFields={[
-                      { label: "Group ID", key: "groupId" },
-                      { label: "Group Name", key: "groupName" },
-                      { label: "Group Type", key: "groupType", options: ["CBUCBO", "SHG", "Youth Group", "Women Group", "Farmer Producer Group", "Other"] },
-                      { label: "Functional Area", key: "functionalArea" },
-                      { label: "Ward No", key: "wardNo" },
-                      { label: "Habitation", key: "habitation" },
-                      { label: "Project Responsible", key: "projectResponsible" },
-                      { label: "Date of Formation", key: "dateOfFormation" },
-                      { label: "Total Members", key: "totalMembers" },
-                      { label: "Group Leader", key: "groupLeader" },
-                      { label: "Contact Number", key: "contactNo" },
-                      { label: "Group Mentor", key: "groupMentor" },
-                      { label: "List of Capacity Building Trainings", key: "listOfCapacityBuildingTrainings" },
-                      { label: "Training Outcomes", key: "trainingOutcomes" },
-                      { label: "Action Plan for Group", key: "actionPlanForGroup" },
-                      { label: "Remarks", key: "remarks" },
-                      { label: "Major Achievements", key: "majorAchievements" },
-                    ]}
-                    sampleRow={{
-                      groupId: "CBU-001",
-                      groupName: "Ward 12 Women Group",
-                      groupType: "Women Group",
-                      functionalArea: "Community Support",
-                      wardNo: "12",
-                      habitation: "Kallar Street",
-                      projectResponsible: "Project Officer A",
-                      dateOfFormation: "2026-01-15",
-                      totalMembers: "25",
-                      groupLeader: "Anita",
-                      contactNo: "9876543210",
-                      groupMentor: "Mentor Name",
-                      listOfCapacityBuildingTrainings: "Leadership, Savings",
-                      trainingOutcomes: "Improved participation",
-                      actionPlanForGroup: "Monthly savings review",
-                      remarks: "",
-                      majorAchievements: "",
-                    }}
-                    createRecord={cbucboDetailsAPI.create}
-                    onImported={fetchCBUCBODetails}
-                  />
-                </CardContent>
-              </Card>
-            )}
 
             <GuidelinesCard
               title="Community Group Management Guidelines"
               description="Standardize the monitoring and capacity building of local community organizations."
               items={[
-                "Specify the correct Group Type (CBU, CBO, SHG, etc.) for accurate classification.",
+                "Specify the correct Group Type (CBUCBO, SHG, Youth Group, etc.) for accurate classification.",
                 "Document all capacity building trainings provided with their specific outcomes.",
                 "Maintain an updated list of total members and key contact persons (Leader/Mentor).",
                 "Ensure the 'Action Plan' field contains clear, time-bound objectives for the group.",
@@ -494,49 +614,25 @@ const CBUCBODetails = () => {
             />
 
             {/* Search and Filters */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Filter className="h-5 w-5" />
-                  Search & Filters
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
+            <FilterBar>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
                       placeholder="Search groups..."
+                      aria-label="Search groups"
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
                       className="pl-10"
                     />
                   </div>
-                  {/* <Select
-                    value={filters.status}
-                    onValueChange={(value) =>
-                      setFilters({ ...filters, status: value })
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Filter by status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Statuses</SelectItem>
-                      {statusOptions.map((status) => (
-                        <SelectItem key={status} value={status}>
-                          {status}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
                   <Select
                     value={filters.groupType}
                     onValueChange={(value) =>
                       setFilters({ ...filters, groupType: value })
                     }
                   >
-                    <SelectTrigger>
+                    <SelectTrigger aria-label="Filter by group type">
                       <SelectValue placeholder="Filter by type" />
                     </SelectTrigger>
                     <SelectContent>
@@ -547,10 +643,17 @@ const CBUCBODetails = () => {
                         </SelectItem>
                       ))}
                     </SelectContent>
-                  </Select> */}
+                  </Select>
                 </div>
-              </CardContent>
-            </Card>
+              </FilterBar>
+
+              {canCreate("socialJustice") && (
+                <ExcelImportPanel
+                  template={cbucboImportTemplate}
+                  createRecord={cbucboDetailsAPI.create}
+                  onImported={fetchCBUCBODetails}
+                />
+              )}
 
             {/* CBUCBO Groups Table */}
             <Card>
@@ -562,25 +665,26 @@ const CBUCBODetails = () => {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                {loading ? (
-                  <div className="flex justify-center items-center h-64">
-                    <RefreshCw className="h-8 w-8 animate-spin" />
-                  </div>
-                ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Group ID</TableHead>
-                        <TableHead>Group Name</TableHead>
-                        <TableHead>Type</TableHead>
-                        <TableHead>Location</TableHead>
-                        <TableHead>Members</TableHead>
-                        <TableHead>Leader</TableHead>
-                        <TableHead>Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {cbucboDetails.map((group) => (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Group ID</TableHead>
+                      <TableHead>Group Name</TableHead>
+                      <TableHead>Type</TableHead>
+                      <TableHead>Location</TableHead>
+                      <TableHead>Members</TableHead>
+                      <TableHead>Leader</TableHead>
+                      <TableHead>Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {tableState({
+                      loading,
+                      count: cbucboDetails.length,
+                      colSpan: 7,
+                      filtered: hasFilters,
+                    }) ||
+                      cbucboDetails.map((group) => (
                         <TableRow key={group._id}>
                           <TableCell className="font-medium">
                             {group.groupId}
@@ -591,7 +695,7 @@ const CBUCBODetails = () => {
                                 {group.groupName}
                               </div>
                               <div className="text-sm text-muted-foreground">
-                                Ward: {group.wardNo}
+                                {formatWard(group.wardNo)}
                               </div>
                             </div>
                           </TableCell>
@@ -628,6 +732,7 @@ const CBUCBODetails = () => {
                               <Button
                                 variant="ghost"
                                 size="sm"
+                                aria-label={`View ${group.groupName}`}
                                 onClick={() => {
                                   setSelectedGroup(group);
                                   setIsViewModalOpen(true);
@@ -639,45 +744,8 @@ const CBUCBODetails = () => {
                                 <Button
                                   variant="ghost"
                                   size="sm"
-                                  onClick={() => {
-                                    setSelectedGroup(group);
-                                    setFormData({
-                                      groupId: group.groupId || "",
-                                      groupName: group.groupName || "",
-                                      groupType: group.groupType || "",
-                                      functionalArea: group.functionalArea || "",
-                                      wardNo: group.wardNo || "",
-                                      habitation: group.habitation || "",
-                                      projectResponsible:
-                                        group.projectResponsible || "",
-                                      dateOfFormation: group.dateOfFormation
-                                        ? group.dateOfFormation.split("T")[0]
-                                        : "",
-                                      totalMembers: group.totalMembers || "",
-                                      groupLeader: group.groupLeader || "",
-                                      contactNo: group.contactNo || "",
-                                      groupMentor: group.groupMentor || "",
-                                      listOfCapacityBuildingTrainings:
-                                        group.listOfCapacityBuildingTrainings ||
-                                        "",
-                                      trainingOutcomes:
-                                        group.trainingOutcomes || "",
-                                      actionPlanForGroup:
-                                        group.actionPlanForGroup || "",
-                                      remarks: group.remarks || "",
-                                      progressReporting:
-                                        group.progressReporting || {},
-                                      majorAchievements:
-                                        group.majorAchievements || "",
-                                      photoDocumentation:
-                                        group.photoDocumentation || {
-                                          before: "",
-                                          intermediate: "",
-                                          after: "",
-                                        },
-                                    });
-                                    setIsEditModalOpen(true);
-                                  }}
+                                  aria-label={`Edit ${group.groupName}`}
+                                  onClick={() => openEdit(group)}
                                 >
                                   <Edit className="h-4 w-4" />
                                 </Button>
@@ -688,7 +756,8 @@ const CBUCBODetails = () => {
                                     <Button
                                       variant="ghost"
                                       size="sm"
-                                      className="text-red-600 hover:text-red-700"
+                                      aria-label={`Delete ${group.groupName}`}
+                                      className="text-destructive hover:text-destructive/80"
                                     >
                                       <Trash2 className="h-4 w-4" />
                                     </Button>
@@ -709,7 +778,7 @@ const CBUCBODetails = () => {
                                       </AlertDialogCancel>
                                       <AlertDialogAction
                                         onClick={() => handleDelete(group._id)}
-                                        className="bg-red-600 hover:bg-red-700"
+                                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                                       >
                                         Delete
                                       </AlertDialogAction>
@@ -721,9 +790,8 @@ const CBUCBODetails = () => {
                           </TableCell>
                         </TableRow>
                       ))}
-                    </TableBody>
-                  </Table>
-                )}
+                  </TableBody>
+                </Table>
 
                 {/* Pagination */}
                 {pagination.pages > 1 && (
@@ -765,192 +833,20 @@ const CBUCBODetails = () => {
             </Card>
 
             {/* Create Modal */}
-            <Dialog
+            <FormSheet
               open={isCreateModalOpen}
               onOpenChange={setIsCreateModalOpen}
             >
-              <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-                <DialogHeader>
-                  <DialogTitle>Add New CBUCBO Group</DialogTitle>
-                  <DialogDescription>
+              <FormSheetContent>
+                <FormSheetHeader>
+                  <FormSheetTitle>Add New CBUCBO Group</FormSheetTitle>
+                  <FormSheetDescription>
                     Fill in the details to create a new CBUCBO group
-                  </DialogDescription>
-                </DialogHeader>
+                  </FormSheetDescription>
+                </FormSheetHeader>
                 <form onSubmit={handleSubmit} className="space-y-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor="groupId">Group ID *</Label>
-                      <Input
-                        id="groupId"
-                        value={formData.groupId}
-                        onChange={(e) =>
-                          setFormData({ ...formData, groupId: e.target.value })
-                        }
-                        placeholder="Enter group ID"
-                        required
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="groupName">Group Name *</Label>
-                      <Input
-                        id="groupName"
-                        value={formData.groupName}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            groupName: e.target.value,
-                          })
-                        }
-                        placeholder="Enter group name"
-                        required
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="groupType">Group Type *</Label>
-                      <Select
-                        value={formData.groupType}
-                        onValueChange={(value) =>
-                          setFormData({ ...formData, groupType: value })
-                        }
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select group type" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {groupTypes.map((type) => (
-                            <SelectItem key={type} value={type}>
-                              {type}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <Label htmlFor="functionalArea">Functional Area *</Label>
-                      <Input
-                        id="functionalArea"
-                        value={formData.functionalArea}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            functionalArea: e.target.value,
-                          })
-                        }
-                        placeholder="Enter functional area"
-                        required
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="wardNo">Ward No *</Label>
-                      <WardCombobox
-                        id="wardNo"
-                        value={formData.wardNo}
-                        onChange={(value) =>
-                          setFormData({ ...formData, wardNo: value })
-                        }
-                        options={wardOptions}
-                        placeholder="Select ward"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="habitation">Habitation *</Label>
-                      <Input
-                        id="habitation"
-                        value={formData.habitation}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            habitation: e.target.value,
-                          })
-                        }
-                        placeholder="Enter habitation"
-                        required
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="projectResponsible">
-                        Project Responsible *
-                      </Label>
-                      <Input
-                        id="projectResponsible"
-                        value={formData.projectResponsible}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            projectResponsible: e.target.value,
-                          })
-                        }
-                        placeholder="Enter project responsible"
-                        required
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="dateOfFormation">
-                        Date of Formation *
-                      </Label>
-                      <Input
-                        id="dateOfFormation"
-                        type="date"
-                        value={formData.dateOfFormation}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            dateOfFormation: e.target.value,
-                          })
-                        }
-                        required
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="totalMembers">Total Members *</Label>
-                      <Input
-                        id="totalMembers"
-                        type="number"
-                        min="1"
-                        value={formData.totalMembers}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            totalMembers: e.target.value,
-                          })
-                        }
-                        placeholder="Enter total members"
-                        required
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="groupLeader">Group Leader *</Label>
-                      <Input
-                        id="groupLeader"
-                        value={formData.groupLeader}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            groupLeader: e.target.value,
-                          })
-                        }
-                        placeholder="Enter group leader name"
-                        required
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="contactNo">Contact Number</Label>
-                      <Input
-                        id="contactNo"
-                        value={formData.contactNo}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            contactNo: e.target.value,
-                          })
-                        }
-                        placeholder="Enter contact number"
-                        pattern="[6-9][0-9]{9}"
-                      />
-                    </div>
-                  </div>
-
-                  <DialogFooter>
+                  {renderFormFields("")}
+                  <FormSheetFooter>
                     <Button
                       type="button"
                       variant="outline"
@@ -959,72 +855,23 @@ const CBUCBODetails = () => {
                       Cancel
                     </Button>
                     <Button type="submit">Create Group</Button>
-                  </DialogFooter>
+                  </FormSheetFooter>
                 </form>
-              </DialogContent>
-            </Dialog>
+              </FormSheetContent>
+            </FormSheet>
 
             {/* Edit Modal */}
-            <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
-              <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-                <DialogHeader>
-                  <DialogTitle>Edit CBUCBO Group</DialogTitle>
-                  <DialogDescription>
+            <FormSheet open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
+              <FormSheetContent>
+                <FormSheetHeader>
+                  <FormSheetTitle>Edit CBUCBO Group</FormSheetTitle>
+                  <FormSheetDescription>
                     Update the group information
-                  </DialogDescription>
-                </DialogHeader>
+                  </FormSheetDescription>
+                </FormSheetHeader>
                 <form onSubmit={handleSubmit} className="space-y-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor="edit-groupId">Group ID *</Label>
-                      <Input
-                        id="edit-groupId"
-                        value={formData.groupId}
-                        onChange={(e) =>
-                          setFormData({ ...formData, groupId: e.target.value })
-                        }
-                        placeholder="Enter group ID"
-                        required
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="edit-groupName">Group Name *</Label>
-                      <Input
-                        id="edit-groupName"
-                        value={formData.groupName}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            groupName: e.target.value,
-                          })
-                        }
-                        placeholder="Enter group name"
-                        required
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="edit-status">Status</Label>
-                      <Select
-                        value={formData.status}
-                        onValueChange={(value) =>
-                          setFormData({ ...formData, status: value })
-                        }
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select status" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {statusOptions.map((status) => (
-                            <SelectItem key={status} value={status}>
-                              {status}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-
-                  <DialogFooter>
+                  {renderFormFields("edit-")}
+                  <FormSheetFooter>
                     <Button
                       type="button"
                       variant="outline"
@@ -1033,10 +880,10 @@ const CBUCBODetails = () => {
                       Cancel
                     </Button>
                     <Button type="submit">Update Group</Button>
-                  </DialogFooter>
+                  </FormSheetFooter>
                 </form>
-              </DialogContent>
-            </Dialog>
+              </FormSheetContent>
+            </FormSheet>
 
             {/* View Modal */}
             <Dialog open={isViewModalOpen} onOpenChange={setIsViewModalOpen}>
@@ -1065,7 +912,9 @@ const CBUCBODetails = () => {
                         </div>
                         <div>
                           <Label className="font-semibold">Group Type</Label>
-                          <Badge>{selectedGroup.groupType}</Badge>
+                          <div>
+                            <Badge>{selectedGroup.groupType}</Badge>
+                          </div>
                         </div>
                         <div>
                           <Label className="font-semibold">
@@ -1075,7 +924,7 @@ const CBUCBODetails = () => {
                         </div>
                         <div>
                           <Label className="font-semibold">Ward No</Label>
-                          <p>{selectedGroup.wardNo}</p>
+                          <p>{formatWard(selectedGroup.wardNo)}</p>
                         </div>
                         <div>
                           <Label className="font-semibold">Habitation</Label>
@@ -1091,25 +940,11 @@ const CBUCBODetails = () => {
                           <Label className="font-semibold">
                             Date of Formation
                           </Label>
-                          <p>
-                            {selectedGroup.dateOfFormation
-                              ? new Date(
-                                  selectedGroup.dateOfFormation
-                                ).toLocaleDateString()
-                              : "N/A"}
-                          </p>
+                          <p>{formatDate(selectedGroup.dateOfFormation, "N/A")}</p>
                         </div>
                         <div>
                           <Label className="font-semibold">Total Members</Label>
                           <p>{selectedGroup.totalMembers}</p>
-                        </div>
-                        <div>
-                          <Label className="font-semibold">Status</Label>
-                          <Badge
-                            className={getStatusColor(selectedGroup.status)}
-                          >
-                            {selectedGroup.status}
-                          </Badge>
                         </div>
                       </div>
                     </div>
@@ -1128,7 +963,7 @@ const CBUCBODetails = () => {
                           <Label className="font-semibold">
                             Contact Number
                           </Label>
-                          <p>{selectedGroup.contactNo}</p>
+                          <p>{selectedGroup.contactNo || "N/A"}</p>
                         </div>
                         <div>
                           <Label className="font-semibold">Group Mentor</Label>
@@ -1208,6 +1043,3 @@ const CBUCBODetails = () => {
 };
 
 export default CBUCBODetails;
-
-
-

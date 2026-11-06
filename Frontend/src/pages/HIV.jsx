@@ -1,4 +1,7 @@
+import { toApiPayload } from "@/components/module/ModuleKit";
+import { FormSheet, FormSheetContent, FormSheetDescription, FormSheetFooter, FormSheetHeader, FormSheetTitle } from "@/components/module/FormSheet";
 import React, { useState, useEffect } from "react";
+import { FilterBar } from "@/components/module/ModuleKit";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -47,14 +50,24 @@ import {
   Trash2,
   Eye,
   RefreshCw,
-  Menu,
-  FileSpreadsheet,
 } from "lucide-react";
 import { hivAPI } from "../services/api";
 import Sidebar from "../components/Sidebar";
 import usePermissions from "../hooks/usePermissions";
 import GuidelinesCard from "../components/GuidelinesCard";
-import ExcelBulkImportButton from "../components/ExcelBulkImportButton";
+import ExcelImportPanel from "../components/ExcelImportPanel";
+import hivImportTemplate from "../lib/excelImport/templates/hiv";
+import { getWardOptions } from "../lib/formOptions";
+import {
+  ModulePageHeader,
+  tableState,
+  StatusBadge,
+  formatWard,
+  formatDate,
+  toDateInput,
+} from "../components/module/ModuleKit";
+
+const WARD_OPTIONS = getWardOptions();
 
 const HIV = () => {
   const { canCreate, canEdit, canDelete, canExport } = usePermissions();
@@ -136,20 +149,17 @@ const HIV = () => {
     e.preventDefault();
     try {
       if (selectedRecord) {
-        await hivAPI.update(selectedRecord._id, formData);
+        await hivAPI.update(selectedRecord._id, toApiPayload(formData, true));
         toast.success("HIV record updated successfully");
         setIsEditModalOpen(false);
       } else {
-        await hivAPI.create(formData);
+        await hivAPI.create(toApiPayload(formData));
         toast.success("HIV record created successfully");
         setIsCreateModalOpen(false);
       }
       fetchRecords();
       resetForm();
     } catch (error) {
-      toast.error(
-        selectedRecord ? "Failed to update record" : "Failed to create record"
-      );
       console.error("Error submitting form:", error);
     }
   };
@@ -208,9 +218,7 @@ const HIV = () => {
       wardNo: record.wardNo || "",
       habitation: record.habitation || "",
       projectResponsible: record.projectResponsible || "",
-      dateOfReporting: record.dateOfReporting
-        ? new Date(record.dateOfReporting).toISOString().split("T")[0]
-        : "",
+      dateOfReporting: toDateInput(record.dateOfReporting),
       reportedBy: record.reportedBy || "",
       hivStage: record.hivStage || "",
       durationOfIllness: record.durationOfIllness || "",
@@ -244,33 +252,23 @@ const HIV = () => {
       <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
 
       <div className="flex-1 flex flex-col overflow-hidden">
-        <header className="bg-background shadow-md border-b border-border">
-          <div className="flex items-center justify-between px-6 py-4">
-            <div className="flex items-center space-x-4">
+        <ModulePageHeader
+          icon={Activity}
+          title="HIV/AIDS"
+          subtitle="People living with HIV, ART status and care plans"
+          onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
+          actions={
+            canCreate("health") && (
               <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setSidebarOpen(!sidebarOpen)}
-                className="lg:hidden"
+              onClick={() => setIsCreateModalOpen(true)}
+              className="shadow-md transition-colors duration-150"
               >
-                <Menu className="h-6 w-6" />
+              <Plus className="h-4 w-4 mr-2" />
+              Add HIV Record
               </Button>
-              <div className="flex items-center space-x-2">
-                <Activity className="h-6 w-6 text-red-600" />
-                <h1 className="text-2xl font-bold text-foreground">HIV/AIDS</h1>
-              </div>
-            </div>
-            {canCreate("health") && (
-              <Button
-                onClick={() => setIsCreateModalOpen(true)}
-                className="shadow-md hover:shadow-lg transition-all duration-200"
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                Add HIV Record
-              </Button>
-            )}
-          </div>
-        </header>
+            )
+          }
+        />
 
         <main className="flex-1 overflow-auto p-6">
           <GuidelinesCard
@@ -284,14 +282,7 @@ const HIV = () => {
               "Maintain strict confidentiality of HIV status in all records.",
             ]}
           />
-          <Card className="mb-6 shadow-md hover:shadow-lg transition-shadow duration-300">
-            <CardHeader className="bg-background from-slate-50 to-white">
-              <CardTitle className="flex items-center space-x-2">
-                <Filter className="h-5 w-5 text-red-600" />
-                <span>Filters</span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
+          <FilterBar>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
                 <div>
                   <Label htmlFor="search">Search by Name</Label>
@@ -303,14 +294,14 @@ const HIV = () => {
                   />
                 </div>
                 <div>
-                  <Label htmlFor="gender">Gender</Label>
+                  <Label htmlFor="genderFilter">Gender</Label>
                   <Select
                     value={filters.gender}
                     onValueChange={(value) =>
                       handleFilterChange("gender", value === "all" ? "" : value)
                     }
                   >
-                    <SelectTrigger>
+                    <SelectTrigger id="genderFilter">
                       <SelectValue placeholder="All Genders" />
                     </SelectTrigger>
                     <SelectContent>
@@ -322,7 +313,7 @@ const HIV = () => {
                   </Select>
                 </div>
                 <div>
-                  <Label htmlFor="hivStage">HIV Stage</Label>
+                  <Label htmlFor="hivStageFilter">HIV Stage</Label>
                   <Select
                     value={filters.hivStage}
                     onValueChange={(value) =>
@@ -332,7 +323,7 @@ const HIV = () => {
                       )
                     }
                   >
-                    <SelectTrigger>
+                    <SelectTrigger id="hivStageFilter">
                       <SelectValue placeholder="All Stages" />
                     </SelectTrigger>
                     <SelectContent>
@@ -346,7 +337,7 @@ const HIV = () => {
                   </Select>
                 </div>
                 <div>
-                  <Label htmlFor="statusOfTreatment">Treatment Status</Label>
+                  <Label htmlFor="statusOfTreatmentFilter">Treatment Status</Label>
                   <Select
                     value={filters.statusOfTreatment}
                     onValueChange={(value) =>
@@ -356,7 +347,7 @@ const HIV = () => {
                       )
                     }
                   >
-                    <SelectTrigger>
+                    <SelectTrigger id="statusOfTreatmentFilter">
                       <SelectValue placeholder="All Statuses" />
                     </SelectTrigger>
                     <SelectContent>
@@ -389,62 +380,15 @@ const HIV = () => {
                   </Button>
                 </div>
               </div>
-            </CardContent>
-          </Card>
+            </FilterBar>
 
-          {/* Bulk Import Card */}
+          {/* Bulk Import */}
           {canCreate("health") && (
-            <Card className="border border-muted bg-card shadow-sm mb-6">
-              <CardContent className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4">
-                <div className="space-y-1">
-                  <h3 className="font-semibold text-foreground flex items-center gap-2">
-                    <FileSpreadsheet className="h-5 w-5 text-green-600" />
-                    Bulk Import HIV Records
-                  </h3>
-                  <p className="text-xs text-muted-foreground">
-                    Download the template, fill it in, and upload it to import records in bulk.
-                  </p>
-                </div>
-                <ExcelBulkImportButton
-                  label="Import Excel"
-                  description=""
-                  templateFields={[
-                    { label: "Name", key: "name" },
-                    { label: "Gender", key: "gender", options: ["Male", "Female", "Other"] },
-                    { label: "Age", key: "age" },
-                    { label: "Contact Number", key: "contactNo" },
-                    { label: "Ward Number", key: "wardNo" },
-                    { label: "Habitation", key: "habitation" },
-                    { label: "Project Responsible", key: "projectResponsible" },
-                    { label: "Date of Reporting", key: "dateOfReporting" },
-                    { label: "Reported By", key: "reportedBy" },
-                    { label: "HIV Stage", key: "hivStage", options: ["Stage 1", "Stage 2", "Stage 3", "Stage 4"] },
-                    { label: "Status of Treatment", key: "statusOfTreatment", options: ["On ART", "Pre-ART", "Lost to Follow Up", "Stopped Treatment", "Completed"] },
-                    { label: "Overall Status", key: "overallStatus", options: ["Active", "Stable", "Deceased", "Transferred"] },
-                    { label: "Remarks", key: "remarks" },
-                  ]}
-                  sampleRow={{
-                    name: "Ananya Das",
-                    gender: "Female",
-                    age: "30",
-                    contactNo: "9876543210",
-                    wardNo: "6",
-                    habitation: "Gariahat",
-                    projectResponsible: "Dr. K. Saha",
-                    dateOfReporting: "2024-03-05",
-                    reportedBy: "Counselor A",
-                    hivStage: "Stage 2",
-                    statusOfTreatment: "On ART",
-                    overallStatus: "Stable",
-                    remarks: "Regular ART pickup",
-                  }}
-                  createRecord={async (payload) => {
-                    await hivAPI.create(payload);
-                  }}
-                  onImported={fetchRecords}
-                />
-              </CardContent>
-            </Card>
+            <ExcelImportPanel
+              template={hivImportTemplate}
+              createRecord={hivAPI.create}
+              onImported={fetchRecords}
+            />
           )}
 
           <Card>
@@ -478,22 +422,12 @@ const HIV = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {loading ? (
-                      <TableRow>
-                        <TableCell colSpan={7} className="text-center py-4">
-                          <RefreshCw className="h-4 w-4 animate-spin mx-auto" />
-                        </TableCell>
-                      </TableRow>
-                    ) : records.length === 0 ? (
-                      <TableRow>
-                        <TableCell
-                          colSpan={7}
-                          className="text-center py-4 text-muted-foreground"
-                        >
-                          No HIV records found
-                        </TableCell>
-                      </TableRow>
-                    ) : (
+                    {tableState({
+                      loading,
+                      count: records.length,
+                      colSpan: 7,
+                      filtered: Boolean(searchTerm || Object.values(filters).some(Boolean)),
+                    }) ||
                       records.map((record) => (
                         <TableRow key={record._id}>
                           <TableCell className="font-medium">
@@ -508,15 +442,13 @@ const HIV = () => {
                             </Badge>
                           </TableCell>
                           <TableCell>
-                            <Badge variant="secondary">
-                              {record.statusOfTreatment || "N/A"}
-                            </Badge>
+                            <StatusBadge value={record.statusOfTreatment} />
                           </TableCell>
                           <TableCell>
-                            <Badge>{record.overallStatus || "N/A"}</Badge>
+                            <StatusBadge value={record.overallStatus} />
                           </TableCell>
                           <TableCell>
-                            Ward {record.wardNo}, {record.habitation}
+                            {formatWard(record.wardNo)}, {record.habitation}
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center space-x-2">
@@ -524,6 +456,7 @@ const HIV = () => {
                                 variant="ghost"
                                 size="sm"
                                 onClick={() => handleView(record)}
+                                aria-label={`View ${record.name}`}
                               >
                                 <Eye className="h-4 w-4" />
                               </Button>
@@ -532,6 +465,7 @@ const HIV = () => {
                                   variant="ghost"
                                   size="sm"
                                   onClick={() => handleEdit(record)}
+                                  aria-label={`Edit ${record.name}`}
                                 >
                                   <Edit className="h-4 w-4" />
                                 </Button>
@@ -539,7 +473,7 @@ const HIV = () => {
                               {canDelete("health") && (
                                 <AlertDialog>
                                   <AlertDialogTrigger asChild>
-                                    <Button variant="ghost" size="sm">
+                                    <Button variant="ghost" size="sm" aria-label={`Delete ${record.name}`}>
                                       <Trash2 className="h-4 w-4" />
                                     </Button>
                                   </AlertDialogTrigger>
@@ -569,8 +503,7 @@ const HIV = () => {
                             </div>
                           </TableCell>
                         </TableRow>
-                      ))
-                    )}
+                      ))}
                   </TableBody>
                 </Table>
               </div>
@@ -624,7 +557,7 @@ const HIV = () => {
       </div>
 
       {/* Create/Edit Modal */}
-      <Dialog
+      <FormSheet
         open={isCreateModalOpen || isEditModalOpen}
         onOpenChange={(open) => {
           if (!open) {
@@ -634,14 +567,14 @@ const HIV = () => {
           }
         }}
       >
-        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>
+        <FormSheetContent>
+          <FormSheetHeader>
+            <FormSheetTitle>
               {selectedRecord ? "Edit" : "Add New"} HIV Record
-            </DialogTitle>
-          </DialogHeader>
+            </FormSheetTitle>
+          </FormSheetHeader>
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="name">Name *</Label>
                 <Input
@@ -660,7 +593,7 @@ const HIV = () => {
                     setFormData((prev) => ({ ...prev, gender: value }))
                   }
                 >
-                  <SelectTrigger>
+                  <SelectTrigger id="gender">
                     <SelectValue placeholder="Select gender" />
                   </SelectTrigger>
                   <SelectContent>
@@ -723,6 +656,27 @@ const HIV = () => {
                 />
               </div>
               <div>
+                <Label htmlFor="nameOfRespondant">Name of Respondent</Label>
+                <Input
+                  id="nameOfRespondant"
+                  name="nameOfRespondant"
+                  value={formData.nameOfRespondant}
+                  onChange={handleInputChange}
+                />
+              </div>
+              <div>
+                <Label htmlFor="contactNoOfRespondant">
+                  Contact of Respondent
+                </Label>
+                <Input
+                  id="contactNoOfRespondant"
+                  name="contactNoOfRespondant"
+                  value={formData.contactNoOfRespondant}
+                  onChange={handleInputChange}
+                  pattern="[6-9][0-9]{9}"
+                />
+              </div>
+              <div>
                 <Label htmlFor="wardNo">Ward No *</Label>
                 <Select
                   value={formData.wardNo}
@@ -734,16 +688,11 @@ const HIV = () => {
                     <SelectValue placeholder="Select ward" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Ward 1">Ward 1</SelectItem>
-                    <SelectItem value="Ward 2">Ward 2</SelectItem>
-                    <SelectItem value="Ward 3">Ward 3</SelectItem>
-                    <SelectItem value="Ward 4">Ward 4</SelectItem>
-                    <SelectItem value="Ward 5">Ward 5</SelectItem>
-                    <SelectItem value="Ward 6">Ward 6</SelectItem>
-                    <SelectItem value="Ward 7">Ward 7</SelectItem>
-                    <SelectItem value="Ward 8">Ward 8</SelectItem>
-                    <SelectItem value="Ward 9">Ward 9</SelectItem>
-                    <SelectItem value="Ward 10">Ward 10</SelectItem>
+                    {WARD_OPTIONS.map((ward) => (
+                      <SelectItem key={ward.value} value={ward.value}>
+                        {ward.label}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -798,7 +747,7 @@ const HIV = () => {
                     setFormData((prev) => ({ ...prev, hivStage: value }))
                   }
                 >
-                  <SelectTrigger>
+                  <SelectTrigger id="hivStage">
                     <SelectValue placeholder="Select stage" />
                   </SelectTrigger>
                   <SelectContent>
@@ -831,7 +780,7 @@ const HIV = () => {
                     setFormData((prev) => ({ ...prev, nutritionStatus: value }))
                   }
                 >
-                  <SelectTrigger>
+                  <SelectTrigger id="nutritionStatus">
                     <SelectValue placeholder="Select status" />
                   </SelectTrigger>
                   <SelectContent>
@@ -856,7 +805,7 @@ const HIV = () => {
                     }))
                   }
                 >
-                  <SelectTrigger>
+                  <SelectTrigger id="statusOfTreatment">
                     <SelectValue placeholder="Select status" />
                   </SelectTrigger>
                   <SelectContent>
@@ -878,7 +827,7 @@ const HIV = () => {
                     setFormData((prev) => ({ ...prev, overallStatus: value }))
                   }
                 >
-                  <SelectTrigger>
+                  <SelectTrigger id="overallStatus">
                     <SelectValue placeholder="Select status" />
                   </SelectTrigger>
                   <SelectContent>
@@ -892,10 +841,8 @@ const HIV = () => {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="md:col-span-3">
-                <Label htmlFor="diagnosticDetails">
-                  Diagnostic Details/Comorbidities
-                </Label>
+              <div className="sm:col-span-2">
+                <Label htmlFor="diagnosticDetails">Diagnostic Details</Label>
                 <Textarea
                   id="diagnosticDetails"
                   name="diagnosticDetails"
@@ -904,7 +851,17 @@ const HIV = () => {
                   rows={2}
                 />
               </div>
-              <div className="md:col-span-3">
+              <div className="sm:col-span-2">
+                <Label htmlFor="comorbidities">Comorbidities</Label>
+                <Textarea
+                  id="comorbidities"
+                  name="comorbidities"
+                  value={formData.comorbidities}
+                  onChange={handleInputChange}
+                  rows={2}
+                />
+              </div>
+              <div className="sm:col-span-2">
                 <Label htmlFor="individualCarePlan">Individual Care Plan</Label>
                 <Textarea
                   id="individualCarePlan"
@@ -915,7 +872,7 @@ const HIV = () => {
                 />
               </div>
             </div>
-            <DialogFooter>
+            <FormSheetFooter>
               <Button
                 type="button"
                 variant="outline"
@@ -930,10 +887,10 @@ const HIV = () => {
               <Button type="submit">
                 {selectedRecord ? "Update" : "Create"} Record
               </Button>
-            </DialogFooter>
+            </FormSheetFooter>
           </form>
-        </DialogContent>
-      </Dialog>
+        </FormSheetContent>
+      </FormSheet>
 
       {/* View Modal */}
       <Dialog open={isViewModalOpen} onOpenChange={setIsViewModalOpen}>
@@ -989,7 +946,7 @@ const HIV = () => {
                   </div>
                   <div>
                     <Label className="font-semibold">Ward No</Label>
-                    <p>{selectedRecord.wardNo}</p>
+                    <p>{formatWard(selectedRecord.wardNo)}</p>
                   </div>
                   <div>
                     <Label className="font-semibold">Habitation</Label>
@@ -1011,11 +968,7 @@ const HIV = () => {
                   <div>
                     <Label className="font-semibold">Date of Reporting</Label>
                     <p>
-                      {selectedRecord.dateOfReporting
-                        ? new Date(
-                            selectedRecord.dateOfReporting
-                          ).toLocaleDateString()
-                        : "N/A"}
+                      {formatDate(selectedRecord.dateOfReporting)}
                     </p>
                   </div>
                   <div>
@@ -1037,15 +990,19 @@ const HIV = () => {
                   </div>
                   <div>
                     <Label className="font-semibold">Duration of Illness</Label>
-                    <p>{selectedRecord.durationOfIllness || "N/A"}</p>
+                    <p>
+                      {selectedRecord.durationOfIllness || selectedRecord.durationOfIllness === 0
+                        ? `${selectedRecord.durationOfIllness} months`
+                        : "N/A"}
+                    </p>
                   </div>
                   <div>
                     <Label className="font-semibold">Status of Treatment</Label>
-                    <Badge>{selectedRecord.statusOfTreatment || "N/A"}</Badge>
+                    <StatusBadge value={selectedRecord.statusOfTreatment} />
                   </div>
                   <div>
                     <Label className="font-semibold">Overall Status</Label>
-                    <Badge>{selectedRecord.overallStatus || "N/A"}</Badge>
+                    <StatusBadge value={selectedRecord.overallStatus} />
                   </div>
                 </div>
                 {selectedRecord.diagnosticDetails && (

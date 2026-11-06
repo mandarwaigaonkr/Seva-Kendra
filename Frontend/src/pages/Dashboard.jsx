@@ -64,6 +64,7 @@ import {
   Clock,
   AlertTriangle,
   Menu,
+  ChevronRight,
   RefreshCw,
   Download,
   Filter,
@@ -89,7 +90,11 @@ import {
   Mail,
   Percent,
 } from "lucide-react";
-import Sidebar from "../components/Sidebar";
+import { Link } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
+import { cn } from "@/lib/utils";
+import { ModulePageHeader, formatDate } from "@/components/module/ModuleKit";
+import { DOMAINS, DOMAIN_TONE, canSeeDomain } from "@/components/shell/navigation";
 import {
   dashboardAPI,
   analyticsAPI,
@@ -169,7 +174,7 @@ const KPICard = ({
   trendLabel = "from last month",
   bgColor,
 }) => (
-  <Card className="shadow-elevated hover:shadow-floating transition-all duration-300 border border-border bg-gradient-to-br from-card to-card/50 hover:from-card hover:to-card/70">
+  <Card className="shadow-elevated transition-colors duration-150 border border-border">
     <CardContent className="p-6">
       <div className="flex items-center justify-between">
         <div className="flex-1">
@@ -215,7 +220,7 @@ const ModuleCard = ({ title, icon: Icon, stats, color, module, isExpanded, onTog
 
   return (
     <Card
-      className={`border-l-4 shadow-elevated hover:shadow-floating transition-all duration-300 bg-gradient-to-br from-card to-card/50 hover:from-card hover:to-card/70 ${
+      className={`border-l-4 shadow-elevated transition-colors duration-150 ${
         color === "health"
           ? "border-l-red-500"
           : color === "education"
@@ -303,7 +308,7 @@ const PerformanceTable = ({
   };
 
   return (
-    <Card className="shadow-md hover:shadow-lg transition-shadow duration-300">
+    <Card className="shadow-md transition-shadow duration-300">
       <CardHeader>
         <CardTitle className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -458,7 +463,7 @@ const PerformanceTable = ({
 };
 
 const Dashboard = () => {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [dateRange, setDateRange] = useState("last_30_days");
   const [activeView, setActiveView] = useState("overview");
@@ -806,612 +811,255 @@ const Dashboard = () => {
   const completedCasesTrend = getDynamicTrend(overviewStats.completedThisMonth, overviewStats.previousPeriod?.completedCases);
   const urgentCasesTrend = getDynamicTrend(overviewStats.urgentCases, overviewStats.previousPeriod?.urgentCases);
 
+  const firstName = user?.firstName || "there";
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+  const rangeLabel = { last_7_days: "last 7 days", last_30_days: "last 30 days", last_90_days: "last 90 days", last_year: "last year" }[dateRange];
+
+  // Records added to each section in the selected period (the backend applies the date range), keyed by route.
+  const sectionCounts = {
+    "/health/health-camps": moduleStats.health.healthCamps,
+    "/health/elderly": moduleStats.health.elderlySupport,
+    "/health/mother-child": moduleStats.health.motherChildCare,
+    "/health/pwd": moduleStats.health.pwdSupport,
+    "/health/adolescents": moduleStats.health.adolescentPrograms,
+    "/health/tuberculosis": moduleStats.health.tuberculosis,
+    "/health/hiv": moduleStats.health.hiv,
+    "/health/leprosy": moduleStats.health.leprosy,
+    "/health/addiction": moduleStats.health.addiction,
+    "/health/other-diseases": moduleStats.health.otherDiseases,
+    "/education/study-centers": moduleStats.education.studyCenters,
+    "/education/sc-students": moduleStats.education.scStudents,
+    "/education/dropouts": moduleStats.education.dropoutRecovery,
+    "/education/schools": moduleStats.education.schools,
+    "/education/competitive-exams": moduleStats.education.competitiveExams,
+    "/education/board-preparation": moduleStats.education.boardPreparation,
+    "/social-justice/cbucbo-details": moduleStats.socialJustice.cbucboDetails,
+    "/social-justice/entitlements": moduleStats.socialJustice.entitlements,
+    "/social-justice/legal-aid": moduleStats.socialJustice.legalAidServices,
+    "/social-justice/workshops": moduleStats.socialJustice.workshops,
+  };
+  const domainTotal = (d) => d.modules.reduce((sum, m) => sum + (Number(sectionCounts[m.path]) || 0), 0);
+  const domains = DOMAINS.filter((d) => canSeeDomain(user, d));
+  const chartTone = { health: "hsl(0 64% 46%)", education: "hsl(227 62% 50%)", socialJustice: "hsl(36 100% 30%)" };
+
+  const kpis = [
+    { label: "People supported", value: overviewStats.totalBeneficiaries, trend: totalBeneficiariesTrend },
+    { label: "Open cases", value: overviewStats.activeCases, trend: activeCasesTrend },
+    { label: "Cases closed", value: overviewStats.completedThisMonth, trend: completedCasesTrend },
+    { label: "Urgent cases", value: overviewStats.urgentCases, trend: urgentCasesTrend, to: "/tracking/urgent-cases", urgent: true },
+  ];
+
   return (
-    <div className="flex h-screen bg-background text-foreground">
-      {/* Sidebar */}
-      <Sidebar
-        sidebarOpen={sidebarOpen}
-        setSidebarOpen={setSidebarOpen}
-        activeItem="dashboard"
+    <div className="min-h-full bg-background">
+      <ModulePageHeader
+        title={`${greeting}, ${firstName}`}
+        subtitle="Here is how Seva Kendra's programmes are doing. Pick a section below to add or find records."
+        actions={
+          <>
+            <Select value={dateRange} onValueChange={setDateRange}>
+              <SelectTrigger className="w-44" aria-label="Time period">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="last_7_days">Last 7 days</SelectItem>
+                <SelectItem value="last_30_days">Last 30 days</SelectItem>
+                <SelectItem value="last_90_days">Last 90 days</SelectItem>
+                <SelectItem value="last_year">Last year</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button variant="outline" onClick={fetchDashboardData} disabled={loading}>
+              <RefreshCw className={loading ? "animate-spin motion-reduce:animate-none" : ""} />
+              Refresh
+            </Button>
+          </>
+        }
       />
 
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col overflow-hidden lg:ml-0">
-        {/* Mobile Header */}
-        <div className="lg:hidden bg-card shadow-lg border-b border-border p-4 flex items-center justify-between">
-          <div className="flex items-center">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setSidebarOpen(true)}
-              className="mr-2"
-            >
-              <Menu className="h-5 w-5" />
-            </Button>
-            <h1 className="text-lg font-semibold">Seva Kendra Calcutta</h1>
-          </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={fetchDashboardData}
-            disabled={loading}
+      <main className="space-y-8">
+        {urgentAlerts.length > 0 && (
+          <Link
+            to="/tracking/urgent-cases"
+            className="flex items-center gap-4 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 transition-colors duration-100 hover:bg-destructive/10"
           >
-            <RefreshCw
-              className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`}
-            />
-            Refresh
-          </Button>
-        </div>
+            <AlertTriangle className="h-5 w-5 shrink-0 text-destructive" aria-hidden />
+            <span className="min-w-0 flex-1">
+              <span className="block font-medium text-foreground">
+                {urgentAlerts.length} urgent {urgentAlerts.length === 1 ? "case has" : "cases have"} had no update for 2 days
+              </span>
+              <span className="block truncate text-sm text-muted-foreground">
+                {urgentAlerts.slice(0, 3).map((a) => a.recordName).join(", ")}
+                {urgentAlerts.length > 3 ? ` and ${urgentAlerts.length - 3} more` : ""}
+              </span>
+            </span>
+            <span className="hidden shrink-0 text-sm font-medium text-destructive sm:inline">Open urgent cases</span>
+            <ChevronRight className="h-4 w-4 shrink-0 text-destructive" aria-hidden />
+          </Link>
+        )}
 
-        {/* Scrollable Content */}
-        <div className="flex-1 overflow-y-auto">
-          <div className="container mx-auto p-4 md:p-6 space-y-6">
-            {/* Header Section */}
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-              <div>
-                <h1 className="text-3xl md:text-4xl font-bold text-foreground">
-                  Seva Kendra Calcutta
-                </h1>
-                <p className="text-muted-foreground mt-1">
-                  Comprehensive overview of all programs and beneficiary services
-                </p>
-              </div>
-              <div className="flex items-center gap-2 w-full md:w-auto">
-                <Select value={dateRange} onValueChange={setDateRange}>
-                  <SelectTrigger className="w-full md:w-48 bg-card border-border">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="bg-card border-border">
-                    <SelectItem value="last_7_days">Last 7 Days</SelectItem>
-                    <SelectItem value="last_30_days">Last 30 Days</SelectItem>
-                    <SelectItem value="last_90_days">Last 90 Days</SelectItem>
-                    <SelectItem value="last_year">Last Year</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Button
-                  variant="outline"
-                  onClick={fetchDashboardData}
-                  disabled={loading}
-                  size="sm"
-                  className="border-border bg-card hover:bg-secondary"
-                >
-                  <RefreshCw
-                    className={`h-4 w-4 ${loading ? "animate-spin" : ""}`}
-                  />
-                </Button>
-              </div>
-            </div>
-
-            {/* Top KPI Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              <KPICard
-                title="Total Beneficiaries"
-                value={overviewStats.totalBeneficiaries}
-                icon={Users}
-                trend={totalBeneficiariesTrend ? totalBeneficiariesTrend.direction : undefined}
-                trendValue={totalBeneficiariesTrend ? totalBeneficiariesTrend.value : undefined}
-                trendLabel={trendLabel}
-                bgColor="bg-orange-500"
-              />
-              <KPICard
-                title="Active Cases"
-                value={overviewStats.activeCases}
-                icon={Activity}
-                trend={activeCasesTrend ? activeCasesTrend.direction : undefined}
-                trendValue={activeCasesTrend ? activeCasesTrend.value : undefined}
-                trendLabel={trendLabel}
-                bgColor="bg-green-500"
-              />
-              <KPICard
-                title="Completed Cases"
-                value={overviewStats.completedThisMonth}
-                icon={CheckCircle}
-                trend={completedCasesTrend ? completedCasesTrend.direction : undefined}
-                trendValue={completedCasesTrend ? completedCasesTrend.value : undefined}
-                trendLabel={trendLabel}
-                bgColor="bg-purple-500"
-              />
-              <KPICard
-                title="Urgent Cases"
-                value={overviewStats.urgentCases}
-                icon={AlertTriangle}
-                trend={urgentCasesTrend ? urgentCasesTrend.direction : undefined}
-                trendValue={urgentCasesTrend ? urgentCasesTrend.value : undefined}
-                trendLabel={trendLabel}
-                bgColor="bg-red-500"
-              />
-            </div>
-
-            {urgentAlerts.length > 0 && (
-              <Card className="border-red-300">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-red-700">
-                    <AlertTriangle className="h-5 w-5" />
-                    Urgent Follow-Up Alerts
-                  </CardTitle>
-                  <CardDescription>
-                    {urgentAlerts.length} urgent case(s) have no updates in the last 2 days.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-2">
-                  {urgentAlerts.slice(0, 5).map((alert) => (
-                    <div key={alert.id} className="text-sm">
-                      <span className="font-semibold">{alert.recordName}</span> - stale for {alert.staleDays} day(s)
-                    </div>
-                  ))}
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Module Overview Cards - Expandable */}
-            <div>
-              <h2 className="text-xl font-bold text-foreground mb-4">
-                Module Overview
-              </h2>
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                <ModuleCard
-                  title="Health Services"
-                  icon={Heart}
-                  stats={moduleStats.health}
-                  color="health"
-                  module="health"
-                  isExpanded={expandedModules.health}
-                  onToggle={toggleModuleExpanded}
-                />
-                <ModuleCard
-                  title="Education Programs"
-                  icon={GraduationCap}
-                  stats={moduleStats.education}
-                  color="education"
-                  module="education"
-                  isExpanded={expandedModules.education}
-                  onToggle={toggleModuleExpanded}
-                />
-                <ModuleCard
-                  title="Social Justice"
-                  icon={Scale}
-                  stats={moduleStats.socialJustice}
-                  color="socialJustice"
-                  module="socialJustice"
-                  isExpanded={expandedModules.socialJustice}
-                  onToggle={toggleModuleExpanded}
-                />
-              </div>
-            </div>
-
-            {/* Performance Table */}
-            <PerformanceTable
-              performanceData={performanceData}
-              isEditingTargets={isEditingTargets}
-              setIsEditingTargets={setIsEditingTargets}
-              targetInputs={targetInputs}
-              onSaveTargets={handleSaveTargets}
-            />
-
-            {/* Charts Section */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Monthly Trends */}
-              <Card className="shadow-md hover:shadow-lg transition-shadow duration-300">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <BarChart3 className="h-5 w-5" />
-                    Monthly Activity Trends
-                  </CardTitle>
-                  <CardDescription>
-                    Activity progression across modules
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <ResponsiveContainer width="100%" height={300}>
-                    <BarChart data={chartData.monthlyTrends}>
-                      <CartesianGrid
-                        strokeDasharray="3 3"
-                        stroke="rgb(226, 232, 240)"
-                      />
-                      <XAxis dataKey="month" />
-                      <YAxis />
-                      <Tooltip
-                        contentStyle={{
-                          backgroundColor: "#fff",
-                          border: `1px solid ${COLORS.lightGray}`,
-                          borderRadius: "8px",
-                        }}
-                      />
-                      <Legend />
-                      <Bar
-                        dataKey="health"
-                        fill={COLORS.health}
-                        name="Health"
-                        radius={[4, 4, 0, 0]}
-                      />
-                      <Bar
-                        dataKey="education"
-                        fill={COLORS.education}
-                        name="Education"
-                        radius={[4, 4, 0, 0]}
-                      />
-                      <Bar
-                        dataKey="socialJustice"
-                        fill={COLORS.socialJustice}
-                        name="Social Justice"
-                        radius={[4, 4, 0, 0]}
-                      />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </CardContent>
-              </Card>
-
-              {/* Module Distribution Pie */}
-              <Card className="shadow-md hover:shadow-lg transition-shadow duration-300">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <PieChartIcon className="h-5 w-5" />
-                    Service Distribution
-                  </CardTitle>
-                  <CardDescription>
-                    Proportion of services by module
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <ResponsiveContainer width="100%" height={300}>
-                    <PieChart>
-                      <Pie
-                        data={chartData.moduleDistribution}
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={60}
-                        outerRadius={100}
-                        paddingAngle={5}
-                        dataKey="value"
-                        label={({ name, percentage }) =>
-                          `${name} ${percentage}%`
-                        }
-                      >
-                        {chartData.moduleDistribution.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={entry.color} />
-                        ))}
-                      </Pie>
-                      <Tooltip formatter={(value) => formatNumber(value)} />
-                    </PieChart>
-                  </ResponsiveContainer>
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Demographics Section */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Gender Distribution */}
-              <Card className="shadow-sm hover:shadow-md transition-shadow duration-300">
-                <CardHeader>
-                  <CardTitle className="text-base">
-                    Gender Distribution
-                  </CardTitle>
-                  <CardDescription className="text-xs">
-                    Beneficiary breakdown by gender
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <ResponsiveContainer width="100%" height={200}>
-                    <PieChart>
-                      <Pie
-                        data={chartData.genderDistribution}
-                        cx="50%"
-                        cy="50%"
-                        outerRadius={70}
-                        dataKey="value"
-                        label={({ name, value }) => `${name}: ${value}%`}
-                      >
-                        {chartData.genderDistribution.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={entry.color} />
-                        ))}
-                      </Pie>
-                    </PieChart>
-                  </ResponsiveContainer>
-                </CardContent>
-              </Card>
-
-              {/* Age Distribution */}
-              <Card className="shadow-sm hover:shadow-md transition-shadow duration-300">
-                <CardHeader>
-                  <CardTitle className="text-base">Age Distribution</CardTitle>
-                  <CardDescription className="text-xs">
-                    Beneficiary breakdown by age group
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <ResponsiveContainer width="100%" height={250}>
-                    <BarChart
-                      data={chartData.ageDistribution}
-                      margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
-                    >
-                      <CartesianGrid
-                        strokeDasharray="3 3"
-                        vertical={false}
-                        stroke="rgba(226, 232, 240, 0.3)"
-                      />
-                      <XAxis
-                        dataKey="name"
-                        axisLine={false}
-                        tickLine={false}
-                        tick={{ fontSize: 10, fill: "currentColor" }}
-                      />
-                      <YAxis
-                        axisLine={false}
-                        tickLine={false}
-                        tick={{ fontSize: 10, fill: "currentColor" }}
-                      />
-                      <Tooltip
-                        cursor={{ fill: "rgba(226, 232, 240, 0.1)" }}
-                        contentStyle={{
-                          backgroundColor: "#fff",
-                          border: `1px solid ${COLORS.lightGray}`,
-                          borderRadius: "8px",
-                          fontSize: "12px",
-                        }}
-                      />
-                      <Legend
-                        iconType="circle"
-                        wrapperStyle={{ fontSize: "10px", paddingTop: "10px" }}
-                      />
-                      <Bar
-                        dataKey="health"
-                        name="Health"
-                        fill={COLORS.health}
-                        radius={[4, 4, 0, 0]}
-                        barSize={15}
-                      />
-                      <Bar
-                        dataKey="education"
-                        name="Education"
-                        fill={COLORS.education}
-                        radius={[4, 4, 0, 0]}
-                        barSize={15}
-                      />
-                      <Bar
-                        dataKey="socialJustice"
-                        name="Social Justice"
-                        fill={COLORS.socialJustice}
-                        radius={[4, 4, 0, 0]}
-                        barSize={15}
-                      />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </CardContent>
-              </Card>
-
-              {/* Status Distribution */}
-              <Card className="shadow-sm hover:shadow-md transition-shadow duration-300">
-                <CardHeader>
-                  <CardTitle className="text-base">Case Status</CardTitle>
-                  <CardDescription className="text-xs">
-                    Overall case status breakdown
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    {chartData.statusDistribution.map((status, index) => (
-                      <div key={index}>
-                        <div className="flex justify-between items-center mb-1">
-                          <span className="text-sm font-medium text-foreground">
-                            {status.name}
-                          </span>
-                          <span className="text-sm font-bold text-foreground">
-                            {status.value}
-                          </span>
-                        </div>
-                        <div className="w-full bg-secondary rounded-full h-2">
-                          <div
-                            className="h-2 rounded-full"
-                            style={{
-                              width: `${Math.min(
-                                (status.value /
-                                  overviewStats.totalBeneficiaries) *
-                                  100 || 0,
-                                100
-                              )}%`,
-                              backgroundColor: status.color,
-                            }}
-                          />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Program Insights and Recent Activities */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Program Insights */}
-              <Card className="lg:col-span-2 shadow-md hover:shadow-lg transition-shadow duration-300">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Zap className="h-5 w-5" />
-                    Quick Insights
-                  </CardTitle>
-                  <CardDescription>
-                    Key performance indicators and recommendations
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    {quickInsights.length > 0 ? (
-                      quickInsights.map((insight, index) => (
-                        <div
-                          key={index}
-                          className={`p-3 border-l-4 rounded-lg shadow-sm ${
-                            insight.type === "success"
-                              ? "bg-green-950/50 border-green-400"
-                              : insight.type === "warning"
-                              ? "bg-amber-900/80 border-amber-500"
-                              : insight.type === "error"
-                              ? "bg-red-900/80 border-red-500"
-                              : "bg-blue-950/50 border-blue-400"
-                          }`}
-                        >
-                          <p
-                            className={`text-sm font-semibold ${
-                              insight.type === "success"
-                                ? "text-green-300"
-                                : insight.type === "warning"
-                                ? "text-amber-100"
-                                : insight.type === "error"
-                                ? "text-red-100"
-                                : "text-blue-300"
-                            }`}
-                          >
-                            {insight.type === "success" ? "✓" : insight.type === "error" ? "!" : "→"} {insight.title}
-                          </p>
-                          <p
-                            className={`text-xs mt-1 ${
-                              insight.type === "success"
-                                ? "text-green-200"
-                                : insight.type === "warning"
-                                ? "text-amber-200"
-                                : insight.type === "error"
-                                ? "text-red-200"
-                                : "text-blue-200"
-                            }`}
-                          >
-                            {insight.description}
-                          </p>
-                        </div>
-                      ))
+        {/* Key numbers */}
+        <section aria-label={`Key numbers for the ${rangeLabel}`}>
+          <div className="grid grid-cols-2 overflow-hidden rounded-lg border border-border bg-card shadow-sm lg:grid-cols-4">
+            {kpis.map((k, i) => {
+              const body = (
+                <>
+                  <p className="text-sm text-muted-foreground">{k.label}</p>
+                  <p className={cn("mt-1 text-[2rem] font-semibold leading-none", k.urgent && Number(k.value) > 0 ? "text-destructive" : "text-foreground")}>
+                    {loading ? <span className="inline-block h-8 w-16 animate-pulse rounded bg-muted motion-reduce:animate-none" /> : (k.value ?? 0).toLocaleString("en-IN")}
+                  </p>
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    {k.trend ? (
+                      <>
+                        <span className={k.trend.direction === "up" ? "text-success" : k.trend.direction === "down" ? "text-destructive" : ""}>
+                          {k.trend.direction === "up" ? "▲" : k.trend.direction === "down" ? "▼" : "•"} {k.trend.value}
+                        </span>{" "}
+                        vs previous {rangeLabel}
+                      </>
                     ) : (
-                      <div className="p-3 bg-blue-950/50 border-l-4 border-blue-400 rounded-lg shadow-sm">
-                        <p className="text-sm font-semibold text-blue-300">
-                          ✓ Health Module Leading
-                        </p>
-                        <p className="text-xs text-blue-200 mt-1">
-                          Health programs show highest engagement with{" "}
-                          {moduleStats.health.totalCases || 0} total cases
-                        </p>
-                      </div>
+                      `In the ${rangeLabel}`
                     )}
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Stats Summary Card */}
-              <Card className="shadow-md hover:shadow-lg transition-shadow duration-300">
-                <CardHeader>
-                  <CardTitle className="text-base">Module Summary</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="text-center pb-4 border-b">
-                    <p className="text-3xl font-bold text-foreground">
-                      {moduleStats.health.totalCases +
-                        moduleStats.education.totalStudents +
-                        moduleStats.socialJustice.totalCases}
-                    </p>
-                    <p className="text-sm text-muted-foreground">Total Beneficiaries</p>
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2 mb-2">
-                      <Heart className="h-4 w-4 text-red-500" />
-                      <p className="text-sm font-medium">Health</p>
-                      <span className="ml-auto font-bold">
-                        {moduleStats.health.totalCases}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2 mb-2">
-                      <GraduationCap className="h-4 w-4 text-blue-500" />
-                      <p className="text-sm font-medium">Education</p>
-                      <span className="ml-auto font-bold">
-                        {moduleStats.education.totalStudents}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Scale className="h-4 w-4 text-purple-500" />
-                      <p className="text-sm font-medium">Social Justice</p>
-                      <span className="ml-auto font-bold">
-                        {moduleStats.socialJustice.totalCases}
-                      </span>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Recent Activities */}
-            <Card className="shadow-md hover:shadow-lg transition-shadow duration-300">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Activity className="h-5 w-5" />
-                  Recent Activities
-                </CardTitle>
-                <CardDescription>
-                  Latest updates across all modules
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {recentActivities.length > 0 ? (
-                    recentActivities.slice(0, 8).map((activity) => (
-                      <div
-                        key={activity._id}
-                        className="flex items-start space-x-3 p-3 rounded-lg transition-colors duration-200 hover:shadow-sm hover:bg-secondary/50"
-                      >
-                        <div
-                          className={`p-2 rounded-full ${
-                            activity.type?.includes("health")
-                              ? "bg-red-100"
-                              : activity.type?.includes("education")
-                              ? "bg-blue-100"
-                              : "bg-purple-100"
-                          }`}
-                        >
-                          <FileText
-                            className={`h-4 w-4 ${
-                              activity.type?.includes("health")
-                                ? "text-red-600"
-                                : activity.type?.includes("education")
-                                ? "text-blue-600"
-                                : "text-purple-600"
-                            }`}
-                          />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-foreground">
-                            {activity.description}
-                          </p>
-                          <div className="flex items-center space-x-3 mt-1 text-xs text-muted-foreground">
-                            <span>
-                              {new Date(
-                                activity.timestamp
-                              ).toLocaleDateString()}
-                            </span>
-                            <span>by {activity.user}</span>
-                            <StatusBadge
-                              status="active"
-                              label={activity.type
-                                ?.replace("_", " ")
-                                .toUpperCase()}
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="text-center py-8 text-muted-foreground">
-                      <Activity className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                      <p>No recent activities found</p>
-                    </div>
-                  )}
+                  </p>
+                </>
+              );
+              const cls = cn(
+                "block p-5",
+                i % 2 === 1 && "border-l border-border",
+                i >= 2 && "border-t border-border lg:border-t-0",
+                i >= 1 && "lg:border-l lg:border-border"
+              );
+              return k.to ? (
+                <Link key={k.label} to={k.to} className={cn(cls, "transition-colors duration-100 hover:bg-accent/60")}>
+                  {body}
+                </Link>
+              ) : (
+                <div key={k.label} className={cls}>
+                  {body}
                 </div>
-              </CardContent>
-            </Card>
-
-            {/* Footer Spacer */}
-            <div className="h-4" />
+              );
+            })}
           </div>
-        </div>
-      </div>
+        </section>
+
+        {/* Programmes launcher: every section, with how many records were added in the selected period */}
+        <section aria-labelledby="programmes-heading">
+          <div className="mb-3 flex items-baseline justify-between gap-4">
+            <h2 id="programmes-heading" className="text-xl font-semibold text-foreground">Programmes</h2>
+            <p className="hidden text-sm text-muted-foreground sm:block">Counts are records added in the {rangeLabel ?? "selected period"}. Open a section to add, find or update records.</p>
+          </div>
+          <div className="grid gap-4 lg:grid-cols-3">
+            {domains.map((d) => {
+              const tone = DOMAIN_TONE[d.tone];
+              return (
+                <div key={d.key} className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
+                  <div className="flex items-center gap-3 border-b border-border px-4 py-3">
+                    <span className={cn("flex h-9 w-9 items-center justify-center rounded-md", tone.soft, tone.text)}>
+                      <d.icon className="h-5 w-5" aria-hidden />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <h3 className="font-semibold leading-tight text-foreground">{d.name}</h3>
+                      <p className="text-sm leading-snug text-muted-foreground">{d.blurb}</p>
+                    </div>
+                    <span className="text-right">
+                      <span className="block text-lg font-semibold leading-none text-foreground">{domainTotal(d).toLocaleString("en-IN")}</span>
+                      <span className="text-xs text-muted-foreground">{rangeLabel ? `added, ${rangeLabel}` : "records"}</span>
+                    </span>
+                  </div>
+                  <ul className="divide-y divide-border">
+                    {d.modules.map((m) => (
+                      <li key={m.path}>
+                        <Link to={m.path} className="group flex min-h-11 items-center gap-3 px-4 py-2 transition-colors duration-100 hover:bg-accent/60">
+                          <m.icon className="h-[18px] w-[18px] shrink-0 text-muted-foreground group-hover:text-foreground" aria-hidden />
+                          <span className="min-w-0 flex-1 truncate text-[0.9375rem] text-foreground">{m.name}</span>
+                          {sectionCounts[m.path] !== undefined && (
+                            <span className="text-sm text-muted-foreground">{Number(sectionCounts[m.path] || 0).toLocaleString("en-IN")}</span>
+                          )}
+                          <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground/70 group-hover:text-foreground" aria-hidden />
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+
+        {/* Trend + recent activity */}
+        <section className="grid gap-4 lg:grid-cols-5">
+          <Card className="lg:col-span-3">
+            <CardHeader className="pb-2">
+              <CardTitle>Records added each month</CardTitle>
+              <CardDescription>New records per programme</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {chartData.monthlyTrends.length ? (
+                <ResponsiveContainer width="100%" height={260}>
+                  <BarChart data={chartData.monthlyTrends} barGap={2}>
+                    <CartesianGrid vertical={false} stroke="hsl(var(--border))" />
+                    <XAxis dataKey="month" tickLine={false} axisLine={false} tick={{ fontSize: 13 }} />
+                    <YAxis tickLine={false} axisLine={false} width={36} allowDecimals={false} tick={{ fontSize: 13 }} />
+                    <Tooltip cursor={{ fill: "hsl(var(--muted))" }} />
+                    <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 14 }} />
+                    <Bar dataKey="education" name="Education" fill={chartTone.education} radius={[3, 3, 0, 0]} maxBarSize={18} />
+                    <Bar dataKey="health" name="Health" fill={chartTone.health} radius={[3, 3, 0, 0]} maxBarSize={18} />
+                    <Bar dataKey="socialJustice" name="Social justice" fill={chartTone.socialJustice} radius={[3, 3, 0, 0]} maxBarSize={18} />
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="flex h-[260px] flex-col items-center justify-center gap-1 text-center">
+                  <BarChart3 className="h-8 w-8 text-muted-foreground/60" strokeWidth={1.5} aria-hidden />
+                  <p className="font-medium text-foreground">No records in the {rangeLabel}</p>
+                  <p className="text-sm text-muted-foreground">Bars appear here as records are added.</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card className="lg:col-span-2">
+            <CardHeader className="pb-2">
+              <CardTitle>Recent activity</CardTitle>
+              <CardDescription>Latest changes by your team</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {recentActivities.length ? (
+                <ul className="divide-y divide-border">
+                  {recentActivities.slice(0, 6).map((a) => {
+                    const tone = a.type?.includes("health") ? "health" : a.type?.includes("education") ? "education" : "social";
+                    return (
+                      <li key={a._id} className="flex gap-3 py-3">
+                        <span aria-hidden className={cn("mt-2 h-2 w-2 shrink-0 rounded-full", DOMAIN_TONE[tone].bg)} />
+                        <div className="min-w-0">
+                          <p className="text-[0.9375rem] text-foreground">{a.description}</p>
+                          <p className="text-sm text-muted-foreground">
+                            {formatDate(a.timestamp)}
+                            {a.user ? ` by ${a.user}` : ""}
+                          </p>
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              ) : (
+                <div className="flex h-[260px] flex-col items-center justify-center gap-1 text-center">
+                  <Activity className="h-8 w-8 text-muted-foreground/60" strokeWidth={1.5} aria-hidden />
+                  <p className="font-medium text-foreground">Nothing yet</p>
+                  <p className="max-w-[28ch] text-sm text-muted-foreground">New and updated records will show up here.</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </section>
+
+        <PerformanceTable
+          performanceData={performanceData}
+          isEditingTargets={isEditingTargets}
+          setIsEditingTargets={setIsEditingTargets}
+          targetInputs={targetInputs}
+          onSaveTargets={handleSaveTargets}
+        />
+      </main>
     </div>
   );
 };
 
 export default Dashboard;
-
-
-

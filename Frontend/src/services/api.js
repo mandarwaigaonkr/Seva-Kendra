@@ -1,11 +1,10 @@
 import api from "../lib/api";
+import { buildReport, fetchAllRecords } from "../lib/reportData";
 
 // Auth API calls
 export const authAPI = {
   login: (credentials) => api.post("/auth/login", credentials),
-  register: (userData) => api.post("/auth/register", userData),
   logout: () => api.post("/auth/logout"),
-  dummyLogin: (credentials) => api.post("/auth/dummy-login", credentials),
   verifyToken: () => api.get("/auth/verify"),
 };
 
@@ -1285,15 +1284,6 @@ export const cbucboDetailsAPI = {
     api.get(`/social-justice/cbucbo-details/group-type/${groupType}`),
   getByStatus: (status) =>
     api.get(`/social-justice/cbucbo-details/status/${status}`),
-  updateMembers: (id, memberDetails) =>
-    api.put(`/social-justice/cbucbo-details/${id}/members`, { memberDetails }),
-  addCapacityBuilding: (id, activityData) =>
-    api.post(
-      `/social-justice/cbucbo-details/${id}/capacity-building`,
-      activityData
-    ),
-  updateProgress: (id, progressData) =>
-    api.put(`/social-justice/cbucbo-details/${id}/progress`, progressData),
 };
 
 // Entitlements API
@@ -1313,19 +1303,6 @@ export const entitlementsAPI = {
     api.get(`/social-justice/entitlements/id-proof/${idProofType}`),
   getByScheme: (schemeName) =>
     api.get(`/social-justice/entitlements/scheme/${schemeName}`),
-  addEligibleScheme: (id, schemeData) =>
-    api.post(`/social-justice/entitlements/${id}/schemes`, schemeData),
-  updateSchemeStatus: (id, schemeId, status) =>
-    api.put(`/social-justice/entitlements/${id}/schemes/${schemeId}/status`, {
-      status,
-    }),
-  addProgressReport: (id, progressData) =>
-    api.post(`/social-justice/entitlements/${id}/progress`, progressData),
-  updateProgressReport: (id, reportId, progressData) =>
-    api.put(
-      `/social-justice/entitlements/${id}/progress/${reportId}`,
-      progressData
-    ),
 };
 
 // Legal Aid Service API
@@ -1356,16 +1333,6 @@ export const legalAidServiceAPI = {
     api.get(`/social-justice/legal-aid-service/${id}/timeline`),
   generateReport: (params) =>
     api.get("/social-justice/legal-aid-service/report", { params }),
-  addIntervention: (id, interventionData) =>
-    api.post(
-      `/social-justice/legal-aid-service/${id}/interventions`,
-      interventionData
-    ),
-  updateIntervention: (id, stepId, interventionData) =>
-    api.put(
-      `/social-justice/legal-aid-service/${id}/interventions/${stepId}`,
-      interventionData
-    ),
   updateCaseStatus: (id, caseStatus) =>
     api.put(`/social-justice/legal-aid-service/${id}/status`, { caseStatus }),
 };
@@ -1398,33 +1365,6 @@ export const workshopsAwarenessAPI = {
     api.get("/social-justice/workshops-awareness/effectiveness-report", {
       params,
     }),
-  addParticipant: (id, participantData) =>
-    api.post(
-      `/social-justice/workshops-awareness/${id}/participants`,
-      participantData
-    ),
-  updateAttendance: (id, participantId, attendance) =>
-    api.put(
-      `/social-justice/workshops-awareness/${id}/participants/${participantId}/attendance`,
-      { attendance }
-    ),
-  addObjective: (id, objectiveData) =>
-    api.post(
-      `/social-justice/workshops-awareness/${id}/objectives`,
-      objectiveData
-    ),
-  updateObjective: (id, objectiveId, achieved, remarks) =>
-    api.put(
-      `/social-justice/workshops-awareness/${id}/objectives/${objectiveId}`,
-      { achieved, remarks }
-    ),
-  addFollowUpAction: (id, actionData) =>
-    api.post(`/social-justice/workshops-awareness/${id}/follow-up`, actionData),
-  updateFollowUpStatus: (id, actionId, status) =>
-    api.put(
-      `/social-justice/workshops-awareness/${id}/follow-up/${actionId}/status`,
-      { status }
-    ),
 };
 
 // Tracking System API
@@ -1620,133 +1560,25 @@ export const educationReportsAPI = {
 // Health Reports API
 export const healthReportsAPI = {
   // Generate health report with filters
+  // Generate a health report: fetch every page of the category, filter on real model fields.
   generate: async (params) => {
-    const { category, startDate, endDate, ...filters } = params || {};
-
-    try {
-      let data = null;
-
-      switch (category) {
-        case "health-camps":
-          data = await healthCampAPI.getAll({ startDate, endDate, ...filters });
-          break;
-        case "elderly":
-          data = await elderlyAPI.getAll({ startDate, endDate, ...filters });
-          break;
-        case "mother-child":
-          data = await motherChildAPI.getAll({
-            startDate,
-            endDate,
-            ...filters,
-          });
-          break;
-        case "pwd":
-          data = await pwdAPI.getAll({ startDate, endDate, ...filters });
-          break;
-        case "adolescents":
-          data = await adolescentsAPI.getAll({
-            startDate,
-            endDate,
-            ...filters,
-          });
-          break;
-        case "tuberculosis":
-          data = await tuberculosisAPI.getAll({
-            startDate,
-            endDate,
-            ...filters,
-          });
-          break;
-        case "hiv":
-          data = await hivAPI.getAll({ startDate, endDate, ...filters });
-          break;
-        case "leprosy":
-          data = await leprosyAPI.getAll({ startDate, endDate, ...filters });
-          break;
-        case "addiction":
-          data = await addictionAPI.getAll({ startDate, endDate, ...filters });
-          break;
-        case "other-diseases":
-          data = await otherDiseasesAPI.getAll({
-            startDate,
-            endDate,
-            ...filters,
-          });
-          break;
-        default:
-          throw new Error("Unknown category for report generation");
-      }
-
-      // Normalize records (some endpoints may return arrays or objects)
-      // The API returns { data: {...}, success: true, message: "..." }
-      let records = [];
-      if (!data) {
-        records = [];
-      } else if (data.data) {
-        // data.data can be the service response with { data: [], pagination: {} }
-        if (data.data.data && Array.isArray(data.data.data)) {
-          records = data.data.data;
-        } else if (data.data.records) {
-          records = data.data.records;
-        } else if (Array.isArray(data.data)) {
-          records = data.data;
-        } else {
-          records = [];
-        }
-      } else if (Array.isArray(data)) {
-        records = data;
-      } else if (data.records) {
-        records = data.records;
-      } else {
-        records = [];
-      }
-
-      // Build simple summary
-      const totalRecords = records.length;
-      const active = records.filter((r) => r.status === "active").length;
-      const pending = records.filter((r) => r.status === "pending").length;
-      const completed = records.filter((r) => r.status === "completed").length;
-      const completionRate = totalRecords
-        ? Math.round((completed / totalRecords) * 100)
-        : 0;
-
-      // Build basic monthly chart data between startDate and endDate (if provided)
-      const months = [
-        "Jan",
-        "Feb",
-        "Mar",
-        "Apr",
-        "May",
-        "Jun",
-        "Jul",
-        "Aug",
-        "Sep",
-        "Oct",
-        "Nov",
-        "Dec",
-      ];
-      const monthCounts = new Array(12).fill(0);
-      records.forEach((rec) => {
-        const d = new Date(rec.date || rec.createdAt || null);
-        if (!isNaN(d)) monthCounts[d.getMonth()] += 1;
-      });
-
-      const chartData = {
-        labels: months,
-        datasets: [{ label: "Records", data: monthCounts }],
-      };
-
-      return {
-        report: {
-          summary: { totalRecords, active, pending, completed, completionRate },
-          records,
-        },
-        chartData,
-      };
-    } catch (err) {
-      // Re-throw to be handled by caller
-      throw err;
-    }
+    const { category, startDate, endDate, patientName, wardNo, habitation, status } = params || {};
+    const sources = {
+      "health-camps": healthCampAPI,
+      elderly: elderlyAPI,
+      "mother-child": motherChildAPI,
+      pwd: pwdAPI,
+      adolescents: adolescentsAPI,
+      tuberculosis: tuberculosisAPI,
+      hiv: hivAPI,
+      leprosy: leprosyAPI,
+      addiction: addictionAPI,
+      "other-diseases": otherDiseasesAPI,
+    };
+    const source = sources[category];
+    if (!source) throw new Error("Unknown category for report generation");
+    const records = await fetchAllRecords((query) => source.getAll(query));
+    return buildReport(category, records, { startDate, endDate, name: patientName, wardNo, habitation, status });
   },
 
   // Export report as PDF

@@ -57,6 +57,11 @@ const userSchema = new Schema(
     lastLogin: {
       type: Date,
     },
+    // Bumped on password change and sign-out; tokens carrying an older value stop working.
+    tokenVersion: {
+      type: Number,
+      default: 0,
+    },
   },
   { timestamps: true }
 );
@@ -66,6 +71,7 @@ userSchema.pre("save", async function (next) {
     return next();
   }
   this.password = await bcrypt.hash(this.password, 10);
+  if (!this.isNew) this.tokenVersion = (this.tokenVersion || 0) + 1;
   next();
 });
 

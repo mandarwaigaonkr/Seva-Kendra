@@ -1,6 +1,7 @@
 import Entitlements from "../models/entitlements.model.js";
 import { APIError } from "../../../errors/apiError.js";
 import { getPaginationOptions } from "../../../utils/pagination.utils.js";
+import { escapeRegex } from "../../../utils/regex.utils.js";
 
 class EntitlementsService {
   /**
@@ -48,14 +49,16 @@ class EntitlementsService {
       // Apply filters
       if (filters.wardNo) query.wardNo = filters.wardNo;
       if (filters.habitation)
-        query.habitation = new RegExp(filters.habitation, "i");
+        query.habitation = new RegExp(escapeRegex(filters.habitation), "i");
       if (filters.status) query.status = filters.status;
       if (filters.projectResponsible)
-        query.projectResponsible = new RegExp(filters.projectResponsible, "i");
+        query.projectResponsible = new RegExp(escapeRegex(filters.projectResponsible), "i");
       if (filters.entitlementType) {
+        // The ID-proof enum spells it "Aadhar Card"; people type "Aadhaar". Match both.
+        const pattern = new RegExp(escapeRegex(filters.entitlementType).replace(/aadhaa?r/i, "aadhaa?r"), "i");
         query.$or = [
-          { "schemes.eligibleSchemes": new RegExp(filters.entitlementType, "i") },
-          { "idProofAndDomicile.typeOfDocument": new RegExp(filters.entitlementType, "i") }
+          { "schemes.eligibleSchemes": pattern },
+          { "idProofAndDomicile.typeOfDocument": pattern }
         ];
       }
 
@@ -70,7 +73,7 @@ class EntitlementsService {
 
       // Apply search
       if (search) {
-        const searchRegex = new RegExp(search, "i");
+        const searchRegex = new RegExp(escapeRegex(search), "i");
         const searchQuery = {
           $or: [
             { name: searchRegex },
@@ -228,7 +231,7 @@ class EntitlementsService {
   async getEntitlementsByHabitation(habitation) {
     try {
       return await Entitlements.find({
-        habitation: new RegExp(habitation, "i"),
+        habitation: new RegExp(escapeRegex(habitation), "i"),
       })
         .populate("createdBy", "name")
         .sort({ beneficiaryName: 1 });
@@ -399,7 +402,7 @@ class EntitlementsService {
   async getEntitlementsByScheme(schemeName) {
     try {
       const entitlements = await Entitlements.find({
-        "eligibleSchemes.schemeName": new RegExp(schemeName, "i"),
+        "eligibleSchemes.schemeName": new RegExp(escapeRegex(schemeName), "i"),
       }).populate("createdBy", "name");
 
       const summary = {

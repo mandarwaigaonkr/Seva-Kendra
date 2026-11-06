@@ -4,13 +4,17 @@ import dbConnect from "./utils/dbConnection.js";
 import cors from "cors";
 import morgan from "morgan";
 import helmet from "helmet";
-// import xss from "xss-clean";
 import notFound from "./middleware/notFound.js";
 import errorHandler from "./middleware/errorHandler.js";
+import { sanitizeInput } from "./middleware/sanitizeInput.js";
 import indexRouter from "./routers/index.js";
 import { appConfig } from "./config/appConfig.js";
 
 const app = express();
+app.disable("x-powered-by");
+// Parse query strings as flat strings/arrays only, so `?status[$ne]=x` stays the literal key
+// "status[$ne]" instead of becoming a MongoDB operator.
+app.set("query parser", "simple");
 
 const isVercel = Boolean(process.env.VERCEL || process.env.VERCEL_URL);
 
@@ -24,7 +28,9 @@ const whitelist = [
   .map((origin) => origin.trim())
   .filter(Boolean);
 
-app.set("trust proxy", 1);
+// Only behind Vercel's proxy is X-Forwarded-For trustworthy; elsewhere a client could set it
+// and dodge the per-IP sign-in limit.
+if (isVercel) app.set("trust proxy", 1);
 
 const corsOptions = {
   origin(origin, callback) {
@@ -40,8 +46,8 @@ const corsOptions = {
       return;
     }
 
-    // Always allow Vercel subdomains to prevent common deployment issues
-    if (origin.endsWith(".vercel.app")) {
+    // Vercel preview deployments of this project's frontend only (not every *.vercel.app site)
+    if (/^https:\/\/seva-kendra-frontend(-[a-z0-9-]+)?\.vercel\.app$/.test(origin)) {
       callback(null, true);
       return;
     }
@@ -62,13 +68,9 @@ const corsOptions = {
 };
 
 app.use(cors(corsOptions));
-app.use(
-  express.json({
-    type: ["application/json", "text/plain"],
-  })
-);
-// app.use(helmet());
-// app.use(xss());
+app.use(helmet());
+app.use(express.json({ limit: "1mb" }));
+app.use(sanitizeInput);
 app.use(morgan("tiny"));
 
 // Handle preflight requests

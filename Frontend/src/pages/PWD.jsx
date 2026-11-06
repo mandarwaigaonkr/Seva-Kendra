@@ -1,4 +1,6 @@
+import { FormSheet, FormSheetContent, FormSheetDescription, FormSheetFooter, FormSheetHeader, FormSheetTitle } from "@/components/module/FormSheet";
 import React, { useState, useEffect } from "react";
+import { normalizePagination } from "@/components/module/ModuleKit";
 import { toast } from "sonner";
 import {
   Card,
@@ -74,15 +76,23 @@ import {
   Eye,
   Download,
   RefreshCw,
-  Menu,
-  FileSpreadsheet,
 } from "lucide-react";
 import { pwdAPI } from "../services/api";
 import Sidebar from "../components/Sidebar";
 import usePermissions from "../hooks/usePermissions";
 import { getWardOptions } from "../lib/formOptions";
 import GuidelinesCard from "../components/GuidelinesCard";
-import ExcelBulkImportButton from "../components/ExcelBulkImportButton";
+import ExcelImportPanel from "../components/ExcelImportPanel";
+import pwdImportTemplate from "../lib/excelImport/templates/pwd";
+import {
+  ModulePageHeader,
+  StatusBadge,
+  tableState,
+  formatDate,
+  formatWard,
+  toDateInput,
+} from "../components/module/ModuleKit";
+import { FilterBar } from "@/components/module/ModuleKit";
 
 const DISABILITY_OPTIONS = [
   "Visual Impairment",
@@ -173,8 +183,7 @@ const PWD = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [filters, setFilters] = useState({
     gender: "",
-    disabilityType: "",
-    disabilitySeverity: "",
+    typeOfDisability: "",
     wardNo: "",
     habitation: "",
   });
@@ -232,7 +241,7 @@ const PWD = () => {
 
       const response = await pwdAPI.getAll(params);
       setPwd(response.data.pwd);
-      setPagination(response.data.pagination);
+      setPagination(normalizePagination(response.data.pagination));
     } catch (error) {
       toast.error("Failed to fetch PWD records");
       console.error("Error fetching PWD records:", error);
@@ -263,6 +272,9 @@ const PWD = () => {
           : [],
         rehabilitationServices:
           formData.institutionalCare || formData.rehabilitationServices || "",
+        udidCardStatus: formData.udidCardStatus || undefined,
+        employmentStatus: formData.employmentStatus || undefined,
+        pensionStatus: formData.pensionStatus || undefined,
       };
 
       if (selectedRecord) {
@@ -341,7 +353,7 @@ const PWD = () => {
       name: record.name || "",
       uniqueId: record.uniqueId || "",
       gender: record.gender || "",
-      age: record.age || "",
+      age: record.age ?? "",
       contactNo: record.contactNo || "",
       headOfHousehold: record.headOfHousehold || "",
       wardNo: record.wardNo || "",
@@ -354,15 +366,11 @@ const PWD = () => {
         : record.typeOfDisability
         ? [record.typeOfDisability]
         : [],
-      percentageOfDisability: record.percentageOfDisability || "",
+      percentageOfDisability: record.percentageOfDisability ?? "",
       disabilityCertificate: record.disabilityCertificate || "",
-      dateOfReporting: record.dateOfReporting
-        ? new Date(record.dateOfReporting).toISOString().split("T")[0]
-        : "",
+      dateOfReporting: toDateInput(record.dateOfReporting),
       reportedBy: record.reportedBy || "",
-      dateOfAssessment: record.dateOfAssessment
-        ? new Date(record.dateOfAssessment).toISOString().split("T")[0]
-        : "",
+      dateOfAssessment: toDateInput(record.dateOfAssessment),
       assessmentResults: record.assessmentResults || "",
       assistiveDevicesProvided: record.assistiveDevicesProvided || "",
       therapyServices: record.therapyServices || "",
@@ -430,8 +438,7 @@ const PWD = () => {
   const clearFilters = () => {
     setFilters({
       gender: "",
-      disabilityType: "",
-      disabilitySeverity: "",
+      typeOfDisability: "",
       wardNo: "",
       habitation: "",
     });
@@ -443,33 +450,20 @@ const PWD = () => {
       <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
 
       <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Header */}
-        <header className="bg-background shadow-md border-b border-border">
-          <div className="flex items-center justify-between px-6 py-4">
-            <div className="flex items-center space-x-4">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setSidebarOpen(!sidebarOpen)}
-                className="lg:hidden"
-              >
-                <Menu className="h-6 w-6" />
-              </Button>
-              <div className="flex items-center space-x-2">
-                <Accessibility className="h-6 w-6 text-blue-600" />
-                <h1 className="text-2xl font-bold text-foreground">
-                  Persons with Disabilities
-                </h1>
-              </div>
-            </div>
-            {canCreate("health") && (
+        <ModulePageHeader
+          icon={Accessibility}
+          title="Persons with Disabilities"
+          subtitle="Disability type, certification, UDID and support services"
+          onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
+          actions={
+            canCreate("health") && (
               <Button onClick={() => setIsCreateModalOpen(true)}>
                 <Plus className="h-4 w-4 mr-2" />
                 Add PWD Record
               </Button>
-            )}
-          </div>
-        </header>
+            )
+          }
+        />
 
         {/* Main Content */}
         <main className="flex-1 overflow-auto p-6">
@@ -485,14 +479,7 @@ const PWD = () => {
             ]}
           />
           {/* Filters */}
-          <Card className="mb-6">
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <Filter className="h-5 w-5" />
-                <span>Filters</span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
+          <FilterBar>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
                 <div>
                   <Label htmlFor="search">Search</Label>
@@ -518,37 +505,25 @@ const PWD = () => {
                   </Select>
                 </div>
                 <div>
-                  <Label htmlFor="disabilityType">Disability Type</Label>
-                  <Select value={filters.disabilityType} onValueChange={(value) => handleFilterChange("disabilityType", value)}>
-                    <SelectTrigger>
+                  <Label htmlFor="filter-typeOfDisability">Disability Type</Label>
+                  <Select
+                    value={filters.typeOfDisability}
+                    onValueChange={(value) =>
+                      handleFilterChange("typeOfDisability", value)
+                    }
+                  >
+                    <SelectTrigger id="filter-typeOfDisability">
                       <SelectValue placeholder="All Types" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">All Types</SelectItem>
-                      <SelectItem value="Physical">Physical</SelectItem>
-                      <SelectItem value="Visual">Visual</SelectItem>
-                      <SelectItem value="Hearing">Hearing</SelectItem>
-                      <SelectItem value="Speech">Speech</SelectItem>
-                      <SelectItem value="Intellectual">Intellectual</SelectItem>
-                      <SelectItem value="Mental">Mental</SelectItem>
-                      <SelectItem value="Multiple">Multiple</SelectItem>
+                      {DISABILITY_OPTIONS.map((option) => (
+                        <SelectItem key={option} value={option}>
+                          {option}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
-                </div>
-                <div>
-                  {/* <Label htmlFor="disabilitySeverity">Severity</Label>
-                  <Select value={filters.disabilitySeverity} onValueChange={(value) => handleFilterChange("disabilitySeverity", value)}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="All Severities" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Severities</SelectItem>
-                      <SelectItem value="Mild">Mild</SelectItem>
-                      <SelectItem value="Moderate">Moderate</SelectItem>
-                      <SelectItem value="Severe">Severe</SelectItem>
-                      <SelectItem value="Profound">Profound</SelectItem>
-                    </SelectContent>
-                  </Select> */}
                 </div>
                 <div>
                   <Label htmlFor="wardNo">Ward No</Label>
@@ -566,68 +541,15 @@ const PWD = () => {
                   </Button>
                 </div>
               </div>
-            </CardContent>
-          </Card>
+            </FilterBar>
 
-          {/* Bulk Import Card */}
+          {/* Bulk Import */}
           {canCreate("health") && (
-            <Card className="border border-muted bg-card shadow-sm mb-6">
-              <CardContent className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4">
-                <div className="space-y-1">
-                  <h3 className="font-semibold text-foreground flex items-center gap-2">
-                    <FileSpreadsheet className="h-5 w-5 text-green-600" />
-                    Bulk Import PWD Records
-                  </h3>
-                  <p className="text-xs text-muted-foreground">
-                    Download the template, fill it in, and upload it to import records in bulk.
-                  </p>
-                </div>
-                <ExcelBulkImportButton
-                  label="Import Excel"
-                  description=""
-                  templateFields={[
-                    { label: "Household Code", key: "householdCode" },
-                    { label: "Unique ID", key: "uniqueId" },
-                    { label: "Name", key: "name" },
-                    { label: "Gender", key: "gender", options: ["Male", "Female", "Other"] },
-                    { label: "Age", key: "age" },
-                    { label: "Head of Household", key: "headOfHousehold" },
-                    { label: "Contact Number", key: "contactNo" },
-                    { label: "Ward Number", key: "wardNo" },
-                    { label: "Habitation", key: "habitation" },
-                    { label: "Project Responsible", key: "projectResponsible" },
-                    { label: "Date of Reporting", key: "dateOfReporting" },
-                    { label: "Reported By", key: "reportedBy" },
-                    { label: "Disability Type", key: "disabilityType", options: ["Visual Impairment", "Hearing Impairment", "Locomotor Disability", "Intellectual Disability", "Mental Illness", "Multiple Disabilities", "Speech and Language Disability", "Autism Spectrum Disorder", "Cerebral Palsy", "Other"] },
-                    { label: "Disability Certificate", key: "disabilityCertificate", options: ["Yes", "No", "Applied"] },
-                    { label: "UDID Status", key: "udidStatus", options: ["Issued", "Applied", "Not Applied"] },
-                    { label: "Remarks", key: "remarks" },
-                  ]}
-                  sampleRow={{
-                    householdCode: "HH-501",
-                    uniqueId: "PWD-001",
-                    name: "Suresh Roy",
-                    gender: "Male",
-                    age: "35",
-                    headOfHousehold: "Gopal Roy",
-                    contactNo: "9876543210",
-                    wardNo: "7",
-                    habitation: "Khidderpore",
-                    projectResponsible: "Sunita Das",
-                    dateOfReporting: "2024-02-01",
-                    reportedBy: "Field Worker B",
-                    disabilityType: "Locomotor Disability",
-                    disabilityCertificate: "Yes",
-                    udidStatus: "Issued",
-                    remarks: "Wheelchair required",
-                  }}
-                  createRecord={async (payload) => {
-                    await pwdAPI.create(payload);
-                  }}
-                  onImported={fetchPwd}
-                />
-              </CardContent>
-            </Card>
+            <ExcelImportPanel
+              template={pwdImportTemplate}
+              createRecord={pwdAPI.create}
+              onImported={fetchPwd}
+            />
           )}
 
           {/* Records Table */}
@@ -653,7 +575,7 @@ const PWD = () => {
                       <TableHead>Name</TableHead>
                       <TableHead>Age/Gender</TableHead>
                       <TableHead>Disability Type</TableHead>
-                      <TableHead>Severity</TableHead>
+                      <TableHead>Disability %</TableHead>
                       <TableHead>Ward/Habitation</TableHead>
                       <TableHead>Contact</TableHead>
                       <TableHead>Certificate</TableHead>
@@ -661,22 +583,15 @@ const PWD = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {loading ? (
-                      <TableRow>
-                        <TableCell colSpan={8} className="text-center py-4">
-                          <RefreshCw className="h-4 w-4 animate-spin mx-auto" />
-                        </TableCell>
-                      </TableRow>
-                    ) : pwd.length === 0 ? (
-                      <TableRow>
-                        <TableCell
-                          colSpan={8}
-                          className="text-center py-4 text-muted-foreground"
-                        >
-                          No PWD records found
-                        </TableCell>
-                      </TableRow>
-                    ) : (
+                    {tableState({
+                      loading,
+                      count: pwd.length,
+                      colSpan: 8,
+                      filtered:
+                        Boolean(searchTerm) ||
+                        Object.values(filters).some((v) => v && v !== "all"),
+                    })}
+                    {!loading &&
                       pwd.map((record) => (
                         <TableRow key={record._id}>
                           <TableCell className="font-medium">
@@ -698,19 +613,11 @@ const PWD = () => {
                             </Badge>
                           </TableCell>
                           <TableCell>
-                            Ward {record.wardNo}, {record.habitation}
+                            {formatWard(record.wardNo)}, {record.habitation}
                           </TableCell>
                           <TableCell>{record.contactNo}</TableCell>
                           <TableCell>
-                            <Badge
-                              variant={
-                                record.disabilityCertificate
-                                  ? "default"
-                                  : "secondary"
-                              }
-                            >
-                              {record.disabilityCertificate ? "Yes" : "No"}
-                            </Badge>
+                            <StatusBadge value={record.disabilityCertificate} />
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center space-x-2">
@@ -718,6 +625,7 @@ const PWD = () => {
                                 variant="ghost"
                                 size="sm"
                                 onClick={() => handleView(record)}
+                                aria-label="View PWD record"
                               >
                                 <Eye className="h-4 w-4" />
                               </Button>
@@ -726,6 +634,7 @@ const PWD = () => {
                                   variant="ghost"
                                   size="sm"
                                   onClick={() => handleEdit(record)}
+                                  aria-label="Edit PWD record"
                                 >
                                   <Edit className="h-4 w-4" />
                                 </Button>
@@ -733,7 +642,11 @@ const PWD = () => {
                               {canDelete("health") && (
                                 <AlertDialog>
                                   <AlertDialogTrigger asChild>
-                                    <Button variant="ghost" size="sm">
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      aria-label="Delete PWD record"
+                                    >
                                       <Trash2 className="h-4 w-4" />
                                     </Button>
                                   </AlertDialogTrigger>
@@ -763,8 +676,7 @@ const PWD = () => {
                             </div>
                           </TableCell>
                         </TableRow>
-                      ))
-                    )}
+                      ))}
                   </TableBody>
                 </Table>
               </div>
@@ -821,13 +733,13 @@ const PWD = () => {
       </div>
 
       {/* Create Modal */}
-      <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
-        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Add New PWD Record</DialogTitle>
-          </DialogHeader>
+      <FormSheet open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
+        <FormSheetContent>
+          <FormSheetHeader>
+            <FormSheetTitle>Add New PWD Record</FormSheetTitle>
+          </FormSheetHeader>
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="householdCode">Household Code *</Label>
                 <Input
@@ -965,9 +877,9 @@ const PWD = () => {
                   required
                 />
               </div>
-              <div className="md:col-span-3">
+              <div className="sm:col-span-2">
                 <Label htmlFor="typeOfDisability">Disability Type *</Label>
-                <div className="mt-2 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 rounded-md border p-3">
+                <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-3 rounded-md border p-3">
                   {DISABILITY_OPTIONS.map((option) => {
                     const checked = (formData.typeOfDisability || []).includes(option);
                     return (
@@ -993,7 +905,7 @@ const PWD = () => {
                   id="percentageOfDisability"
                   name="percentageOfDisability"
                   type="number"
-                  min="1"
+                  min="0"
                   max="100"
                   value={formData.percentageOfDisability}
                   onChange={handleInputChange}
@@ -1056,7 +968,7 @@ const PWD = () => {
                   onChange={handleInputChange}
                 />
               </div>
-              <div className="md:col-span-2">
+              <div className="sm:col-span-2">
                 <Label htmlFor="assessmentResults">Assessment Results</Label>
                 <Textarea
                   id="assessmentResults"
@@ -1066,7 +978,7 @@ const PWD = () => {
                   placeholder="Details about assessment results"
                 />
               </div>
-              <div className="md:col-span-3">
+              <div className="sm:col-span-2">
                 <Label htmlFor="assistiveDevicesProvided">
                   Assistive Devices Provided
                 </Label>
@@ -1078,7 +990,7 @@ const PWD = () => {
                   placeholder="Details about assistive devices provided"
                 />
               </div>
-              <div className="md:col-span-3">
+              <div className="sm:col-span-2">
                 <Label htmlFor="therapyServices">Therapy Services</Label>
                 <Textarea
                   id="therapyServices"
@@ -1088,7 +1000,7 @@ const PWD = () => {
                   placeholder="Details about therapy services"
                 />
               </div>
-              <div className="md:col-span-3">
+              <div className="sm:col-span-2">
                 <Label htmlFor="institutionalCare">Institutional Care</Label>
                 <Textarea
                   id="institutionalCare"
@@ -1098,7 +1010,7 @@ const PWD = () => {
                   placeholder="Details about institutional care support"
                 />
               </div>
-              <div className="md:col-span-3">
+              <div className="sm:col-span-2">
                 <Label htmlFor="educationalSupport">Educational Support</Label>
                 <Textarea
                   id="educationalSupport"
@@ -1108,7 +1020,7 @@ const PWD = () => {
                   placeholder="Details about educational support provided"
                 />
               </div>
-              <div className="md:col-span-3">
+              <div className="sm:col-span-2">
                 <Label htmlFor="vocationalTraining">Vocational Training</Label>
                 <Textarea
                   id="vocationalTraining"
@@ -1181,7 +1093,7 @@ const PWD = () => {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="md:col-span-3">
+              <div className="sm:col-span-2">
                 <Label htmlFor="beneficiaryOfGovernmentSchemes">
                   Beneficiary of Government Schemes
                 </Label>
@@ -1195,7 +1107,7 @@ const PWD = () => {
                 />
               </div>
             </div>
-            <DialogFooter>
+            <FormSheetFooter>
               <Button
                 type="button"
                 variant="outline"
@@ -1204,19 +1116,19 @@ const PWD = () => {
                 Cancel
               </Button>
               <Button type="submit">Create Record</Button>
-            </DialogFooter>
+            </FormSheetFooter>
           </form>
-        </DialogContent>
-      </Dialog>
+        </FormSheetContent>
+      </FormSheet>
 
       {/* Edit and View modals similar to create */}
-      <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
-        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Edit PWD Record</DialogTitle>
-          </DialogHeader>
+      <FormSheet open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
+        <FormSheetContent>
+          <FormSheetHeader>
+            <FormSheetTitle>Edit PWD Record</FormSheetTitle>
+          </FormSheetHeader>
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="editHouseholdCode">Household Code *</Label>
                 <Input
@@ -1321,25 +1233,6 @@ const PWD = () => {
                 />
               </div>
               <div>
-                <Label htmlFor="edit-udidCardStatus">UDID Card (Available/Status)</Label>
-                <Select
-                  value={formData.udidCardStatus || ""}
-                  onValueChange={(value) =>
-                    setFormData((prev) => ({ ...prev, udidCardStatus: value }))
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select UDID status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Yes">Yes</SelectItem>
-                    <SelectItem value="No">No</SelectItem>
-                    <SelectItem value="Applied">Applied</SelectItem>
-                    <SelectItem value="Not Applicable">Not Applicable</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
                 <Label htmlFor="editProjectResponsible">
                   Project Responsible *
                 </Label>
@@ -1373,9 +1266,9 @@ const PWD = () => {
                   required
                 />
               </div>
-              <div className="md:col-span-3">
+              <div className="sm:col-span-2">
                 <Label htmlFor="editTypeOfDisability">Disability Type *</Label>
-                <div className="mt-2 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 rounded-md border p-3">
+                <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-3 rounded-md border p-3">
                   {DISABILITY_OPTIONS.map((option) => {
                     const checked = (formData.typeOfDisability || []).includes(option);
                     return (
@@ -1401,7 +1294,7 @@ const PWD = () => {
                   id="editPercentageOfDisability"
                   name="percentageOfDisability"
                   type="number"
-                  min="1"
+                  min="0"
                   max="100"
                   value={formData.percentageOfDisability}
                   onChange={handleInputChange}
@@ -1464,7 +1357,7 @@ const PWD = () => {
                   onChange={handleInputChange}
                 />
               </div>
-              <div className="md:col-span-3">
+              <div className="sm:col-span-2">
                 <Label htmlFor="editAssessmentResults">
                   Assessment Results
                 </Label>
@@ -1476,7 +1369,7 @@ const PWD = () => {
                   placeholder="Details about assessment results"
                 />
               </div>
-              <div className="md:col-span-3">
+              <div className="sm:col-span-2">
                 <Label htmlFor="editAssistiveDevicesProvided">
                   Assistive Devices Provided
                 </Label>
@@ -1488,7 +1381,7 @@ const PWD = () => {
                   placeholder="Details about assistive devices provided"
                 />
               </div>
-              <div className="md:col-span-3">
+              <div className="sm:col-span-2">
                 <Label htmlFor="editTherapyServices">Therapy Services</Label>
                 <Textarea
                   id="editTherapyServices"
@@ -1498,7 +1391,7 @@ const PWD = () => {
                   placeholder="Details about therapy services"
                 />
               </div>
-              <div className="md:col-span-3">
+              <div className="sm:col-span-2">
                 <Label htmlFor="editInstitutionalCare">Institutional Care</Label>
                 <Textarea
                   id="editInstitutionalCare"
@@ -1508,7 +1401,7 @@ const PWD = () => {
                   placeholder="Details about institutional care support"
                 />
               </div>
-              <div className="md:col-span-3">
+              <div className="sm:col-span-2">
                 <Label htmlFor="editEducationalSupport">
                   Educational Support
                 </Label>
@@ -1520,7 +1413,7 @@ const PWD = () => {
                   placeholder="Details about educational support provided"
                 />
               </div>
-              <div className="md:col-span-3">
+              <div className="sm:col-span-2">
                 <Label htmlFor="editVocationalTraining">
                   Vocational Training
                 </Label>
@@ -1595,7 +1488,7 @@ const PWD = () => {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="md:col-span-3">
+              <div className="sm:col-span-2">
                 <Label htmlFor="editBeneficiaryOfGovernmentSchemes">
                   Beneficiary of Government Schemes
                 </Label>
@@ -1609,15 +1502,15 @@ const PWD = () => {
                 />
               </div>
             </div>
-            <DialogFooter>
+            <FormSheetFooter>
               <Button type="button" variant="outline" onClick={resetForm}>
                 Cancel
               </Button>
               <Button type="submit">Update Record</Button>
-            </DialogFooter>
+            </FormSheetFooter>
           </form>
-        </DialogContent>
-      </Dialog>
+        </FormSheetContent>
+      </FormSheet>
 
       <Dialog open={isViewModalOpen} onOpenChange={setIsViewModalOpen}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
@@ -1661,7 +1554,7 @@ const PWD = () => {
                   </div>
                   <div>
                     <Label className="font-semibold">Ward No</Label>
-                    <p>{selectedRecord.wardNo}</p>
+                    <p>{formatWard(selectedRecord.wardNo)}</p>
                   </div>
                   <div>
                     <Label className="font-semibold">Habitation</Label>
@@ -1705,15 +1598,9 @@ const PWD = () => {
                     <Label className="font-semibold">
                       Disability Certificate
                     </Label>
-                    <Badge
-                      variant={
-                        selectedRecord.disabilityCertificate === "Available"
-                          ? "default"
-                          : "secondary"
-                      }
-                    >
-                      {selectedRecord.disabilityCertificate}
-                    </Badge>
+                    <div>
+                      <StatusBadge value={selectedRecord.disabilityCertificate} />
+                    </div>
                   </div>
                   <div>
                     <Label className="font-semibold">UDID Card Status</Label>
@@ -1730,11 +1617,7 @@ const PWD = () => {
                   <div>
                     <Label className="font-semibold">Date of Reporting</Label>
                     <p>
-                      {selectedRecord.dateOfReporting
-                        ? new Date(
-                            selectedRecord.dateOfReporting
-                          ).toLocaleDateString()
-                        : "N/A"}
+                      {formatDate(selectedRecord.dateOfReporting, "N/A")}
                     </p>
                   </div>
                   <div>
@@ -1744,11 +1627,7 @@ const PWD = () => {
                   <div>
                     <Label className="font-semibold">Date of Assessment</Label>
                     <p>
-                      {selectedRecord.dateOfAssessment
-                        ? new Date(
-                            selectedRecord.dateOfAssessment
-                          ).toLocaleDateString()
-                        : "N/A"}
+                      {formatDate(selectedRecord.dateOfAssessment, "N/A")}
                     </p>
                   </div>
                   <div className="md:col-span-2">

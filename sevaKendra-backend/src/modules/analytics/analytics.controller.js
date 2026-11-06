@@ -17,7 +17,7 @@ class AnalyticsController {
       console.error("Error getting dashboard overview:", error);
       res.status(500).json({
         success: false,
-        message: error.message || "Failed to fetch dashboard overview"
+        message: "Failed to fetch dashboard overview"
       });
     }
   }
@@ -38,7 +38,7 @@ class AnalyticsController {
       console.error("Error getting monthly trends:", error);
       res.status(500).json({
         success: false,
-        message: error.message || "Failed to fetch monthly trends"
+        message: "Failed to fetch monthly trends"
       });
     }
   }
@@ -58,7 +58,7 @@ class AnalyticsController {
       console.error("Error getting gender distribution:", error);
       res.status(500).json({
         success: false,
-        message: error.message || "Failed to fetch gender distribution"
+        message: "Failed to fetch gender distribution"
       });
     }
   }
@@ -78,7 +78,7 @@ class AnalyticsController {
       console.error("Error getting age distribution:", error);
       res.status(500).json({
         success: false,
-        message: error.message || "Failed to fetch age distribution"
+        message: "Failed to fetch age distribution"
       });
     }
   }
@@ -98,7 +98,7 @@ class AnalyticsController {
       console.error("Error getting module distribution:", error);
       res.status(500).json({
         success: false,
-        message: error.message || "Failed to fetch module distribution"
+        message: "Failed to fetch module distribution"
       });
     }
   }
@@ -118,7 +118,7 @@ class AnalyticsController {
       console.error("Error getting status distribution:", error);
       res.status(500).json({
         success: false,
-        message: error.message || "Failed to fetch status distribution"
+        message: "Failed to fetch status distribution"
       });
     }
   }
@@ -128,7 +128,7 @@ class AnalyticsController {
    */
   async getRecentActivities(req, res) {
     try {
-      const limit = parseInt(req.query.limit) || 10;
+      const limit = Math.min(50, Math.max(1, parseInt(req.query.limit, 10) || 10));
       const activities = await analyticsService.getRecentActivities(limit);
 
       res.status(200).json({
@@ -141,7 +141,7 @@ class AnalyticsController {
       console.error("Error getting recent activities:", error);
       res.status(500).json({
         success: false,
-        message: error.message || "Failed to fetch recent activities"
+        message: "Failed to fetch recent activities"
       });
     }
   }
@@ -161,7 +161,7 @@ class AnalyticsController {
       console.error("Error getting quick insights:", error);
       res.status(500).json({
         success: false,
-        message: error.message || "Failed to fetch quick insights"
+        message: "Failed to fetch quick insights"
       });
     }
   }
@@ -182,7 +182,7 @@ class AnalyticsController {
       console.error("Error getting complete dashboard:", error);
       res.status(500).json({
         success: false,
-        message: error.message || "Failed to fetch dashboard data"
+        message: "Failed to fetch dashboard data"
       });
     }
   }

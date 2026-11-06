@@ -1,4 +1,6 @@
+import { FormSheet, FormSheetContent, FormSheetDescription, FormSheetFooter, FormSheetHeader, FormSheetTitle } from "@/components/module/FormSheet";
 import React, { useState, useEffect } from "react";
+import { normalizePagination } from "@/components/module/ModuleKit";
 import { toast } from "sonner";
 import {
   Card,
@@ -32,7 +34,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import {
   AlertDialog,
@@ -46,13 +47,14 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Plus, Search, Edit, Trash2, Eye, Menu, FileSpreadsheet } from "lucide-react";
+import { Plus, Search, Edit, Trash2, Eye, UserCheck } from "lucide-react";
 import { groupLeaderAPI } from "../services/api";
 import Sidebar from "../components/Sidebar";
 import usePermissions from "../hooks/usePermissions";
 import GuidelinesCard from "../components/GuidelinesCard";
-import ExcelBulkImportButton from "../components/ExcelBulkImportButton";
+import ExcelImportPanel from "../components/ExcelImportPanel";
+import groupLeaderImportTemplate from "../lib/excelImport/templates/groupLeader";
+import { ModulePageHeader, StatusBadge, tableState } from "../components/module/ModuleKit";
 
 const GroupLeaders = () => {
   const { canCreate, canEdit, canDelete, canExport } = usePermissions();
@@ -78,7 +80,7 @@ const GroupLeaders = () => {
     phoneNumber: "",
     experienceYears: "",
     experienceDomain: "",
-    qualifications: "",
+    qualifications: "Other",
     status: "Active",
   });
   const [stats, setStats] = useState({ total: 0, active: 0, inactive: 0, onLeave: 0 });
@@ -118,7 +120,7 @@ const GroupLeaders = () => {
 
       const response = await groupLeaderAPI.getAll(params);
       setGroupLeaders(response.data.data);
-      setPagination(response.data.pagination);
+      setPagination(normalizePagination(response.data.pagination));
     } catch (error) {
       toast.error("Failed to fetch group leaders");
       console.error("Error fetching group leaders:", error);
@@ -163,7 +165,7 @@ const GroupLeaders = () => {
       const submitData = {
         ...formData,
         experience: {
-          years: parseInt(formData.experienceYears) || 0,
+          years: Number(formData.experienceYears) || 0,
           domain: formData.experienceDomain || "",
         },
       };
@@ -266,16 +268,26 @@ const GroupLeaders = () => {
 
       {/* Main Content */}
       <div className="flex-1 overflow-auto">
-        {/* Header */}
-        <div className="sticky top-0 z-10 flex items-center justify-between p-6 bg-background shadow-sm border-b lg:border-b-0 lg:justify-start lg:gap-4">
-          <button
-            onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="p-2 text-muted-foreground hover:bg-secondary rounded-lg lg:hidden"
-          >
-            <Menu className="h-6 w-6" />
-          </button>
-          <h1 className="text-2xl font-bold text-foreground">Group Leaders</h1>
-        </div>
+        <ModulePageHeader
+          icon={UserCheck}
+          title="Group Leaders"
+          subtitle="Community leaders who run study center groups"
+          onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
+          actions={
+            canCreate("education") && (
+              <Button
+                onClick={() => {
+                  resetForm();
+                  setIsCreateModalOpen(true);
+                }}
+                className="gap-2"
+              >
+                <Plus className="h-4 w-4" />
+                Add Group Leader
+              </Button>
+            )
+          }
+        />
 
         {/* Content Area */}
         <div className="p-6 space-y-6">
@@ -308,27 +320,21 @@ const GroupLeaders = () => {
               </div>
             </div>
             {canCreate("education") && (
-              <Dialog
+              <FormSheet
                 open={isCreateModalOpen}
                 onOpenChange={setIsCreateModalOpen}
               >
-                <DialogTrigger asChild>
-                  <Button onClick={() => resetForm()} className="gap-2">
-                    <Plus className="h-4 w-4" />
-                    Add Group Leader
-                  </Button>
-                </DialogTrigger>
-              <DialogContent className="max-w-2xl max-h-screen overflow-y-auto">
-                <DialogHeader>
-                  <DialogTitle>Add New Group Leader</DialogTitle>
-                  <DialogDescription>
+              <FormSheetContent>
+                <FormSheetHeader>
+                  <FormSheetTitle>Add New Group Leader</FormSheetTitle>
+                  <FormSheetDescription>
                     Enter group leader details to add a new group leader to the
                     system.
-                  </DialogDescription>
-                </DialogHeader>
+                  </FormSheetDescription>
+                </FormSheetHeader>
 
                 <form onSubmit={handleSubmit} className="space-y-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <Label htmlFor="leaderId">Leader ID</Label>
                       <Input
@@ -390,6 +396,10 @@ const GroupLeaders = () => {
                       <Label htmlFor="phoneNumber">Phone Number *</Label>
                       <Input
                         id="phoneNumber"
+                        type="tel"
+                        inputMode="numeric"
+                        pattern="[6-9][0-9]{9}"
+                        title="10-digit mobile number starting with 6-9"
                         value={formData.phoneNumber}
                         onChange={(e) =>
                           setFormData({
@@ -481,7 +491,7 @@ const GroupLeaders = () => {
                     </Select>
                   </div>
 
-                  <DialogFooter>
+                  <FormSheetFooter>
                     <Button
                       type="button"
                       variant="outline"
@@ -490,58 +500,23 @@ const GroupLeaders = () => {
                       Cancel
                     </Button>
                     <Button type="submit">Add Group Leader</Button>
-                  </DialogFooter>
+                  </FormSheetFooter>
                 </form>
-              </DialogContent>
-            </Dialog>
+              </FormSheetContent>
+            </FormSheet>
             )}
           </div>
 
-          {/* Bulk Import Card */}
+          {/* Bulk Import */}
           {canCreate("education") && (
-            <Card className="border border-muted bg-card shadow-sm mb-6">
-              <CardContent className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4">
-                <div className="space-y-1">
-                  <h3 className="font-semibold text-foreground flex items-center gap-2">
-                    <FileSpreadsheet className="h-5 w-5 text-green-600" />
-                    Bulk Import Group Leaders
-                  </h3>
-                  <p className="text-xs text-muted-foreground">
-                    Download the template, fill it in, and upload it to import records in bulk.
-                  </p>
-                </div>
-                <ExcelBulkImportButton
-                  label="Import Excel"
-                  description=""
-                  templateFields={[
-                    { label: "Leader ID", key: "leaderId" },
-                    { label: "First Name", key: "firstName" },
-                    { label: "Last Name", key: "lastName" },
-                    { label: "Email", key: "email" },
-                    { label: "Phone Number", key: "phoneNumber" },
-                    { label: "Years of Experience", key: "experienceYears" },
-                    { label: "Domain of Experience", key: "experienceDomain" },
-                    { label: "Qualification", key: "qualifications", options: ["Illiterate", "Neo-literate", "Primary", "Secondary", "Higher Secondary", "Graduate", "Post-Graduate", "Other"] },
-                    { label: "Status", key: "status", options: ["Active", "Inactive", "On Leave"] },
-                  ]}
-                  sampleRow={{
-                    leaderId: "LDR-001",
-                    firstName: "Sujata",
-                    lastName: "Roy",
-                    email: "sujata.roy@example.com",
-                    phoneNumber: "9876543210",
-                    experienceYears: "4",
-                    experienceDomain: "Community Organizing",
-                    qualifications: "Graduate",
-                    status: "Active",
-                  }}
-                  createRecord={async (payload) => {
-                    await groupLeaderAPI.create(payload);
-                  }}
-                  onImported={fetchGroupLeaders}
-                />
-              </CardContent>
-            </Card>
+            <ExcelImportPanel
+              template={groupLeaderImportTemplate}
+              createRecord={groupLeaderAPI.create}
+              onImported={() => {
+                fetchGroupLeaders();
+                fetchStats();
+              }}
+            />
           )}
 
           {/* Group Leaders Table */}
@@ -553,117 +528,104 @@ const GroupLeaders = () => {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {loading ? (
-                <div className="space-y-4">
-                  {[...Array(5)].map((_, i) => (
-                    <Skeleton key={i} className="h-12 w-full" />
-                  ))}
-                </div>
-              ) : groupLeaders.length === 0 ? (
-                <div className="text-center py-8">
-                  <p className="text-muted-foreground">No group leaders found</p>
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Leader ID</TableHead>
-                        <TableHead>Name</TableHead>
-                        <TableHead>Email</TableHead>
-                        <TableHead>Phone</TableHead>
-                        <TableHead>Experience</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead>Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {groupLeaders.map((leader) => (
-                        <TableRow key={leader._id}>
-                          <TableCell className="font-medium">
-                            {leader.leaderId}
-                          </TableCell>
-                          <TableCell>
-                            {leader.firstName} {leader.lastName}
-                          </TableCell>
-                          <TableCell className="text-sm text-muted-foreground">
-                            {leader.email}
-                          </TableCell>
-                          <TableCell>{leader.phoneNumber}</TableCell>
-                          <TableCell>{getExperienceDisplay(leader)}</TableCell>
-                          <TableCell>
-                            <Badge
-                              variant={
-                                leader.status === "Active"
-                                  ? "default"
-                                  : leader.status === "Inactive"
-                                  ? "destructive"
-                                  : "secondary"
-                              }
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Leader ID</TableHead>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Email</TableHead>
+                      <TableHead>Phone</TableHead>
+                      <TableHead>Experience</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {tableState({
+                      loading,
+                      count: groupLeaders.length,
+                      colSpan: 7,
+                      filtered: Boolean(searchTerm),
+                    })}
+                    {!loading && groupLeaders.map((leader) => (
+                      <TableRow key={leader._id}>
+                        <TableCell className="font-medium">
+                          {leader.leaderId}
+                        </TableCell>
+                        <TableCell>
+                          {leader.firstName} {leader.lastName}
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {leader.email}
+                        </TableCell>
+                        <TableCell>{leader.phoneNumber}</TableCell>
+                        <TableCell>{getExperienceDisplay(leader)}</TableCell>
+                        <TableCell>
+                          <StatusBadge value={leader.status} />
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => openViewModal(leader)}
+                              className="p-1 hover:bg-secondary rounded"
+                              title="View"
+                              aria-label="View group leader"
                             >
-                              {leader.status}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex gap-2">
+                              <Eye className="h-4 w-4" />
+                            </button>
+                            {canEdit("education") && (
                               <button
-                                onClick={() => openViewModal(leader)}
+                                onClick={() => openEditModal(leader)}
                                 className="p-1 hover:bg-secondary rounded"
-                                title="View"
+                                title="Edit"
+                                aria-label="Edit group leader"
                               >
-                                <Eye className="h-4 w-4 text-blue-600" />
+                                <Edit className="h-4 w-4" />
                               </button>
-                              {canEdit("education") && (
-                                <button
-                                  onClick={() => openEditModal(leader)}
-                                  className="p-1 hover:bg-secondary rounded"
-                                  title="Edit"
-                                >
-                                  <Edit className="h-4 w-4 text-green-600" />
-                                </button>
-                              )}
-                              {canDelete("education") && (
-                                <AlertDialog>
-                                  <AlertDialogTrigger asChild>
-                                    <button
-                                      className="p-1 hover:bg-secondary rounded"
-                                      title="Delete"
+                            )}
+                            {canDelete("education") && (
+                              <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                  <button
+                                    className="p-1 hover:bg-secondary rounded"
+                                    title="Delete"
+                                    aria-label="Delete group leader"
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle>
+                                      Delete Group Leader
+                                    </AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                      Are you sure you want to delete this group
+                                      leader? This action cannot be undone.
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel>
+                                      Cancel
+                                    </AlertDialogCancel>
+                                    <AlertDialogAction
+                                      onClick={() => handleDelete(leader._id)}
+                                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                                     >
-                                      <Trash2 className="h-4 w-4 text-red-600" />
-                                    </button>
-                                  </AlertDialogTrigger>
-                                  <AlertDialogContent>
-                                    <AlertDialogHeader>
-                                      <AlertDialogTitle>
-                                        Delete Group Leader
-                                      </AlertDialogTitle>
-                                      <AlertDialogDescription>
-                                        Are you sure you want to delete this group
-                                        leader? This action cannot be undone.
-                                      </AlertDialogDescription>
-                                    </AlertDialogHeader>
-                                    <AlertDialogFooter>
-                                      <AlertDialogCancel>
-                                        Cancel
-                                      </AlertDialogCancel>
-                                      <AlertDialogAction
-                                        onClick={() => handleDelete(leader._id)}
-                                        className="bg-red-600 hover:bg-red-700"
-                                      >
-                                        Delete
-                                      </AlertDialogAction>
-                                    </AlertDialogFooter>
-                                  </AlertDialogContent>
-                                </AlertDialog>
-                              )}
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              )}
+                                      Delete
+                                    </AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
+                            )}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
 
               {/* Pagination */}
               {pagination.pages > 1 && (
@@ -706,17 +668,17 @@ const GroupLeaders = () => {
       </div>
 
       {/* Edit Modal */}
-      <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
-        <DialogContent className="max-w-2xl max-h-screen overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Edit Group Leader</DialogTitle>
-            <DialogDescription>
+      <FormSheet open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
+        <FormSheetContent>
+          <FormSheetHeader>
+            <FormSheetTitle>Edit Group Leader</FormSheetTitle>
+            <FormSheetDescription>
               Update group leader information.
-            </DialogDescription>
-          </DialogHeader>
+            </FormSheetDescription>
+          </FormSheetHeader>
 
           <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="editLeaderId">Leader ID</Label>
                 <Input
@@ -775,9 +737,14 @@ const GroupLeaders = () => {
                 />
               </div>
               <div>
-                <Label htmlFor="editPhoneNumber">Phone Number</Label>
+                <Label htmlFor="editPhoneNumber">Phone Number *</Label>
                 <Input
                   id="editPhoneNumber"
+                  type="tel"
+                  inputMode="numeric"
+                  pattern="[6-9][0-9]{9}"
+                  title="10-digit mobile number starting with 6-9"
+                  required
                   value={formData.phoneNumber}
                   onChange={(e) =>
                     setFormData({
@@ -867,7 +834,7 @@ const GroupLeaders = () => {
               </Select>
             </div>
 
-            <DialogFooter>
+            <FormSheetFooter>
               <Button
                 type="button"
                 variant="outline"
@@ -876,10 +843,10 @@ const GroupLeaders = () => {
                 Cancel
               </Button>
               <Button type="submit">Update Group Leader</Button>
-            </DialogFooter>
+            </FormSheetFooter>
           </form>
-        </DialogContent>
-      </Dialog>
+        </FormSheetContent>
+      </FormSheet>
 
       {/* View Modal */}
       <Dialog open={isViewModalOpen} onOpenChange={setIsViewModalOpen}>
@@ -919,17 +886,7 @@ const GroupLeaders = () => {
                 </div>
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">Status</p>
-                  <Badge
-                    variant={
-                      selectedLeader.status === "Active"
-                        ? "default"
-                        : selectedLeader.status === "Inactive"
-                        ? "destructive"
-                        : "secondary"
-                    }
-                  >
-                    {selectedLeader.status}
-                  </Badge>
+                  <StatusBadge value={selectedLeader.status} />
                 </div>
                 <div className="col-span-2">
                   <p className="text-sm font-medium text-muted-foreground">

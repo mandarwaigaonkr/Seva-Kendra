@@ -1,6 +1,7 @@
 import GroupLeader from "../models/groupLeader.model.js";
 import { APIError } from "../../../errors/apiError.js";
 import { getPaginationOptions } from "../../../utils/pagination.utils.js";
+import { escapeRegex } from "../../../utils/regex.utils.js";
 
 class GroupLeaderService {
   // Get all group leaders with pagination, search, and filters
@@ -19,10 +20,10 @@ class GroupLeaderService {
     // Search functionality
     if (search) {
       filter.$or = [
-        { firstName: { $regex: search, $options: "i" } },
-        { lastName: { $regex: search, $options: "i" } },
-        { email: { $regex: search, $options: "i" } },
-        { phoneNumber: { $regex: search, $options: "i" } },
+        { firstName: { $regex: escapeRegex(search), $options: "i" } },
+        { lastName: { $regex: escapeRegex(search), $options: "i" } },
+        { email: { $regex: escapeRegex(search), $options: "i" } },
+        { phoneNumber: { $regex: escapeRegex(search), $options: "i" } },
       ];
     }
 
@@ -31,8 +32,9 @@ class GroupLeaderService {
       filter.status = status;
     }
 
-    const { skip, limitNum } = getPaginationOptions(page, limit);
-    const sortOptions = { [sortBy]: sortOrder === "desc" ? -1 : 1 };
+    const { skip, limitNum, page: pageNum } = getPaginationOptions(page, limit);
+    const sortField = /^[A-Za-z_][\w.]{0,60}$/.test(String(sortBy)) ? String(sortBy) : "createdAt";
+    const sortOptions = { [sortField]: sortOrder === "asc" ? 1 : -1 };
 
     const [groupLeaders, total] = await Promise.all([
       GroupLeader.find(filter)
@@ -49,10 +51,10 @@ class GroupLeaderService {
     return {
       data: groupLeaders,
       pagination: {
-        page: parseInt(page),
-        limit: parseInt(limit),
+        page: pageNum,
+        limit: limitNum,
         total,
-        pages: Math.ceil(total / limit),
+        pages: Math.ceil(total / limitNum),
       },
     };
   }

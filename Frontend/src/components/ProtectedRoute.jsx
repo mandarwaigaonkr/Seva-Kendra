@@ -7,8 +7,8 @@ const ProtectedRoute = ({ children }) => {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100">
-        <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin shadow-lg"></div>
+      <div className="min-h-screen flex items-center justify-center bg-background" role="status">
+        <div className="h-6 w-6 rounded-full border-2 border-primary border-t-transparent animate-spin motion-reduce:animate-none" />
       </div>
     );
   }

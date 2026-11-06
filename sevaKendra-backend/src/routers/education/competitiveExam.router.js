@@ -2,43 +2,44 @@ import { Router } from "express";
 const router = Router();
 import competitiveExamController from "../../modules/education/controllers/competitiveExam.controller.js";
 import { verifyTokenExists } from "../../middleware/authMiddleware.js";
-import { createAutoFollowUp } from "../../middleware/autoTracking.middleware.js";
+import { checkPermission } from "../../middleware/permissionMiddleware.js";
+import { createAutoFollowUp, closeFollowUpsOnDelete } from "../../middleware/autoTracking.middleware.js";
 
 // Routes
 router.get(
   "/",
-  verifyTokenExists,
+  verifyTokenExists, checkPermission("education", "view"),
   competitiveExamController.getAllCompetitiveExams
 );
 router.get(
   "/stats",
-  verifyTokenExists,
+  verifyTokenExists, checkPermission("education", "view"),
   competitiveExamController.getCompetitiveExamsStats
 );
 router.get(
   "/filter-options",
-  verifyTokenExists,
+  verifyTokenExists, checkPermission("education", "view"),
   competitiveExamController.getFilterOptions
 );
 router.get(
   "/:id",
-  verifyTokenExists,
+  verifyTokenExists, checkPermission("education", "view"),
   competitiveExamController.getCompetitiveExamById
 );
 router.post(
   "/",
-  verifyTokenExists,
+  verifyTokenExists, checkPermission("education", "create"),
   createAutoFollowUp("CompetitiveExams"),
   competitiveExamController.createCompetitiveExam
 );
 router.put(
   "/:id",
-  verifyTokenExists,
+  verifyTokenExists, checkPermission("education", "edit"),
   competitiveExamController.updateCompetitiveExam
 );
 router.delete(
   "/:id",
-  verifyTokenExists,
+  verifyTokenExists, checkPermission("education", "delete"), closeFollowUpsOnDelete("CompetitiveExams"),
   competitiveExamController.deleteCompetitiveExam
 );
 

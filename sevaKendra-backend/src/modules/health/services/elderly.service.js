@@ -1,5 +1,6 @@
 import Elderly from "../models/elderly.model.js";
 import { getPaginationOptions } from "../../../utils/pagination.utils.js";
+import { escapeRegex } from "../../../utils/regex.utils.js";
 
 /**
  * Create a new elderly record
@@ -43,12 +44,12 @@ export const getAllElderly = async (options = {}) => {
 
     if (search) {
       filter.$or = [
-        { name: { $regex: search, $options: "i" } },
-        { householdCode: { $regex: search, $options: "i" } },
-        { uniqueId: { $regex: search, $options: "i" } },
-        { headOfHousehold: { $regex: search, $options: "i" } },
-        { habitation: { $regex: search, $options: "i" } },
-        { projectResponsible: { $regex: search, $options: "i" } },
+        { name: { $regex: escapeRegex(search), $options: "i" } },
+        { householdCode: { $regex: escapeRegex(search), $options: "i" } },
+        { uniqueId: { $regex: escapeRegex(search), $options: "i" } },
+        { headOfHousehold: { $regex: escapeRegex(search), $options: "i" } },
+        { habitation: { $regex: escapeRegex(search), $options: "i" } },
+        { projectResponsible: { $regex: escapeRegex(search), $options: "i" } },
       ];
     }
 
@@ -61,7 +62,7 @@ export const getAllElderly = async (options = {}) => {
     }
 
     if (habitation && habitation !== "all") {
-      filter.habitation = { $regex: habitation, $options: "i" };
+      filter.habitation = { $regex: escapeRegex(habitation), $options: "i" };
     }
 
     if (statusOfBankAccount && statusOfBankAccount !== "all") {

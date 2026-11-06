@@ -53,8 +53,6 @@ const AddFollowUpButton = ({
   const statuses = [
     "Pending",
     "In Progress",
-    "Completed",
-    "Cancelled",
     "On Hold",
   ];
 

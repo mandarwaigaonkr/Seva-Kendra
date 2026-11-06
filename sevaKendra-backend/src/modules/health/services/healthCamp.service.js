@@ -1,5 +1,6 @@
 import HealthCamp from "../models/healthCamp.model.js";
 import { getPaginationOptions } from "../../../utils/pagination.utils.js";
+import { escapeRegex } from "../../../utils/regex.utils.js";
 
 /**
  * Create a new health camp
@@ -46,17 +47,17 @@ export const getAllHealthCamps = async (options = {}) => {
 
     if (search) {
       filter.$or = [
-        { targetGroup: { $regex: search, $options: "i" } },
-        { organiser: { $regex: search, $options: "i" } },
-        { habitation: { $regex: search, $options: "i" } },
-        { village: { $regex: search, $options: "i" } },
-        { projectResponsible: { $regex: search, $options: "i" } },
-        { majorFindings: { $regex: search, $options: "i" } },
+        { targetGroup: { $regex: escapeRegex(search), $options: "i" } },
+        { organiser: { $regex: escapeRegex(search), $options: "i" } },
+        { habitation: { $regex: escapeRegex(search), $options: "i" } },
+        { village: { $regex: escapeRegex(search), $options: "i" } },
+        { projectResponsible: { $regex: escapeRegex(search), $options: "i" } },
+        { majorFindings: { $regex: escapeRegex(search), $options: "i" } },
       ];
     }
 
     if (targetGroup && targetGroup !== "all") {
-      filter.targetGroup = { $regex: targetGroup, $options: "i" };
+      filter.targetGroup = { $regex: escapeRegex(targetGroup), $options: "i" };
     }
 
     if (medicineType && medicineType !== "all") {
@@ -64,7 +65,7 @@ export const getAllHealthCamps = async (options = {}) => {
     }
 
     if (specialisation && specialisation !== "all") {
-      filter.specialisation = { $regex: specialisation, $options: "i" };
+      filter.specialisation = { $regex: escapeRegex(specialisation), $options: "i" };
     }
 
     if (wardNo && wardNo !== "all") {
@@ -72,11 +73,11 @@ export const getAllHealthCamps = async (options = {}) => {
     }
 
     if (habitation && habitation !== "all") {
-      filter.habitation = { $regex: habitation, $options: "i" };
+      filter.habitation = { $regex: escapeRegex(habitation), $options: "i" };
     }
 
     if (village && village !== "all") {
-      filter.village = { $regex: village, $options: "i" };
+      filter.village = { $regex: escapeRegex(village), $options: "i" };
     }
 
     if (typeOfHealthCamp && typeOfHealthCamp !== "all") {

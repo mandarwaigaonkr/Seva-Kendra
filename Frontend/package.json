@@ -58,5 +58,8 @@
     "tailwindcss": "^3.3.3",
     "tailwindcss-animate": "^1.0.7",
     "vite": "^4.4.5"
+  },
+  "allowScripts": {
+    "esbuild@0.18.20": true
   }
 }

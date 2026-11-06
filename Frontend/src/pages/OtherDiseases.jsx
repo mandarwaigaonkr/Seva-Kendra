@@ -1,4 +1,7 @@
+import { toApiPayload } from "@/components/module/ModuleKit";
+import { FormSheet, FormSheetContent, FormSheetDescription, FormSheetFooter, FormSheetHeader, FormSheetTitle } from "@/components/module/FormSheet";
 import React, { useState, useEffect } from "react";
+import { FilterBar } from "@/components/module/ModuleKit";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -47,14 +50,32 @@ import {
   Trash2,
   Eye,
   RefreshCw,
-  Menu,
-  FileSpreadsheet,
 } from "lucide-react";
 import { otherDiseasesAPI } from "../services/api";
 import Sidebar from "../components/Sidebar";
 import usePermissions from "../hooks/usePermissions";
 import GuidelinesCard from "../components/GuidelinesCard";
-import ExcelBulkImportButton from "../components/ExcelBulkImportButton";
+import ExcelImportPanel from "../components/ExcelImportPanel";
+import otherDiseasesImportTemplate from "../lib/excelImport/templates/otherDiseases";
+import { getWardOptions } from "../lib/formOptions";
+import {
+  ModulePageHeader,
+  tableState,
+  StatusBadge,
+  formatWard,
+  formatDate,
+  toDateInput,
+} from "../components/module/ModuleKit";
+
+const WARD_OPTIONS = getWardOptions();
+const OVERALL_STATUS_OPTIONS = [
+  "Active",
+  "Under Treatment",
+  "Recovered",
+  "Lost to Follow-up",
+  "Died",
+  "Unknown",
+];
 
 const OtherDiseases = () => {
   const { canCreate, canEdit, canDelete, canExport } = usePermissions();
@@ -130,20 +151,17 @@ const OtherDiseases = () => {
     e.preventDefault();
     try {
       if (selectedRecord) {
-        await otherDiseasesAPI.update(selectedRecord._id, formData);
+        await otherDiseasesAPI.update(selectedRecord._id, toApiPayload(formData, true));
         toast.success("Other diseases record updated successfully");
         setIsEditModalOpen(false);
       } else {
-        await otherDiseasesAPI.create(formData);
+        await otherDiseasesAPI.create(toApiPayload(formData));
         toast.success("Other diseases record created successfully");
         setIsCreateModalOpen(false);
       }
       fetchRecords();
       resetForm();
     } catch (error) {
-      toast.error(
-        selectedRecord ? "Failed to update record" : "Failed to create record"
-      );
       console.error("Error submitting form:", error);
     }
   };
@@ -195,20 +213,14 @@ const OtherDiseases = () => {
       wardNo: record.wardNo || "",
       habitation: record.habitation || "",
       projectResponsible: record.projectResponsible || "",
-      dateOfReporting: record.dateOfReporting
-        ? new Date(record.dateOfReporting).toISOString().split("T")[0]
-        : "",
+      dateOfReporting: toDateInput(record.dateOfReporting),
       reportedBy: record.reportedBy || "",
       natureOfIssue: record.natureOfIssue || "",
-      dateOfMedicalScreening: record.dateOfMedicalScreening
-        ? new Date(record.dateOfMedicalScreening).toISOString().split("T")[0]
-        : "",
+      dateOfMedicalScreening: toDateInput(record.dateOfMedicalScreening),
       screeningResults: record.screeningResults || "",
       individualCarePlan: record.individualCarePlan || "",
       nameOfInstitution: record.nameOfInstitution || "",
-      dateOfAdmission: record.dateOfAdmission
-        ? new Date(record.dateOfAdmission).toISOString().split("T")[0]
-        : "",
+      dateOfAdmission: toDateInput(record.dateOfAdmission),
       overallStatus: record.overallStatus || "",
     });
     setIsEditModalOpen(true);
@@ -234,32 +246,20 @@ const OtherDiseases = () => {
       <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
 
       <div className="flex-1 flex flex-col overflow-hidden">
-        <header className="bg-background shadow-md border-b border-border">
-          <div className="flex items-center justify-between px-6 py-4">
-            <div className="flex items-center space-x-4">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setSidebarOpen(!sidebarOpen)}
-                className="lg:hidden"
-              >
-                <Menu className="h-6 w-6" />
-              </Button>
-              <div className="flex items-center space-x-2">
-                <Activity className="h-6 w-6 text-teal-600" />
-                <h1 className="text-2xl font-bold text-foreground">
-                  Other Diseases
-                </h1>
-              </div>
-            </div>
-            {canCreate("health") && (
+        <ModulePageHeader
+          icon={Activity}
+          title="Other Diseases"
+          subtitle="Chronic and other illnesses, screening and treatment status"
+          onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
+          actions={
+            canCreate("health") && (
               <Button onClick={() => setIsCreateModalOpen(true)}>
-                <Plus className="h-4 w-4 mr-2" />
-                Add Other Diseases Record
+              <Plus className="h-4 w-4 mr-2" />
+              Add Other Diseases Record
               </Button>
-            )}
-          </div>
-        </header>
+            )
+          }
+        />
 
         <main className="flex-1 overflow-auto p-6">
           <GuidelinesCard
@@ -273,14 +273,7 @@ const OtherDiseases = () => {
               "Ensure overall status is updated promptly (Active/Completed/Lost to Follow-up).",
             ]}
           />
-          <Card className="mb-6">
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <Filter className="h-5 w-5" />
-                <span>Filters</span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
+          <FilterBar>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div>
                   <Label htmlFor="search">Search by Name</Label>
@@ -292,14 +285,14 @@ const OtherDiseases = () => {
                   />
                 </div>
                 <div>
-                  <Label htmlFor="gender">Gender</Label>
+                  <Label htmlFor="genderFilter">Gender</Label>
                   <Select
                     value={filters.gender}
                     onValueChange={(value) =>
                       handleFilterChange("gender", value === "all" ? "" : value)
                     }
                   >
-                    <SelectTrigger>
+                    <SelectTrigger id="genderFilter">
                       <SelectValue placeholder="All Genders" />
                     </SelectTrigger>
                     <SelectContent>
@@ -311,7 +304,7 @@ const OtherDiseases = () => {
                   </Select>
                 </div>
                 <div>
-                  <Label htmlFor="overallStatus">Overall Status</Label>
+                  <Label htmlFor="overallStatusFilter">Overall Status</Label>
                   <Select
                     value={filters.overallStatus}
                     onValueChange={(value) =>
@@ -321,21 +314,16 @@ const OtherDiseases = () => {
                       )
                     }
                   >
-                    <SelectTrigger>
+                    <SelectTrigger id="overallStatusFilter">
                       <SelectValue placeholder="All Statuses" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">All Statuses</SelectItem>
-                      <SelectItem value="Active">Active</SelectItem>
-                      <SelectItem value="On Treatment">On Treatment</SelectItem>
-                      <SelectItem value="Treatment Completed">
-                        Treatment Completed
-                      </SelectItem>
-                      <SelectItem value="Lost to Follow-up">
-                        Lost to Follow-up
-                      </SelectItem>
-                      <SelectItem value="Died">Died</SelectItem>
-                      <SelectItem value="Unknown">Unknown</SelectItem>
+                      {OVERALL_STATUS_OPTIONS.map((option) => (
+                        <SelectItem key={option} value={option}>
+                          {option}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -352,62 +340,15 @@ const OtherDiseases = () => {
                   </Button>
                 </div>
               </div>
-            </CardContent>
-          </Card>
+            </FilterBar>
 
-          {/* Bulk Import Card */}
+          {/* Bulk Import */}
           {canCreate("health") && (
-            <Card className="border border-muted bg-card shadow-sm mb-6">
-              <CardContent className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4">
-                <div className="space-y-1">
-                  <h3 className="font-semibold text-foreground flex items-center gap-2">
-                    <FileSpreadsheet className="h-5 w-5 text-green-600" />
-                    Bulk Import Other Diseases Records
-                  </h3>
-                  <p className="text-xs text-muted-foreground">
-                    Download the template, fill it in, and upload it to import records in bulk.
-                  </p>
-                </div>
-                <ExcelBulkImportButton
-                  label="Import Excel"
-                  description=""
-                  templateFields={[
-                    { label: "Name", key: "name" },
-                    { label: "Gender", key: "gender", options: ["Male", "Female", "Other"] },
-                    { label: "Age", key: "age" },
-                    { label: "Contact Number", key: "contactNo" },
-                    { label: "Ward Number", key: "wardNo" },
-                    { label: "Habitation", key: "habitation" },
-                    { label: "Project Responsible", key: "projectResponsible" },
-                    { label: "Date of Reporting", key: "dateOfReporting" },
-                    { label: "Reported By", key: "reportedBy" },
-                    { label: "Nature of Issue", key: "natureOfIssue" },
-                    { label: "Date of Medical Screening", key: "dateOfMedicalScreening" },
-                    { label: "Overall Status", key: "overallStatus", options: ["Active", "Stable", "Recovered", "Deceased"] },
-                    { label: "Remarks", key: "remarks" },
-                  ]}
-                  sampleRow={{
-                    name: "Meena Ghosh",
-                    gender: "Female",
-                    age: "45",
-                    contactNo: "9876543210",
-                    wardNo: "10",
-                    habitation: "Tollygunge",
-                    projectResponsible: "Dr. A. Roy",
-                    dateOfReporting: "2024-02-28",
-                    reportedBy: "Field Worker F",
-                    natureOfIssue: "Hypertension",
-                    dateOfMedicalScreening: "2024-02-25",
-                    overallStatus: "Active",
-                    remarks: "On medication, regular check-up required",
-                  }}
-                  createRecord={async (payload) => {
-                    await otherDiseasesAPI.create(payload);
-                  }}
-                  onImported={fetchRecords}
-                />
-              </CardContent>
-            </Card>
+            <ExcelImportPanel
+              template={otherDiseasesImportTemplate}
+              createRecord={otherDiseasesAPI.create}
+              onImported={fetchRecords}
+            />
           )}
 
           <Card>
@@ -443,22 +384,12 @@ const OtherDiseases = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {loading ? (
-                      <TableRow>
-                        <TableCell colSpan={7} className="text-center py-4">
-                          <RefreshCw className="h-4 w-4 animate-spin mx-auto" />
-                        </TableCell>
-                      </TableRow>
-                    ) : records.length === 0 ? (
-                      <TableRow>
-                        <TableCell
-                          colSpan={7}
-                          className="text-center py-4 text-muted-foreground"
-                        >
-                          No other diseases records found
-                        </TableCell>
-                      </TableRow>
-                    ) : (
+                    {tableState({
+                      loading,
+                      count: records.length,
+                      colSpan: 7,
+                      filtered: Boolean(searchTerm || Object.values(filters).some(Boolean)),
+                    }) ||
                       records.map((record) => (
                         <TableRow key={record._id}>
                           <TableCell className="font-medium">
@@ -469,10 +400,10 @@ const OtherDiseases = () => {
                           </TableCell>
                           <TableCell>{record.natureOfIssue || "N/A"}</TableCell>
                           <TableCell>
-                            <Badge>{record.overallStatus || "N/A"}</Badge>
+                            <StatusBadge value={record.overallStatus} />
                           </TableCell>
                           <TableCell>
-                            Ward {record.wardNo}, {record.habitation}
+                            {formatWard(record.wardNo)}, {record.habitation}
                           </TableCell>
                           <TableCell>
                             {record.dateOfMedicalScreening
@@ -487,6 +418,7 @@ const OtherDiseases = () => {
                                 variant="ghost"
                                 size="sm"
                                 onClick={() => handleView(record)}
+                                aria-label={`View ${record.name}`}
                               >
                                 <Eye className="h-4 w-4" />
                               </Button>
@@ -495,6 +427,7 @@ const OtherDiseases = () => {
                                   variant="ghost"
                                   size="sm"
                                   onClick={() => handleEdit(record)}
+                                  aria-label={`Edit ${record.name}`}
                                 >
                                   <Edit className="h-4 w-4" />
                                 </Button>
@@ -502,7 +435,7 @@ const OtherDiseases = () => {
                               {canDelete("health") && (
                                 <AlertDialog>
                                   <AlertDialogTrigger asChild>
-                                    <Button variant="ghost" size="sm">
+                                    <Button variant="ghost" size="sm" aria-label={`Delete ${record.name}`}>
                                       <Trash2 className="h-4 w-4" />
                                     </Button>
                                   </AlertDialogTrigger>
@@ -532,8 +465,7 @@ const OtherDiseases = () => {
                             </div>
                           </TableCell>
                         </TableRow>
-                      ))
-                    )}
+                      ))}
                   </TableBody>
                 </Table>
               </div>
@@ -587,7 +519,7 @@ const OtherDiseases = () => {
       </div>
 
       {/* Create/Edit Modal */}
-      <Dialog
+      <FormSheet
         open={isCreateModalOpen || isEditModalOpen}
         onOpenChange={(open) => {
           if (!open) {
@@ -597,14 +529,14 @@ const OtherDiseases = () => {
           }
         }}
       >
-        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>
+        <FormSheetContent>
+          <FormSheetHeader>
+            <FormSheetTitle>
               {selectedRecord ? "Edit" : "Add New"} Other Diseases Record
-            </DialogTitle>
-          </DialogHeader>
+            </FormSheetTitle>
+          </FormSheetHeader>
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="name">Name *</Label>
                 <Input
@@ -623,7 +555,7 @@ const OtherDiseases = () => {
                     setFormData((prev) => ({ ...prev, gender: value }))
                   }
                 >
-                  <SelectTrigger>
+                  <SelectTrigger id="gender">
                     <SelectValue placeholder="Select gender" />
                   </SelectTrigger>
                   <SelectContent>
@@ -687,16 +619,11 @@ const OtherDiseases = () => {
                     <SelectValue placeholder="Select ward" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Ward 1">Ward 1</SelectItem>
-                    <SelectItem value="Ward 2">Ward 2</SelectItem>
-                    <SelectItem value="Ward 3">Ward 3</SelectItem>
-                    <SelectItem value="Ward 4">Ward 4</SelectItem>
-                    <SelectItem value="Ward 5">Ward 5</SelectItem>
-                    <SelectItem value="Ward 6">Ward 6</SelectItem>
-                    <SelectItem value="Ward 7">Ward 7</SelectItem>
-                    <SelectItem value="Ward 8">Ward 8</SelectItem>
-                    <SelectItem value="Ward 9">Ward 9</SelectItem>
-                    <SelectItem value="Ward 10">Ward 10</SelectItem>
+                    {WARD_OPTIONS.map((ward) => (
+                      <SelectItem key={ward.value} value={ward.value}>
+                        {ward.label}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -782,24 +709,19 @@ const OtherDiseases = () => {
                     setFormData((prev) => ({ ...prev, overallStatus: value }))
                   }
                 >
-                  <SelectTrigger>
+                  <SelectTrigger id="overallStatus">
                     <SelectValue placeholder="Select status" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Active">Active</SelectItem>
-                    <SelectItem value="On Treatment">On Treatment</SelectItem>
-                    <SelectItem value="Treatment Completed">
-                      Treatment Completed
-                    </SelectItem>
-                    <SelectItem value="Lost to Follow-up">
-                      Lost to Follow-up
-                    </SelectItem>
-                    <SelectItem value="Died">Died</SelectItem>
-                    <SelectItem value="Unknown">Unknown</SelectItem>
+                    {OVERALL_STATUS_OPTIONS.map((option) => (
+                      <SelectItem key={option} value={option}>
+                        {option}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
-              <div className="md:col-span-3">
+              <div className="sm:col-span-2">
                 <Label htmlFor="natureOfIssue">Nature of Issue</Label>
                 <Textarea
                   id="natureOfIssue"
@@ -809,7 +731,7 @@ const OtherDiseases = () => {
                   rows={2}
                 />
               </div>
-              <div className="md:col-span-3">
+              <div className="sm:col-span-2">
                 <Label htmlFor="screeningResults">Screening Results</Label>
                 <Textarea
                   id="screeningResults"
@@ -819,7 +741,7 @@ const OtherDiseases = () => {
                   rows={2}
                 />
               </div>
-              <div className="md:col-span-3">
+              <div className="sm:col-span-2">
                 <Label htmlFor="individualCarePlan">Individual Care Plan</Label>
                 <Textarea
                   id="individualCarePlan"
@@ -830,7 +752,7 @@ const OtherDiseases = () => {
                 />
               </div>
             </div>
-            <DialogFooter>
+            <FormSheetFooter>
               <Button
                 type="button"
                 variant="outline"
@@ -845,10 +767,10 @@ const OtherDiseases = () => {
               <Button type="submit">
                 {selectedRecord ? "Update" : "Create"} Record
               </Button>
-            </DialogFooter>
+            </FormSheetFooter>
           </form>
-        </DialogContent>
-      </Dialog>
+        </FormSheetContent>
+      </FormSheet>
 
       {/* View Modal */}
       <Dialog open={isViewModalOpen} onOpenChange={setIsViewModalOpen}>
@@ -890,7 +812,7 @@ const OtherDiseases = () => {
                   </div>
                   <div>
                     <Label className="font-semibold">Ward No</Label>
-                    <p>{selectedRecord.wardNo}</p>
+                    <p>{formatWard(selectedRecord.wardNo)}</p>
                   </div>
                   <div>
                     <Label className="font-semibold">Habitation</Label>
@@ -912,11 +834,7 @@ const OtherDiseases = () => {
                   <div>
                     <Label className="font-semibold">Date of Reporting</Label>
                     <p>
-                      {selectedRecord.dateOfReporting
-                        ? new Date(
-                            selectedRecord.dateOfReporting
-                          ).toLocaleDateString()
-                        : "N/A"}
+                      {formatDate(selectedRecord.dateOfReporting)}
                     </p>
                   </div>
                   <div>
@@ -941,11 +859,7 @@ const OtherDiseases = () => {
                       Date of Medical Screening
                     </Label>
                     <p>
-                      {selectedRecord.dateOfMedicalScreening
-                        ? new Date(
-                            selectedRecord.dateOfMedicalScreening
-                          ).toLocaleDateString()
-                        : "N/A"}
+                      {formatDate(selectedRecord.dateOfMedicalScreening)}
                     </p>
                   </div>
                   <div>
@@ -955,16 +869,12 @@ const OtherDiseases = () => {
                   <div>
                     <Label className="font-semibold">Date of Admission</Label>
                     <p>
-                      {selectedRecord.dateOfAdmission
-                        ? new Date(
-                            selectedRecord.dateOfAdmission
-                          ).toLocaleDateString()
-                        : "N/A"}
+                      {formatDate(selectedRecord.dateOfAdmission)}
                     </p>
                   </div>
                   <div>
                     <Label className="font-semibold">Overall Status</Label>
-                    <Badge>{selectedRecord.overallStatus || "N/A"}</Badge>
+                    <StatusBadge value={selectedRecord.overallStatus} />
                   </div>
                 </div>
                 {selectedRecord.screeningResults && (

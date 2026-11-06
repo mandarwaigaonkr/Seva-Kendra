@@ -1,4 +1,5 @@
 import trackingService from "./tracking.service.js";
+import { MODULE_FOR_RECORD_TYPE, MONTHLY_CATEGORY, nextMonthlyDueDate } from "./tracking.access.js";
 
 /**
  * Automatically create monthly follow-up tracking for a record
@@ -27,9 +28,8 @@ class AutoTrackingService {
 
     try {
       // Calculate next month's date for follow-up
-      const nextMonth = new Date();
-      nextMonth.setMonth(nextMonth.getMonth() + 1);
-      nextMonth.setHours(10, 0, 0, 0); // Set to 10 AM
+      // Same day next month (clamped: 31 Jan -> end of Feb), 10:00 India time
+      const nextMonth = nextMonthlyDueDate(new Date());
 
       // Create tracking record
       const trackingData = {
@@ -41,6 +41,7 @@ class AutoTrackingService {
         description: `Automatic monthly follow-up for ${recordType.toLowerCase()} record`,
         priority: "Medium",
         status: "Pending",
+        category: MONTHLY_CATEGORY,
         followUpDate: nextMonth,
         createdBy,
         assignedTo: createdBy, // Assign to the creator by default
@@ -108,94 +109,10 @@ class AutoTrackingService {
   }
 
   /**
-   * Complete current tracking and create next month's follow-up
-   */
-  async completeAndCreateNext(recordType, recordId, completionNotes, userId) {
-    try {
-      const trackings = await trackingService.getTrackingByRecord(
-        recordType,
-        recordId
-      );
-
-      if (!trackings || trackings.length === 0) {
-        return null;
-      }
-
-      const activeTracking = trackings.find(
-        (t) => t.isActive && t.status !== "Completed"
-      );
-
-      if (!activeTracking) {
-        return null;
-      }
-
-      // Complete current tracking
-      await trackingService.completeTracking(
-        activeTracking._id,
-        completionNotes || "Monthly follow-up completed",
-        userId
-      );
-
-      // Create next month's follow-up
-      const nextFollowUp = await this.createAutoFollowUp({
-        recordType: activeTracking.recordType,
-        recordId: activeTracking.recordId,
-        recordName: activeTracking.recordName,
-        module: activeTracking.module,
-        createdBy: userId,
-        additionalData: {
-          wardNo: activeTracking.wardNo,
-          habitation: activeTracking.habitation,
-          projectResponsible: activeTracking.projectResponsible,
-          tags: activeTracking.tags,
-        },
-      });
-
-      return nextFollowUp;
-    } catch (error) {
-      console.error("Error completing and creating next follow-up:", error);
-      return null;
-    }
-  }
-
-  /**
    * Get module name based on record type
    */
   getModuleFromRecordType(recordType) {
-    const healthTypes = [
-      "Adolescents",
-      "Elderly",
-      "HealthCamps",
-      "Tuberculosis",
-      "HIV",
-      "Leprosy",
-      "OtherDiseases",
-      "Addiction",
-      "PWD",
-      "MotherChild",
-    ];
-
-    const educationTypes = [
-      "BoardPreparation",
-      "CompetitiveExams",
-      "Dropouts",
-      "Schools",
-      "SCStudents",
-      "StudyCenters",
-    ];
-
-    const socialJusticeTypes = [
-      "CBUCBODetails",
-      "Entitlements",
-      "LegalAid",
-      "Workshops",
-    ];
-
-    if (healthTypes.includes(recordType)) return "Health";
-    if (educationTypes.includes(recordType)) return "Education";
-    if (socialJusticeTypes.includes(recordType)) return "Social Justice";
-
-    return "Health"; // Default
+    return MODULE_FOR_RECORD_TYPE[recordType] || "Health";
   }
 }
 

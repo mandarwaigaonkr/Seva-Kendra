@@ -816,8 +816,13 @@ class AnalyticsService {
         startDate = new Date(now.getFullYear(), now.getMonth(), 1);
         break;
       case "last_month":
-        startDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-        break;
+        // The whole previous calendar month only, not "since the start of last month".
+        return {
+          createdAt: {
+            $gte: new Date(now.getFullYear(), now.getMonth() - 1, 1),
+            $lt: new Date(now.getFullYear(), now.getMonth(), 1),
+          },
+        };
       default:
         return {};
     }

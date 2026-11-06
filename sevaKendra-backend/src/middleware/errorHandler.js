@@ -25,10 +25,20 @@ const errorHandler = (err, req, res, next) => {
   }
 
   if (err.name === "CastError") {
-    customError.msg = `No item found with id : ${err.value}`;
-    customError.statusCode = 404;
+    if (err.path === "_id") {
+      customError.msg = `No item found with id : ${err.value}`;
+      customError.statusCode = 404;
+    } else {
+      customError.msg = `Invalid value "${err.value}" for ${err.path}`;
+      customError.statusCode = 400;
+    }
   }
-  console.log(err);
+  // Unexpected errors are logged in full but answered generically, so database and code
+  // details never reach the client.
+  if (customError.statusCode >= 500) {
+    console.error(err);
+    customError.msg = "Something went wrong. Please try again.";
+  }
 
   return res.status(customError.statusCode ?? 400).json({
     message: customError.msg,

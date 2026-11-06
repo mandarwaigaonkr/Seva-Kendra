@@ -1,4 +1,6 @@
 import Addiction from "../models/addiction.model.js";
+import { escapeRegex } from "../../../utils/regex.utils.js";
+import { getPaginationOptions } from "../../../utils/pagination.utils.js";
 
 class AddictionService {
   async createAddiction(data, userId) {
@@ -10,17 +12,16 @@ class AddictionService {
   }
 
   async getAllAddiction(filters = {}, pagination = {}) {
-    const { page = 1, limit = 10 } = pagination;
-    const skip = (page - 1) * limit;
+    const { page, limit, skip } = getPaginationOptions(pagination);
 
     const query = {};
 
     // Apply filters
     if (filters.caseId) {
-      query.caseId = { $regex: filters.caseId, $options: "i" };
+      query.caseId = { $regex: escapeRegex(filters.caseId), $options: "i" };
     }
     if (filters.name) {
-      query.name = { $regex: filters.name, $options: "i" };
+      query.name = { $regex: escapeRegex(filters.name), $options: "i" };
     }
     if (filters.gender) {
       query.gender = filters.gender;
@@ -29,11 +30,11 @@ class AddictionService {
       query.wardNo = filters.wardNo;
     }
     if (filters.habitation) {
-      query.habitation = { $regex: filters.habitation, $options: "i" };
+      query.habitation = { $regex: escapeRegex(filters.habitation), $options: "i" };
     }
     if (filters.typeOfSubstancesUsed) {
       query.typeOfSubstancesUsed = {
-        $regex: filters.typeOfSubstancesUsed,
+        $regex: escapeRegex(filters.typeOfSubstancesUsed),
         $options: "i",
       };
     }
@@ -52,7 +53,7 @@ class AddictionService {
       Addiction.find(query)
         .sort({ createdAt: -1 })
         .skip(skip)
-        .limit(parseInt(limit))
+        .limit(limit)
         .populate("createdBy", "name email")
         .populate("updatedBy", "name email")
         .lean(),
@@ -62,7 +63,7 @@ class AddictionService {
     return {
       addiction,
       total,
-      page: parseInt(page),
+      page,
       totalPages: Math.ceil(total / limit),
     };
   }

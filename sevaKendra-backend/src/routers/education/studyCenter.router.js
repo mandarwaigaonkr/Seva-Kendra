@@ -3,7 +3,7 @@ const router = Router();
 import studyCenterController from "../../modules/education/controllers/studyCenter.controller.js";
 import { verifyTokenExists } from "../../middleware/authMiddleware.js";
 import { checkPermission } from "../../middleware/permissionMiddleware.js";
-import { createAutoFollowUp } from "../../middleware/autoTracking.middleware.js";
+import { createAutoFollowUp, closeFollowUpsOnDelete } from "../../middleware/autoTracking.middleware.js";
 
 // Routes with authentication and permissions
 router.get("/", verifyTokenExists, checkPermission("education", "view"), studyCenterController.getAllStudyCenters);
@@ -31,7 +31,7 @@ router.put("/:id", verifyTokenExists, checkPermission("education", "edit"), stud
 router.delete(
   "/:id",
   verifyTokenExists,
-  checkPermission("education", "delete"),
+  checkPermission("education", "delete"), closeFollowUpsOnDelete("StudyCenters"),
   studyCenterController.deleteStudyCenter
 );
 

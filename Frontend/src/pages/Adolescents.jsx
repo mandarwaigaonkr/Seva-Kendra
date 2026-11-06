@@ -1,4 +1,8 @@
+import { toApiPayload } from "@/components/module/ModuleKit";
+import { FormSheet, FormSheetContent, FormSheetDescription, FormSheetFooter, FormSheetHeader, FormSheetTitle } from "@/components/module/FormSheet";
 import React, { useState, useEffect } from "react";
+import { normalizePagination } from "@/components/module/ModuleKit";
+import { FilterBar } from "@/components/module/ModuleKit";
 import { toast } from "sonner";
 import {
   Card,
@@ -57,15 +61,36 @@ import {
   Eye,
   Download,
   RefreshCw,
-  Menu,
-  FileSpreadsheet,
 } from "lucide-react";
 import { adolescentsAPI } from "../services/api";
 import Sidebar from "../components/Sidebar";
 import AddFollowUpButton from "../components/AddFollowUpButton";
 import usePermissions from "../hooks/usePermissions";
 import GuidelinesCard from "../components/GuidelinesCard";
-import ExcelBulkImportButton from "../components/ExcelBulkImportButton";
+import ExcelImportPanel from "../components/ExcelImportPanel";
+import adolescentsImportTemplate from "../lib/excelImport/templates/adolescents";
+import { getWardOptions } from "../lib/formOptions";
+import {
+  ModulePageHeader,
+  tableState,
+  StatusBadge,
+  formatWard,
+  formatDate,
+  toDateInput,
+} from "../components/module/ModuleKit";
+
+const WARD_OPTIONS = getWardOptions();
+// Enum values mirror adolescents.model.js exactly.
+const GENDER_OPTIONS = ["Male", "Female", "Other"];
+const EDUCATION_STATUS_OPTIONS = ["In School", "Dropped Out", "Completed", "Never Enrolled", "Vocational Training"];
+const NUTRITIONAL_STATUS_OPTIONS = ["Normal", "Underweight", "Overweight", "Obese", "Severely Underweight"];
+const MENSTRUAL_HYGIENE_OPTIONS = ["Good", "Fair", "Poor", "Not Applicable"];
+const REPRODUCTIVE_HEALTH_EDUCATION_OPTIONS = ["Provided", "Partially Provided", "Not Provided", "Refused"];
+const MENTAL_HEALTH_SCREENING_OPTIONS = ["Normal", "At Risk", "Needs Support", "Referred", "Not Assessed"];
+const COUNSELING_PROVIDED_OPTIONS = ["Yes", "No", "In Progress", "Referred"];
+const LIFE_SKILLS_TRAINING_OPTIONS = ["Not Started", "In Progress", "Completed", "Dropped Out"];
+const PEER_EDUCATOR_ROLE_OPTIONS = ["Yes", "No", "Training", "Interested"];
+const SUBSTANCE_USE_OPTIONS = ["None", "Tobacco", "Alcohol", "Drugs", "Multiple", "Unknown"];
 
 const Adolescents = () => {
   const { canCreate, canEdit, canDelete, canExport } = usePermissions();
@@ -129,7 +154,7 @@ const Adolescents = () => {
 
       const response = await adolescentsAPI.getAll(params);
       setAdolescents(response.data.adolescents);
-      setPagination(response.data.pagination);
+      setPagination(normalizePagination(response.data.pagination));
     } catch (error) {
       toast.error("Failed to fetch adolescents records");
       console.error("Error fetching adolescents records:", error);
@@ -147,20 +172,17 @@ const Adolescents = () => {
     e.preventDefault();
     try {
       if (selectedRecord) {
-        await adolescentsAPI.update(selectedRecord._id, formData);
+        await adolescentsAPI.update(selectedRecord._id, toApiPayload(formData, true));
         toast.success("Adolescent record updated successfully");
         setIsEditModalOpen(false);
       } else {
-        await adolescentsAPI.create(formData);
+        await adolescentsAPI.create(toApiPayload(formData));
         toast.success("Adolescent record created successfully");
         setIsCreateModalOpen(false);
       }
       fetchAdolescents();
       resetForm();
     } catch (error) {
-      toast.error(
-        selectedRecord ? "Failed to update record" : "Failed to create record"
-      );
       console.error("Error submitting form:", error);
     }
   };
@@ -169,13 +191,12 @@ const Adolescents = () => {
   const handleUpdate = async (e) => {
     e.preventDefault();
     try {
-      await adolescentsAPI.update(selectedRecord._id, formData);
+      await adolescentsAPI.update(selectedRecord._id, toApiPayload(formData, true));
       toast.success("Adolescent record updated successfully");
       setIsEditModalOpen(false);
       fetchAdolescents();
       resetForm();
     } catch (error) {
-      toast.error("Failed to update record");
       console.error("Error updating record:", error);
     }
   };
@@ -238,16 +259,12 @@ const Adolescents = () => {
       wardNo: record.wardNo || "",
       habitation: record.habitation || "",
       projectResponsible: record.projectResponsible || "",
-      dateOfReporting: record.dateOfReporting
-        ? new Date(record.dateOfReporting).toISOString().split("T")[0]
-        : "",
+      dateOfReporting: toDateInput(record.dateOfReporting),
       reportedBy: record.reportedBy || "",
       educationStatus: record.educationStatus || "",
       currentClass: record.currentClass || "",
       schoolName: record.schoolName || "",
-      dateOfHealthScreening: record.dateOfHealthScreening
-        ? new Date(record.dateOfHealthScreening).toISOString().split("T")[0]
-        : "",
+      dateOfHealthScreening: toDateInput(record.dateOfHealthScreening),
       heightCm: record.heightCm || "",
       weightKg: record.weightKg || "",
       bmi: record.bmi || "",
@@ -316,32 +333,20 @@ const Adolescents = () => {
 
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Header */}
-        <header className="bg-background shadow-sm border-b border-border">
-          <div className="flex items-center justify-between px-6 py-4">
-            <div className="flex items-center space-x-4">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setSidebarOpen(!sidebarOpen)}
-                className="lg:hidden"
-              >
-                <Menu className="h-6 w-6" />
-              </Button>
-              <div className="flex items-center space-x-2">
-                <Users className="h-6 w-6 text-purple-600" />
-                <h1 className="text-2xl font-bold text-foreground">
-                  Adolescents
-                </h1>
-              </div>
-            </div>
-            {canCreate("health") && (
+        <ModulePageHeader
+          icon={Users}
+          title="Adolescents"
+          subtitle="Adolescent health, education, life skills and risk factors"
+          onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
+          actions={
+            canCreate("health") && (
               <Button onClick={() => setIsCreateModalOpen(true)}>
-                <Plus className="h-4 w-4 mr-2" />
-                Add Adolescent Record
+              <Plus className="h-4 w-4 mr-2" />
+              Add Adolescent Record
               </Button>
-            )}
-          </div>
-        </header>
+            )
+          }
+        />
 
         {/* Main Content */}
         <main className="flex-1 overflow-auto p-6">
@@ -357,14 +362,7 @@ const Adolescents = () => {
             ]}
           />
           {/* Filters */}
-          <Card className="mb-6">
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <Filter className="h-5 w-5" />
-                <span>Filters</span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
+          <FilterBar>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
                 <div>
                   <Label htmlFor="search">Search</Label>
@@ -433,66 +431,15 @@ const Adolescents = () => {
                   </Button> */}
                 </div>
               </div>
-            </CardContent>
-          </Card>
+            </FilterBar>
 
-          {/* Bulk Import Card */}
+          {/* Bulk Import */}
           {canCreate("health") && (
-            <Card className="border border-muted bg-card shadow-sm mb-6">
-              <CardContent className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4">
-                <div className="space-y-1">
-                  <h3 className="font-semibold text-foreground flex items-center gap-2">
-                    <FileSpreadsheet className="h-5 w-5 text-green-600" />
-                    Bulk Import Adolescent Records
-                  </h3>
-                  <p className="text-xs text-muted-foreground">
-                    Download the template, fill it in, and upload it to import records in bulk.
-                  </p>
-                </div>
-                <ExcelBulkImportButton
-                  label="Import Excel"
-                  description=""
-                  templateFields={[
-                    { label: "Household Code", key: "householdCode" },
-                    { label: "Name", key: "name" },
-                    { label: "Unique ID", key: "uniqueId" },
-                    { label: "Gender", key: "gender", options: ["Male", "Female", "Other"] },
-                    { label: "Age", key: "age" },
-                    { label: "Head of Household", key: "headOfHousehold" },
-                    { label: "Contact Number", key: "contactNo" },
-                    { label: "Ward Number", key: "wardNo" },
-                    { label: "Habitation", key: "habitation" },
-                    { label: "Project Responsible", key: "projectResponsible" },
-                    { label: "Date of Reporting", key: "dateOfReporting" },
-                    { label: "Reported By", key: "reportedBy" },
-                    { label: "Education Status", key: "educationStatus", options: ["In School", "Dropped Out", "Never Enrolled", "Completed"] },
-                    { label: "Age Group", key: "ageGroup", options: ["10-12", "13-15", "16-19"] },
-                    { label: "Remarks", key: "remarks" },
-                  ]}
-                  sampleRow={{
-                    householdCode: "HH-601",
-                    name: "Priya Mondal",
-                    uniqueId: "ADO-001",
-                    gender: "Female",
-                    age: "15",
-                    headOfHousehold: "Ratan Mondal",
-                    contactNo: "9876543210",
-                    wardNo: "3",
-                    habitation: "Belgachia",
-                    projectResponsible: "Anita Sen",
-                    dateOfReporting: "2024-01-20",
-                    reportedBy: "Field Worker C",
-                    educationStatus: "In School",
-                    ageGroup: "13-15",
-                    remarks: "Regular school attendance",
-                  }}
-                  createRecord={async (payload) => {
-                    await adolescentsAPI.create(payload);
-                  }}
-                  onImported={fetchAdolescents}
-                />
-              </CardContent>
-            </Card>
+            <ExcelImportPanel
+              template={adolescentsImportTemplate}
+              createRecord={adolescentsAPI.create}
+              onImported={fetchAdolescents}
+            />
           )}
 
           {/* Records Table */}
@@ -522,29 +469,19 @@ const Adolescents = () => {
                       <TableHead>Name</TableHead>
                       <TableHead>Age/Gender</TableHead>
                       <TableHead>Education</TableHead>
-                      <TableHead>Health Status</TableHead>
+                      <TableHead>Nutritional Status</TableHead>
                       <TableHead>Ward/Habitation</TableHead>
                       <TableHead>Contact</TableHead>
                       <TableHead>Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {loading ? (
-                      <TableRow>
-                        <TableCell colSpan={7} className="text-center py-4">
-                          <RefreshCw className="h-4 w-4 animate-spin mx-auto" />
-                        </TableCell>
-                      </TableRow>
-                    ) : adolescents.length === 0 ? (
-                      <TableRow>
-                        <TableCell
-                          colSpan={7}
-                          className="text-center py-4 text-muted-foreground"
-                        >
-                          No adolescent records found
-                        </TableCell>
-                      </TableRow>
-                    ) : (
+                    {tableState({
+                      loading,
+                      count: adolescents.length,
+                      colSpan: 7,
+                      filtered: Boolean(searchTerm || Object.values(filters).some(Boolean)),
+                    }) ||
                       adolescents.map((record) => (
                         <TableRow key={record._id}>
                           <TableCell className="font-medium">
@@ -554,31 +491,13 @@ const Adolescents = () => {
                             {record.age}, {record.gender}
                           </TableCell>
                           <TableCell>
-                            <Badge
-                              variant={
-                                record.educationStatus === "In School"
-                                  ? "default"
-                                  : "secondary"
-                              }
-                            >
-                              {record.educationStatus}
-                            </Badge>
+                            <StatusBadge value={record.educationStatus} />
                           </TableCell>
                           <TableCell>
-                            <Badge
-                              variant={
-                                record.healthStatus === "Healthy"
-                                  ? "default"
-                                  : record.healthStatus === "At Risk"
-                                  ? "destructive"
-                                  : "secondary"
-                              }
-                            >
-                              {record.healthStatus}
-                            </Badge>
+                            <StatusBadge value={record.nutritionalStatus} />
                           </TableCell>
                           <TableCell>
-                            Ward {record.wardNo}, {record.habitation}
+                            {formatWard(record.wardNo)}, {record.habitation}
                           </TableCell>
                           <TableCell>{record.contactNo}</TableCell>
                           <TableCell>
@@ -587,6 +506,7 @@ const Adolescents = () => {
                                 variant="ghost"
                                 size="sm"
                                 onClick={() => handleView(record)}
+                                aria-label={`View ${record.name}`}
                               >
                                 <Eye className="h-4 w-4" />
                               </Button>
@@ -595,6 +515,7 @@ const Adolescents = () => {
                                   variant="ghost"
                                   size="sm"
                                   onClick={() => handleEdit(record)}
+                                  aria-label={`Edit ${record.name}`}
                                 >
                                   <Edit className="h-4 w-4" />
                                 </Button>
@@ -602,7 +523,7 @@ const Adolescents = () => {
                               {canDelete("health") && (
                                 <AlertDialog>
                                   <AlertDialogTrigger asChild>
-                                    <Button variant="ghost" size="sm">
+                                    <Button variant="ghost" size="sm" aria-label={`Delete ${record.name}`}>
                                       <Trash2 className="h-4 w-4" />
                                     </Button>
                                   </AlertDialogTrigger>
@@ -632,8 +553,7 @@ const Adolescents = () => {
                             </div>
                           </TableCell>
                         </TableRow>
-                      ))
-                    )}
+                      ))}
                   </TableBody>
                 </Table>
               </div>
@@ -690,13 +610,13 @@ const Adolescents = () => {
       </div>
 
       {/* Create Modal */}
-      <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
-        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Add New Adolescent Record</DialogTitle>
-          </DialogHeader>
+      <FormSheet open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
+        <FormSheetContent>
+          <FormSheetHeader>
+            <FormSheetTitle>Add New Adolescent Record</FormSheetTitle>
+          </FormSheetHeader>
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="householdCode">Household Code *</Label>
                 <Input
@@ -735,13 +655,15 @@ const Adolescents = () => {
                     setFormData((prev) => ({ ...prev, gender: value }))
                   }
                 >
-                  <SelectTrigger>
+                  <SelectTrigger id="gender">
                     <SelectValue placeholder="Select gender" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Male">Male</SelectItem>
-                    <SelectItem value="Female">Female</SelectItem>
-                    <SelectItem value="Other">Other</SelectItem>
+                    {GENDER_OPTIONS.map((option) => (
+                      <SelectItem key={option} value={option}>
+                        {option}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -790,16 +712,11 @@ const Adolescents = () => {
                     <SelectValue placeholder="Select ward" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Ward 1">Ward 1</SelectItem>
-                    <SelectItem value="Ward 2">Ward 2</SelectItem>
-                    <SelectItem value="Ward 3">Ward 3</SelectItem>
-                    <SelectItem value="Ward 4">Ward 4</SelectItem>
-                    <SelectItem value="Ward 5">Ward 5</SelectItem>
-                    <SelectItem value="Ward 6">Ward 6</SelectItem>
-                    <SelectItem value="Ward 7">Ward 7</SelectItem>
-                    <SelectItem value="Ward 8">Ward 8</SelectItem>
-                    <SelectItem value="Ward 9">Ward 9</SelectItem>
-                    <SelectItem value="Ward 10">Ward 10</SelectItem>
+                    {WARD_OPTIONS.map((ward) => (
+                      <SelectItem key={ward.value} value={ward.value}>
+                        {ward.label}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -847,23 +764,22 @@ const Adolescents = () => {
                 />
               </div>
               <div>
-                <Label htmlFor="educationStatus">Education Status</Label>
+                <Label htmlFor="educationStatus">Education Status *</Label>
                 <Select
                   value={formData.educationStatus}
                   onValueChange={(value) =>
                     setFormData((prev) => ({ ...prev, educationStatus: value }))
                   }
                 >
-                  <SelectTrigger>
+                  <SelectTrigger id="educationStatus">
                     <SelectValue placeholder="Select status" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="In School">In School</SelectItem>
-                    <SelectItem value="Dropped Out">Dropped Out</SelectItem>
-                    <SelectItem value="Never Enrolled">
-                      Never Enrolled
-                    </SelectItem>
-                    <SelectItem value="Completed">Completed</SelectItem>
+                    {EDUCATION_STATUS_OPTIONS.map((option) => (
+                      <SelectItem key={option} value={option}>
+                        {option}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -886,26 +802,6 @@ const Adolescents = () => {
                 />
               </div>
               <div>
-                <Label htmlFor="healthStatus">Health Status</Label>
-                <Select
-                  value={formData.healthStatus}
-                  onValueChange={(value) =>
-                    setFormData((prev) => ({ ...prev, healthStatus: value }))
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Healthy">Healthy</SelectItem>
-                    <SelectItem value="At Risk">At Risk</SelectItem>
-                    <SelectItem value="Needs Attention">
-                      Needs Attention
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
                 <Label htmlFor="nutritionalStatus">Nutritional Status</Label>
                 <Select
                   value={formData.nutritionalStatus}
@@ -916,23 +812,21 @@ const Adolescents = () => {
                     }))
                   }
                 >
-                  <SelectTrigger>
+                  <SelectTrigger id="nutritionalStatus">
                     <SelectValue placeholder="Select status" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Normal">Normal</SelectItem>
-                    <SelectItem value="Underweight">Underweight</SelectItem>
-                    <SelectItem value="Overweight">Overweight</SelectItem>
-                    <SelectItem value="Obese">Obese</SelectItem>
-                    <SelectItem value="Severely Underweight">
-                      Severely Underweight
-                    </SelectItem>
+                    {NUTRITIONAL_STATUS_OPTIONS.map((option) => (
+                      <SelectItem key={option} value={option}>
+                        {option}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
 
               {/* Health Assessment Section */}
-              <div className="col-span-3">
+              <div className="sm:col-span-2">
                 <h3 className="text-lg font-semibold mt-4 mb-2 border-b pb-2">
                   Health Assessment
                 </h3>
@@ -988,7 +882,7 @@ const Adolescents = () => {
               </div>
 
               {/* Sexual & Reproductive Health Section */}
-              <div className="col-span-3">
+              <div className="sm:col-span-2">
                 <h3 className="text-lg font-semibold mt-4 mb-2 border-b pb-2">
                   Sexual & Reproductive Health
                 </h3>
@@ -1004,18 +898,15 @@ const Adolescents = () => {
                     }))
                   }
                 >
-                  <SelectTrigger>
+                  <SelectTrigger id="menstrualHygiene">
                     <SelectValue placeholder="Select status" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Good">Good</SelectItem>
-                    <SelectItem value="Needs Improvement">
-                      Needs Improvement
-                    </SelectItem>
-                    <SelectItem value="Poor">Poor</SelectItem>
-                    <SelectItem value="Not Applicable">
-                      Not Applicable
-                    </SelectItem>
+                    {MENSTRUAL_HYGIENE_OPTIONS.map((option) => (
+                      <SelectItem key={option} value={option}>
+                        {option}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -1032,21 +923,21 @@ const Adolescents = () => {
                     }))
                   }
                 >
-                  <SelectTrigger>
+                  <SelectTrigger id="reproductiveHealthEducation">
                     <SelectValue placeholder="Select status" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Provided">Provided</SelectItem>
-                    <SelectItem value="Not Provided">Not Provided</SelectItem>
-                    <SelectItem value="Partially Provided">
-                      Partially Provided
-                    </SelectItem>
+                    {REPRODUCTIVE_HEALTH_EDUCATION_OPTIONS.map((option) => (
+                      <SelectItem key={option} value={option}>
+                        {option}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
 
               {/* Mental Health Section */}
-              <div className="col-span-3">
+              <div className="sm:col-span-2">
                 <h3 className="text-lg font-semibold mt-4 mb-2 border-b pb-2">
                   Mental Health
                 </h3>
@@ -1064,16 +955,15 @@ const Adolescents = () => {
                     }))
                   }
                 >
-                  <SelectTrigger>
+                  <SelectTrigger id="mentalHealthScreening">
                     <SelectValue placeholder="Select status" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Normal">Normal</SelectItem>
-                    <SelectItem value="At Risk">At Risk</SelectItem>
-                    <SelectItem value="Needs Support">Needs Support</SelectItem>
-                    <SelectItem value="Under Treatment">
-                      Under Treatment
-                    </SelectItem>
+                    {MENTAL_HEALTH_SCREENING_OPTIONS.map((option) => (
+                      <SelectItem key={option} value={option}>
+                        {option}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -1088,19 +978,21 @@ const Adolescents = () => {
                     }))
                   }
                 >
-                  <SelectTrigger>
+                  <SelectTrigger id="counselingProvided">
                     <SelectValue placeholder="Select status" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Yes">Yes</SelectItem>
-                    <SelectItem value="No">No</SelectItem>
-                    <SelectItem value="Referred">Referred</SelectItem>
+                    {COUNSELING_PROVIDED_OPTIONS.map((option) => (
+                      <SelectItem key={option} value={option}>
+                        {option}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
 
               {/* Life Skills & Development Section */}
-              <div className="col-span-3">
+              <div className="sm:col-span-2">
                 <h3 className="text-lg font-semibold mt-4 mb-2 border-b pb-2">
                   Life Skills & Development
                 </h3>
@@ -1116,13 +1008,15 @@ const Adolescents = () => {
                     }))
                   }
                 >
-                  <SelectTrigger>
+                  <SelectTrigger id="lifeSkillsTraining">
                     <SelectValue placeholder="Select status" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Completed">Completed</SelectItem>
-                    <SelectItem value="Ongoing">Ongoing</SelectItem>
-                    <SelectItem value="Not Started">Not Started</SelectItem>
+                    {LIFE_SKILLS_TRAINING_OPTIONS.map((option) => (
+                      <SelectItem key={option} value={option}>
+                        {option}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -1146,19 +1040,21 @@ const Adolescents = () => {
                     }))
                   }
                 >
-                  <SelectTrigger>
+                  <SelectTrigger id="peerEducatorRole">
                     <SelectValue placeholder="Select status" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Yes">Yes</SelectItem>
-                    <SelectItem value="No">No</SelectItem>
-                    <SelectItem value="In Training">In Training</SelectItem>
+                    {PEER_EDUCATOR_ROLE_OPTIONS.map((option) => (
+                      <SelectItem key={option} value={option}>
+                        {option}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
 
               {/* Risk Factors Section */}
-              <div className="col-span-3">
+              <div className="sm:col-span-2">
                 <h3 className="text-lg font-semibold mt-4 mb-2 border-b pb-2">
                   Risk Factors
                 </h3>
@@ -1174,17 +1070,15 @@ const Adolescents = () => {
                     }))
                   }
                 >
-                  <SelectTrigger>
+                  <SelectTrigger id="substanceUse">
                     <SelectValue placeholder="Select status" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="None">None</SelectItem>
-                    <SelectItem value="Tobacco">Tobacco</SelectItem>
-                    <SelectItem value="Alcohol">Alcohol</SelectItem>
-                    <SelectItem value="Drugs">Drugs</SelectItem>
-                    <SelectItem value="Multiple Substances">
-                      Multiple Substances
-                    </SelectItem>
+                    {SUBSTANCE_USE_OPTIONS.map((option) => (
+                      <SelectItem key={option} value={option}>
+                        {option}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -1198,7 +1092,7 @@ const Adolescents = () => {
                 />
               </div>
             </div>
-            <DialogFooter>
+            <FormSheetFooter>
               <Button
                 type="button"
                 variant="outline"
@@ -1207,29 +1101,30 @@ const Adolescents = () => {
                 Cancel
               </Button>
               <Button type="submit">Create Record</Button>
-            </DialogFooter>
+            </FormSheetFooter>
           </form>
-        </DialogContent>
-      </Dialog>
+        </FormSheetContent>
+      </FormSheet>
 
       {/* Edit Modal */}
-      <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Edit Adolescent Record</DialogTitle>
-          </DialogHeader>
+      <FormSheet open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
+        <FormSheetContent>
+          <FormSheetHeader>
+            <FormSheetTitle>Edit Adolescent Record</FormSheetTitle>
+          </FormSheetHeader>
           <form onSubmit={handleUpdate} className="space-y-6">
             {/* Basic Information */}
             <div className="space-y-4">
               <h3 className="text-lg font-semibold">Basic Information</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="edit-householdCode">Household Code</Label>
+                  <Label htmlFor="edit-householdCode">Household Code *</Label>
                   <Input
                     id="edit-householdCode"
                     name="householdCode"
                     value={formData.householdCode}
                     onChange={handleInputChange}
+                    required
                   />
                 </div>
                 <div>
@@ -1243,29 +1138,32 @@ const Adolescents = () => {
                   />
                 </div>
                 <div>
-                  <Label htmlFor="edit-uniqueId">Unique ID</Label>
+                  <Label htmlFor="edit-uniqueId">Unique ID *</Label>
                   <Input
                     id="edit-uniqueId"
                     name="uniqueId"
                     value={formData.uniqueId}
                     onChange={handleInputChange}
+                    required
                   />
                 </div>
                 <div>
-                  <Label htmlFor="edit-gender">Gender</Label>
+                  <Label htmlFor="edit-gender">Gender *</Label>
                   <Select
                     value={formData.gender}
                     onValueChange={(value) =>
                       setFormData((prev) => ({ ...prev, gender: value }))
                     }
                   >
-                    <SelectTrigger>
+                    <SelectTrigger id="edit-gender">
                       <SelectValue placeholder="Select gender" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="Male">Male</SelectItem>
-                      <SelectItem value="Female">Female</SelectItem>
-                      <SelectItem value="Other">Other</SelectItem>
+                      {GENDER_OPTIONS.map((option) => (
+                        <SelectItem key={option} value={option}>
+                          {option}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -1289,46 +1187,67 @@ const Adolescents = () => {
                     name="contactNo"
                     value={formData.contactNo}
                     onChange={handleInputChange}
+                    pattern="[6-9][0-9]{9}"
                   />
                 </div>
                 <div>
                   <Label htmlFor="edit-headOfHousehold">
-                    Head of Household
+                    Head of Household *
                   </Label>
                   <Input
                     id="edit-headOfHousehold"
                     name="headOfHousehold"
                     value={formData.headOfHousehold}
                     onChange={handleInputChange}
+                    required
                   />
                 </div>
                 <div>
-                  <Label htmlFor="edit-wardNo">Ward Number</Label>
-                  <Input
-                    id="edit-wardNo"
-                    name="wardNo"
+                  <Label htmlFor="edit-wardNo">Ward Number *</Label>
+                  <Select
                     value={formData.wardNo}
-                    onChange={handleInputChange}
-                  />
+                    onValueChange={(value) =>
+                      setFormData((prev) => ({ ...prev, wardNo: value }))
+                    }
+                  >
+                    <SelectTrigger id="edit-wardNo">
+                      <SelectValue placeholder="Select ward" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {formData.wardNo &&
+                        !WARD_OPTIONS.some((ward) => ward.value === formData.wardNo) && (
+                          <SelectItem value={formData.wardNo}>
+                            {formatWard(formData.wardNo)}
+                          </SelectItem>
+                        )}
+                      {WARD_OPTIONS.map((ward) => (
+                        <SelectItem key={ward.value} value={ward.value}>
+                          {ward.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div>
-                  <Label htmlFor="edit-habitation">Habitation</Label>
+                  <Label htmlFor="edit-habitation">Habitation *</Label>
                   <Input
                     id="edit-habitation"
                     name="habitation"
                     value={formData.habitation}
                     onChange={handleInputChange}
+                    required
                   />
                 </div>
                 <div>
                   <Label htmlFor="edit-projectResponsible">
-                    Project Responsible
+                    Project Responsible *
                   </Label>
                   <Input
                     id="edit-projectResponsible"
                     name="projectResponsible"
                     value={formData.projectResponsible}
                     onChange={handleInputChange}
+                    required
                   />
                 </div>
               </div>
@@ -1337,7 +1256,7 @@ const Adolescents = () => {
             {/* Education Details */}
             <div className="space-y-4">
               <h3 className="text-lg font-semibold">Education Details</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="edit-educationStatus">
                     Education Status *
@@ -1351,21 +1270,15 @@ const Adolescents = () => {
                       }))
                     }
                   >
-                    <SelectTrigger>
+                    <SelectTrigger id="edit-educationStatus">
                       <SelectValue placeholder="Select status" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="In School">In School</SelectItem>
-                      <SelectItem value="Dropped Out">Dropped Out</SelectItem>
-                      <SelectItem value="Never Enrolled">
-                        Never Enrolled
-                      </SelectItem>
-                      <SelectItem value="Completed Education">
-                        Completed Education
-                      </SelectItem>
-                      <SelectItem value="Vocational Training">
-                        Vocational Training
-                      </SelectItem>
+                      {EDUCATION_STATUS_OPTIONS.map((option) => (
+                        <SelectItem key={option} value={option}>
+                          {option}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -1393,7 +1306,7 @@ const Adolescents = () => {
             {/* Health Assessment */}
             <div className="space-y-4">
               <h3 className="text-lg font-semibold">Health Assessment</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="edit-dateOfHealthScreening">
                     Date of Health Screening
@@ -1456,17 +1369,15 @@ const Adolescents = () => {
                       }))
                     }
                   >
-                    <SelectTrigger>
+                    <SelectTrigger id="edit-nutritionalStatus">
                       <SelectValue placeholder="Select status" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="Normal">Normal</SelectItem>
-                      <SelectItem value="Underweight">Underweight</SelectItem>
-                      <SelectItem value="Overweight">Overweight</SelectItem>
-                      <SelectItem value="Obese">Obese</SelectItem>
-                      <SelectItem value="Severely Underweight">
-                        Severely Underweight
-                      </SelectItem>
+                      {NUTRITIONAL_STATUS_OPTIONS.map((option) => (
+                        <SelectItem key={option} value={option}>
+                          {option}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -1478,7 +1389,7 @@ const Adolescents = () => {
               <h3 className="text-lg font-semibold">
                 Sexual & Reproductive Health
               </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="edit-menstrualHygiene">
                     Menstrual Hygiene
@@ -1492,18 +1403,15 @@ const Adolescents = () => {
                       }))
                     }
                   >
-                    <SelectTrigger>
+                    <SelectTrigger id="edit-menstrualHygiene">
                       <SelectValue placeholder="Select status" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="Good">Good</SelectItem>
-                      <SelectItem value="Needs Improvement">
-                        Needs Improvement
-                      </SelectItem>
-                      <SelectItem value="Poor">Poor</SelectItem>
-                      <SelectItem value="Not Applicable">
-                        Not Applicable
-                      </SelectItem>
+                      {MENSTRUAL_HYGIENE_OPTIONS.map((option) => (
+                        <SelectItem key={option} value={option}>
+                          {option}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -1520,15 +1428,15 @@ const Adolescents = () => {
                       }))
                     }
                   >
-                    <SelectTrigger>
+                    <SelectTrigger id="edit-reproductiveHealthEducation">
                       <SelectValue placeholder="Select status" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="Provided">Provided</SelectItem>
-                      <SelectItem value="Not Provided">Not Provided</SelectItem>
-                      <SelectItem value="Partially Provided">
-                        Partially Provided
-                      </SelectItem>
+                      {REPRODUCTIVE_HEALTH_EDUCATION_OPTIONS.map((option) => (
+                        <SelectItem key={option} value={option}>
+                          {option}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -1538,7 +1446,7 @@ const Adolescents = () => {
             {/* Mental Health */}
             <div className="space-y-4">
               <h3 className="text-lg font-semibold">Mental Health</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="edit-mentalHealthScreening">
                     Mental Health Screening
@@ -1552,18 +1460,15 @@ const Adolescents = () => {
                       }))
                     }
                   >
-                    <SelectTrigger>
+                    <SelectTrigger id="edit-mentalHealthScreening">
                       <SelectValue placeholder="Select status" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="Normal">Normal</SelectItem>
-                      <SelectItem value="At Risk">At Risk</SelectItem>
-                      <SelectItem value="Needs Support">
-                        Needs Support
-                      </SelectItem>
-                      <SelectItem value="Under Treatment">
-                        Under Treatment
-                      </SelectItem>
+                      {MENTAL_HEALTH_SCREENING_OPTIONS.map((option) => (
+                        <SelectItem key={option} value={option}>
+                          {option}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -1580,13 +1485,15 @@ const Adolescents = () => {
                       }))
                     }
                   >
-                    <SelectTrigger>
+                    <SelectTrigger id="edit-counselingProvided">
                       <SelectValue placeholder="Select status" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="Yes">Yes</SelectItem>
-                      <SelectItem value="No">No</SelectItem>
-                      <SelectItem value="Referred">Referred</SelectItem>
+                      {COUNSELING_PROVIDED_OPTIONS.map((option) => (
+                        <SelectItem key={option} value={option}>
+                          {option}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -1598,7 +1505,7 @@ const Adolescents = () => {
               <h3 className="text-lg font-semibold">
                 Life Skills & Development
               </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="edit-lifeSkillsTraining">
                     Life Skills Training
@@ -1612,13 +1519,15 @@ const Adolescents = () => {
                       }))
                     }
                   >
-                    <SelectTrigger>
+                    <SelectTrigger id="edit-lifeSkillsTraining">
                       <SelectValue placeholder="Select status" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="Completed">Completed</SelectItem>
-                      <SelectItem value="Ongoing">Ongoing</SelectItem>
-                      <SelectItem value="Not Started">Not Started</SelectItem>
+                      {LIFE_SKILLS_TRAINING_OPTIONS.map((option) => (
+                        <SelectItem key={option} value={option}>
+                          {option}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -1646,13 +1555,15 @@ const Adolescents = () => {
                       }))
                     }
                   >
-                    <SelectTrigger>
+                    <SelectTrigger id="edit-peerEducatorRole">
                       <SelectValue placeholder="Select status" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="Yes">Yes</SelectItem>
-                      <SelectItem value="No">No</SelectItem>
-                      <SelectItem value="In Training">In Training</SelectItem>
+                      {PEER_EDUCATOR_ROLE_OPTIONS.map((option) => (
+                        <SelectItem key={option} value={option}>
+                          {option}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -1662,7 +1573,7 @@ const Adolescents = () => {
             {/* Risk Factors */}
             <div className="space-y-4">
               <h3 className="text-lg font-semibold">Risk Factors</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="edit-substanceUse">Substance Use</Label>
                   <Select
@@ -1671,17 +1582,15 @@ const Adolescents = () => {
                       setFormData((prev) => ({ ...prev, substanceUse: value }))
                     }
                   >
-                    <SelectTrigger>
+                    <SelectTrigger id="edit-substanceUse">
                       <SelectValue placeholder="Select status" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="None">None</SelectItem>
-                      <SelectItem value="Tobacco">Tobacco</SelectItem>
-                      <SelectItem value="Alcohol">Alcohol</SelectItem>
-                      <SelectItem value="Drugs">Drugs</SelectItem>
-                      <SelectItem value="Multiple Substances">
-                        Multiple Substances
-                      </SelectItem>
+                      {SUBSTANCE_USE_OPTIONS.map((option) => (
+                        <SelectItem key={option} value={option}>
+                          {option}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -1700,7 +1609,7 @@ const Adolescents = () => {
             {/* Reporting Details */}
             <div className="space-y-4">
               <h3 className="text-lg font-semibold">Reporting Details</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="edit-dateOfReporting">
                     Date of Reporting *
@@ -1727,15 +1636,15 @@ const Adolescents = () => {
               </div>
             </div>
 
-            <DialogFooter>
+            <FormSheetFooter>
               <Button type="button" variant="outline" onClick={resetForm}>
                 Cancel
               </Button>
               <Button type="submit">Update Record</Button>
-            </DialogFooter>
+            </FormSheetFooter>
           </form>
-        </DialogContent>
-      </Dialog>
+        </FormSheetContent>
+      </FormSheet>
 
       <Dialog open={isViewModalOpen} onOpenChange={setIsViewModalOpen}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
@@ -1780,7 +1689,7 @@ const Adolescents = () => {
                   </div>
                   <div>
                     <Label className="font-semibold">Ward Number</Label>
-                    <p>{selectedRecord.wardNo || "N/A"}</p>
+                    <p>{formatWard(selectedRecord.wardNo)}</p>
                   </div>
                   <div>
                     <Label className="font-semibold">Habitation</Label>
@@ -1802,9 +1711,7 @@ const Adolescents = () => {
                   <div>
                     <Label className="font-semibold">Education Status</Label>
                     <p>
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                        {selectedRecord.educationStatus}
-                      </span>
+                      <StatusBadge value={selectedRecord.educationStatus} />
                     </p>
                   </div>
                   <div>
@@ -1829,11 +1736,7 @@ const Adolescents = () => {
                       Date of Health Screening
                     </Label>
                     <p>
-                      {selectedRecord.dateOfHealthScreening
-                        ? new Date(
-                            selectedRecord.dateOfHealthScreening
-                          ).toLocaleDateString()
-                        : "N/A"}
+                      {formatDate(selectedRecord.dateOfHealthScreening)}
                     </p>
                   </div>
                   <div>
@@ -1851,22 +1754,7 @@ const Adolescents = () => {
                   <div>
                     <Label className="font-semibold">Nutritional Status</Label>
                     <p>
-                      {selectedRecord.nutritionalStatus ? (
-                        <span
-                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                            selectedRecord.nutritionalStatus === "Normal"
-                              ? "bg-green-100 text-green-800"
-                              : selectedRecord.nutritionalStatus ===
-                                "Severely Underweight"
-                              ? "bg-red-100 text-red-800"
-                              : "bg-yellow-100 text-yellow-800"
-                          }`}
-                        >
-                          {selectedRecord.nutritionalStatus}
-                        </span>
-                      ) : (
-                        "N/A"
-                      )}
+                      <StatusBadge value={selectedRecord.nutritionalStatus} tone={selectedRecord.nutritionalStatus === "Normal" ? "success" : selectedRecord.nutritionalStatus === "Severely Underweight" ? "danger" : "warning"} fallback="N/A" />
                     </p>
                   </div>
                 </div>
@@ -1881,21 +1769,7 @@ const Adolescents = () => {
                   <div>
                     <Label className="font-semibold">Menstrual Hygiene</Label>
                     <p>
-                      {selectedRecord.menstrualHygiene ? (
-                        <span
-                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                            selectedRecord.menstrualHygiene === "Good"
-                              ? "bg-green-100 text-green-800"
-                              : selectedRecord.menstrualHygiene === "Poor"
-                              ? "bg-red-100 text-red-800"
-                              : "bg-yellow-100 text-yellow-800"
-                          }`}
-                        >
-                          {selectedRecord.menstrualHygiene}
-                        </span>
-                      ) : (
-                        "N/A"
-                      )}
+                      <StatusBadge value={selectedRecord.menstrualHygiene} fallback="N/A" />
                     </p>
                   </div>
                   <div>
@@ -1903,23 +1777,7 @@ const Adolescents = () => {
                       Reproductive Health Education
                     </Label>
                     <p>
-                      {selectedRecord.reproductiveHealthEducation ? (
-                        <span
-                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                            selectedRecord.reproductiveHealthEducation ===
-                            "Provided"
-                              ? "bg-green-100 text-green-800"
-                              : selectedRecord.reproductiveHealthEducation ===
-                                "Not Provided"
-                              ? "bg-red-100 text-red-800"
-                              : "bg-yellow-100 text-yellow-800"
-                          }`}
-                        >
-                          {selectedRecord.reproductiveHealthEducation}
-                        </span>
-                      ) : (
-                        "N/A"
-                      )}
+                      <StatusBadge value={selectedRecord.reproductiveHealthEducation} fallback="N/A" />
                     </p>
                   </div>
                 </div>
@@ -1936,42 +1794,13 @@ const Adolescents = () => {
                       Mental Health Screening
                     </Label>
                     <p>
-                      {selectedRecord.mentalHealthScreening ? (
-                        <span
-                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                            selectedRecord.mentalHealthScreening === "Normal"
-                              ? "bg-green-100 text-green-800"
-                              : selectedRecord.mentalHealthScreening ===
-                                "Under Treatment"
-                              ? "bg-blue-100 text-blue-800"
-                              : "bg-yellow-100 text-yellow-800"
-                          }`}
-                        >
-                          {selectedRecord.mentalHealthScreening}
-                        </span>
-                      ) : (
-                        "N/A"
-                      )}
+                      <StatusBadge value={selectedRecord.mentalHealthScreening} fallback="N/A" />
                     </p>
                   </div>
                   <div>
                     <Label className="font-semibold">Counseling Provided</Label>
                     <p>
-                      {selectedRecord.counselingProvided ? (
-                        <span
-                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                            selectedRecord.counselingProvided === "Yes"
-                              ? "bg-green-100 text-green-800"
-                              : selectedRecord.counselingProvided === "No"
-                              ? "bg-red-100 text-red-800"
-                              : "bg-blue-100 text-blue-800"
-                          }`}
-                        >
-                          {selectedRecord.counselingProvided}
-                        </span>
-                      ) : (
-                        "N/A"
-                      )}
+                      <StatusBadge value={selectedRecord.counselingProvided} fallback="N/A" />
                     </p>
                   </div>
                 </div>
@@ -1988,21 +1817,7 @@ const Adolescents = () => {
                       Life Skills Training
                     </Label>
                     <p>
-                      {selectedRecord.lifeSkillsTraining ? (
-                        <span
-                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                            selectedRecord.lifeSkillsTraining === "Completed"
-                              ? "bg-green-100 text-green-800"
-                              : selectedRecord.lifeSkillsTraining === "Ongoing"
-                              ? "bg-blue-100 text-blue-800"
-                              : "bg-secondary text-foreground"
-                          }`}
-                        >
-                          {selectedRecord.lifeSkillsTraining}
-                        </span>
-                      ) : (
-                        "N/A"
-                      )}
+                      <StatusBadge value={selectedRecord.lifeSkillsTraining} fallback="N/A" />
                     </p>
                   </div>
                   <div>
@@ -2012,22 +1827,7 @@ const Adolescents = () => {
                   <div>
                     <Label className="font-semibold">Peer Educator Role</Label>
                     <p>
-                      {selectedRecord.peerEducatorRole ? (
-                        <span
-                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                            selectedRecord.peerEducatorRole === "Yes"
-                              ? "bg-green-100 text-green-800"
-                              : selectedRecord.peerEducatorRole ===
-                                "In Training"
-                              ? "bg-blue-100 text-blue-800"
-                              : "bg-secondary text-foreground"
-                          }`}
-                        >
-                          {selectedRecord.peerEducatorRole}
-                        </span>
-                      ) : (
-                        "N/A"
-                      )}
+                      <StatusBadge value={selectedRecord.peerEducatorRole} fallback="N/A" />
                     </p>
                   </div>
                 </div>
@@ -2042,19 +1842,7 @@ const Adolescents = () => {
                   <div>
                     <Label className="font-semibold">Substance Use</Label>
                     <p>
-                      {selectedRecord.substanceUse ? (
-                        <span
-                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                            selectedRecord.substanceUse === "None"
-                              ? "bg-green-100 text-green-800"
-                              : "bg-red-100 text-red-800"
-                          }`}
-                        >
-                          {selectedRecord.substanceUse}
-                        </span>
-                      ) : (
-                        "N/A"
-                      )}
+                      <StatusBadge value={selectedRecord.substanceUse} tone={selectedRecord.substanceUse === "None" ? "success" : selectedRecord.substanceUse === "Unknown" ? "neutral" : "danger"} fallback="N/A" />
                     </p>
                   </div>
                   <div>
@@ -2073,11 +1861,7 @@ const Adolescents = () => {
                   <div>
                     <Label className="font-semibold">Date of Reporting</Label>
                     <p>
-                      {selectedRecord.dateOfReporting
-                        ? new Date(
-                            selectedRecord.dateOfReporting
-                          ).toLocaleDateString()
-                        : "N/A"}
+                      {formatDate(selectedRecord.dateOfReporting)}
                     </p>
                   </div>
                   <div>

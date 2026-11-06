@@ -1,6 +1,8 @@
 import StudyCenter from "../models/studyCenter.model.js";
+import GroupLeader from "../models/groupLeader.model.js";
 import { APIError } from "../../../errors/apiError.js";
 import { getPaginationOptions } from "../../../utils/pagination.utils.js";
+import { escapeRegex } from "../../../utils/regex.utils.js";
 
 class StudyCenterService {
   // Get all study centers with pagination, search, and filters
@@ -19,10 +21,16 @@ class StudyCenterService {
 
     // Search functionality
     if (search) {
+      // groupLeader is a reference, so match leaders by name first and search by their ids.
+      const pattern = { $regex: escapeRegex(search), $options: "i" };
+      const leaders = await GroupLeader.find({ $or: [{ firstName: pattern }, { lastName: pattern }] })
+        .select("_id")
+        .limit(200)
+        .lean();
       filter.$or = [
-        { centreName: { $regex: search, $options: "i" } },
-        { habitation: { $regex: search, $options: "i" } },
-        { groupLeader: { $regex: search, $options: "i" } },
+        { centreName: pattern },
+        { habitation: pattern },
+        { groupLeader: { $in: leaders.map((leader) => leader._id) } },
       ];
     }
 
@@ -33,11 +41,12 @@ class StudyCenterService {
 
     // Filter by project responsible
     if (projectResponsible) {
-      filter.projectResponsible = { $regex: projectResponsible, $options: "i" };
+      filter.projectResponsible = { $regex: escapeRegex(projectResponsible), $options: "i" };
     }
 
-    const { skip, limitNum } = getPaginationOptions(page, limit);
-    const sortOptions = { [sortBy]: sortOrder === "desc" ? -1 : 1 };
+    const { skip, limitNum, page: pageNum } = getPaginationOptions(page, limit);
+    const sortField = /^[A-Za-z_][\w.]{0,60}$/.test(String(sortBy)) ? String(sortBy) : "createdAt";
+    const sortOptions = { [sortField]: sortOrder === "asc" ? 1 : -1 };
 
     const [studyCenters, total] = await Promise.all([
       StudyCenter.find(filter)
@@ -55,10 +64,10 @@ class StudyCenterService {
     return {
       data: studyCenters,
       pagination: {
-        page: parseInt(page),
-        limit: parseInt(limit),
+        page: pageNum,
+        limit: limitNum,
         total,
-        pages: Math.ceil(total / limit),
+        pages: Math.ceil(total / limitNum),
       },
     };
   }

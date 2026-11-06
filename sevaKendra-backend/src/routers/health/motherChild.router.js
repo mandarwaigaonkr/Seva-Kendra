@@ -2,26 +2,27 @@ import { Router } from "express";
 const router = Router();
 import motherChildController from "../../modules/health/controllers/motherChild.controller.js";
 import { verifyTokenExists } from "../../middleware/authMiddleware.js";
-import { createAutoFollowUp } from "../../middleware/autoTracking.middleware.js";
+import { checkPermission } from "../../middleware/permissionMiddleware.js";
+import { createAutoFollowUp, closeFollowUpsOnDelete } from "../../middleware/autoTracking.middleware.js";
 
 // Routes with authentication
-router.get("/", verifyTokenExists, motherChildController.getAllMotherChild);
+router.get("/", verifyTokenExists, checkPermission("health", "view"), motherChildController.getAllMotherChild);
 router.get(
   "/stats",
-  verifyTokenExists,
+  verifyTokenExists, checkPermission("health", "view"),
   motherChildController.getMotherChildStats
 );
-router.get("/:id", verifyTokenExists, motherChildController.getMotherChildById);
+router.get("/:id", verifyTokenExists, checkPermission("health", "view"), motherChildController.getMotherChildById);
 router.post(
   "/",
-  verifyTokenExists,
+  verifyTokenExists, checkPermission("health", "create"),
   createAutoFollowUp("MotherChild"),
   motherChildController.createMotherChild
 );
-router.put("/:id", verifyTokenExists, motherChildController.updateMotherChild);
+router.put("/:id", verifyTokenExists, checkPermission("health", "edit"), motherChildController.updateMotherChild);
 router.delete(
   "/:id",
-  verifyTokenExists,
+  verifyTokenExists, checkPermission("health", "delete"), closeFollowUpsOnDelete("MotherChild"),
   motherChildController.deleteMotherChild
 );
 

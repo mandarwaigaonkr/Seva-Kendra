@@ -1,6 +1,7 @@
 import Teacher from "../models/teacher.model.js";
 import { APIError } from "../../../errors/apiError.js";
 import { getPaginationOptions } from "../../../utils/pagination.utils.js";
+import { escapeRegex } from "../../../utils/regex.utils.js";
 
 class TeacherService {
   // Get all teachers with pagination, search, and filters
@@ -20,25 +21,26 @@ class TeacherService {
     // Search functionality
     if (search) {
       filter.$or = [
-        { firstName: { $regex: search, $options: "i" } },
-        { lastName: { $regex: search, $options: "i" } },
-        { email: { $regex: search, $options: "i" } },
-        { phoneNumber: { $regex: search, $options: "i" } },
+        { firstName: { $regex: escapeRegex(search), $options: "i" } },
+        { lastName: { $regex: escapeRegex(search), $options: "i" } },
+        { email: { $regex: escapeRegex(search), $options: "i" } },
+        { phoneNumber: { $regex: escapeRegex(search), $options: "i" } },
       ];
     }
 
     // Filter by status
     if (status) {
-      filter.status = { $regex: new RegExp(`^${status}$`, "i") };
+      filter.status = { $regex: new RegExp(`^${escapeRegex(status)}$`, "i") };
     }
 
     // Filter by specialization
     if (specialization) {
-      filter.specialization = { $regex: new RegExp(`^${specialization}$`, "i") };
+      filter.specialization = { $regex: new RegExp(`^${escapeRegex(specialization)}$`, "i") };
     }
 
-    const { skip, limitNum } = getPaginationOptions(page, limit);
-    const sortOptions = { [sortBy]: sortOrder === "desc" ? -1 : 1 };
+    const { skip, limitNum, page: pageNum } = getPaginationOptions(page, limit);
+    const sortField = /^[A-Za-z_][\w.]{0,60}$/.test(String(sortBy)) ? String(sortBy) : "createdAt";
+    const sortOptions = { [sortField]: sortOrder === "asc" ? 1 : -1 };
 
     const [teachers, total] = await Promise.all([
       Teacher.find(filter)
@@ -55,10 +57,10 @@ class TeacherService {
     return {
       data: teachers,
       pagination: {
-        page: parseInt(page),
-        limit: parseInt(limit),
+        page: pageNum,
+        limit: limitNum,
         total,
-        pages: Math.ceil(total / limit),
+        pages: Math.ceil(total / limitNum),
       },
     };
   }

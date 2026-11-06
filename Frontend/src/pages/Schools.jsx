@@ -1,4 +1,7 @@
+import { FormSheet, FormSheetContent, FormSheetDescription, FormSheetFooter, FormSheetHeader, FormSheetTitle } from "@/components/module/FormSheet";
 import React, { useState, useEffect } from "react";
+import { normalizePagination } from "@/components/module/ModuleKit";
+import { FilterBar } from "@/components/module/ModuleKit";
 import { toast } from "sonner";
 import {
   Card,
@@ -71,16 +74,15 @@ import {
   Edit,
   Trash2,
   Eye,
-  RefreshCw,
-  Menu,
-  FileSpreadsheet,
 } from "lucide-react";
 import { schoolAPI } from "../services/api";
 import Sidebar from "../components/Sidebar";
 import usePermissions from "../hooks/usePermissions";
 import { getWardOptions } from "../lib/formOptions";
 import GuidelinesCard from "../components/GuidelinesCard";
-import ExcelBulkImportButton from "../components/ExcelBulkImportButton";
+import ExcelImportPanel from "../components/ExcelImportPanel";
+import schoolImportTemplate from "../lib/excelImport/templates/school";
+import { ModulePageHeader, formatWard, tableState } from "../components/module/ModuleKit";
 
 const WardCombobox = ({ id, value, onChange, options, placeholder }) => {
   const [open, setOpen] = useState(false);
@@ -203,7 +205,7 @@ const Schools = () => {
 
       const response = await schoolAPI.getAll(params);
       setSchools(response.data.data);
-      setPagination(response.data.pagination);
+      setPagination(normalizePagination(response.data.pagination));
     } catch (error) {
       toast.error("Failed to fetch schools");
       console.error("Error fetching schools:", error);
@@ -298,36 +300,24 @@ const Schools = () => {
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden lg:ml-0">
-        {/* Mobile Header */}
-        <div className="lg:hidden bg-card shadow-md p-4 flex items-center border-b border-border">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setSidebarOpen(true)}
-            className="mr-2"
-          >
-            <Menu className="h-5 w-5" />
-          </Button>
-          <h1 className="text-lg font-semibold">Schools</h1>
-        </div>
+        <ModulePageHeader
+          icon={School}
+          title="Schools"
+          subtitle="Partner schools, their key issues and action plans"
+          onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
+          actions={
+            canCreate("education") && (
+              <Button onClick={() => setIsCreateModalOpen(true)}>
+                <Plus className="h-4 w-4 mr-2" />
+                Add School
+              </Button>
+            )
+          }
+        />
 
         {/* Scrollable Content */}
         <div className="flex-1 overflow-y-auto">
           <div className="container mx-auto p-6 space-y-6">
-            {/* Header */}
-            <div className="flex justify-between items-center">
-              <div>
-                <h1 className="text-3xl font-bold text-foreground">Schools</h1>
-                <p className="text-muted-foreground">Manage educational institutions</p>
-              </div>
-              {canCreate("education") && (
-                <Button onClick={() => setIsCreateModalOpen(true)}>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add School
-                </Button>
-              )}
-            </div>
-
             <Card>
               <CardHeader>
                 <CardTitle>School Entry Guidelines</CardTitle>
@@ -347,14 +337,7 @@ const Schools = () => {
             </Card>
 
             {/* Search and Filters */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Filter className="h-5 w-5" />
-                  Search & Filters
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
+            <FilterBar>
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -430,56 +413,15 @@ const Schools = () => {
                     </Select> */}
                   </div>
                 </div>
-              </CardContent>
-            </Card>
+              </FilterBar>
 
-            {/* Bulk Import Card */}
+            {/* Bulk Import */}
             {canCreate("education") && (
-              <Card className="border border-muted bg-card shadow-sm mb-6">
-                <CardContent className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4">
-                  <div className="space-y-1">
-                    <h3 className="font-semibold text-foreground flex items-center gap-2">
-                      <FileSpreadsheet className="h-5 w-5 text-green-600" />
-                      Bulk Import Schools
-                    </h3>
-                    <p className="text-xs text-muted-foreground">
-                      Download the template, fill it in, and upload it to import records in bulk.
-                    </p>
-                  </div>
-                  <ExcelBulkImportButton
-                    label="Import Excel"
-                    description=""
-                    templateFields={[
-                      { label: "School Code", key: "schoolCode" },
-                      { label: "School Name", key: "schoolName" },
-                      { label: "Ward Number", key: "wardNo" },
-                      { label: "Habitation", key: "habitation" },
-                      { label: "Education Level", key: "educationLevel", options: ["Primary", "Upper Primary", "Secondary", "Higher Secondary", "All Levels"] },
-                      { label: "Type of Students", key: "typeOfStudents", options: ["Boys", "Girls", "Co-educational"] },
-                      { label: "Contact Number", key: "contactNo" },
-                      { label: "Headmaster Name", key: "headmasterName" },
-                      { label: "Address", key: "address" },
-                      { label: "Total Students", key: "totalStudents" },
-                    ]}
-                    sampleRow={{
-                      schoolCode: "SCH-001",
-                      schoolName: "Calcutta Higher Secondary School",
-                      wardNo: "10",
-                      habitation: "Park Street",
-                      educationLevel: "Higher Secondary",
-                      typeOfStudents: "Co-educational",
-                      contactNo: "9876543210",
-                      headmasterName: "Dr. A. K. Banerjee",
-                      address: "12 Park Street, Kolkata",
-                      totalStudents: "450",
-                    }}
-                    createRecord={async (payload) => {
-                      await schoolAPI.create(payload);
-                    }}
-                    onImported={fetchSchools}
-                  />
-                </CardContent>
-              </Card>
+              <ExcelImportPanel
+                template={schoolImportTemplate}
+                createRecord={schoolAPI.create}
+                onImported={fetchSchools}
+              />
             )}
 
             {/* Schools Table */}
@@ -491,103 +433,109 @@ const Schools = () => {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                {loading ? (
-                  <div className="flex justify-center items-center h-64">
-                    <RefreshCw className="h-8 w-8 animate-spin" />
-                  </div>
-                ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>School Code</TableHead>
-                        <TableHead>School Name</TableHead>
-                        <TableHead>Ward No</TableHead>
-                        <TableHead>Education Level</TableHead>
-                        <TableHead>Type</TableHead>
-                        <TableHead>Total Students</TableHead>
-                        <TableHead>Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {schools.map((school) => (
-                        <TableRow key={school._id}>
-                          <TableCell className="font-medium">
-                            {school.schoolCode}
-                          </TableCell>
-                          <TableCell>{school.schoolName}</TableCell>
-                          <TableCell>
-                            <Badge variant="secondary">{school.wardNo}</Badge>
-                          </TableCell>
-                          <TableCell>{school.educationLevel}</TableCell>
-                          <TableCell>
-                            <Badge
-                              variant={
-                                school.typeOfStudents === "Co-educational"
-                                  ? "default"
-                                  : school.typeOfStudents === "Boys"
-                                  ? "secondary"
-                                  : "outline"
-                              }
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>School Code</TableHead>
+                      <TableHead>School Name</TableHead>
+                      <TableHead>Ward No</TableHead>
+                      <TableHead>Education Level</TableHead>
+                      <TableHead>Type</TableHead>
+                      <TableHead>Total Students</TableHead>
+                      <TableHead>Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {tableState({
+                      loading,
+                      count: schools.length,
+                      colSpan: 7,
+                      filtered:
+                        Boolean(searchTerm) ||
+                        filters.wardNo !== "all" ||
+                        filters.educationLevel !== "all" ||
+                        filters.typeOfStudents !== "all",
+                    })}
+                    {!loading && schools.map((school) => (
+                      <TableRow key={school._id}>
+                        <TableCell className="font-medium">
+                          {school.schoolCode}
+                        </TableCell>
+                        <TableCell>{school.schoolName}</TableCell>
+                        <TableCell>
+                          <Badge variant="secondary">{formatWard(school.wardNo)}</Badge>
+                        </TableCell>
+                        <TableCell>{school.educationLevel}</TableCell>
+                        <TableCell>
+                          <Badge
+                            variant={
+                              school.typeOfStudents === "Co-educational"
+                                ? "default"
+                                : school.typeOfStudents === "Boys"
+                                ? "secondary"
+                                : "outline"
+                            }
+                          >
+                            {school.typeOfStudents}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>{school.totalStudents}</TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => openViewModal(school)}
+                              aria-label="View school"
                             >
-                              {school.typeOfStudents}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>{school.totalStudents}</TableCell>
-                          <TableCell>
-                            <div className="flex items-center gap-2">
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                            {canEdit("education") && (
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                onClick={() => openViewModal(school)}
+                                onClick={() => openEditModal(school)}
+                                aria-label="Edit school"
                               >
-                                <Eye className="h-4 w-4" />
+                                <Edit className="h-4 w-4" />
                               </Button>
-                              {canEdit("education") && (
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => openEditModal(school)}
-                                >
-                                  <Edit className="h-4 w-4" />
-                                </Button>
-                              )}
-                              {canDelete("education") && (
-                                <AlertDialog>
-                                  <AlertDialogTrigger asChild>
-                                    <Button variant="ghost" size="sm">
-                                      <Trash2 className="h-4 w-4" />
-                                    </Button>
-                                  </AlertDialogTrigger>
-                                  <AlertDialogContent>
-                                    <AlertDialogHeader>
-                                      <AlertDialogTitle>
-                                        Are you absolutely sure?
-                                      </AlertDialogTitle>
-                                      <AlertDialogDescription>
-                                        This action cannot be undone. This will
-                                        permanently delete the school record.
-                                      </AlertDialogDescription>
-                                    </AlertDialogHeader>
-                                    <AlertDialogFooter>
-                                      <AlertDialogCancel>
-                                        Cancel
-                                      </AlertDialogCancel>
-                                      <AlertDialogAction
-                                        onClick={() => handleDelete(school._id)}
-                                      >
-                                        Delete
-                                      </AlertDialogAction>
-                                    </AlertDialogFooter>
-                                  </AlertDialogContent>
-                                </AlertDialog>
-                              )}
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                )}
+                            )}
+                            {canDelete("education") && (
+                              <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                  <Button variant="ghost" size="sm" aria-label="Delete school">
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle>
+                                      Are you absolutely sure?
+                                    </AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                      This action cannot be undone. This will
+                                      permanently delete the school record.
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel>
+                                      Cancel
+                                    </AlertDialogCancel>
+                                    <AlertDialogAction
+                                      onClick={() => handleDelete(school._id)}
+                                    >
+                                      Delete
+                                    </AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
+                            )}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
 
                 {/* Pagination */}
                 <div className="flex items-center justify-between space-x-2 py-4">
@@ -635,19 +583,19 @@ const Schools = () => {
             </Card>
 
             {/* Create Modal */}
-            <Dialog
+            <FormSheet
               open={isCreateModalOpen}
               onOpenChange={setIsCreateModalOpen}
             >
-              <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-                <DialogHeader>
-                  <DialogTitle>Add New School</DialogTitle>
-                  <DialogDescription>
+              <FormSheetContent>
+                <FormSheetHeader>
+                  <FormSheetTitle>Add New School</FormSheetTitle>
+                  <FormSheetDescription>
                     Create a new school record with all required information.
-                  </DialogDescription>
-                </DialogHeader>
+                  </FormSheetDescription>
+                </FormSheetHeader>
                 <form onSubmit={handleSubmit} className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <Label htmlFor="schoolCode">School Code *</Label>
                       <Input
@@ -674,7 +622,7 @@ const Schools = () => {
                         placeholder="Select ward"
                       />
                     </div>
-                    <div className="md:col-span-2">
+                    <div className="sm:col-span-2">
                       <Label htmlFor="schoolName">School Name *</Label>
                       <Input
                         id="schoolName"
@@ -808,7 +756,10 @@ const Schools = () => {
                           })
                         }
                         placeholder="10-digit mobile number"
+                        type="tel"
+                        inputMode="numeric"
                         pattern="[6-9][0-9]{9}"
+                        title="10-digit mobile number starting with 6-9"
                         required
                       />
                     </div>
@@ -828,7 +779,7 @@ const Schools = () => {
                         required
                       />
                     </div>
-                    <div className="md:col-span-2">
+                    <div className="sm:col-span-2">
                       <Label htmlFor="keyIssueIdentified">
                         Key Issue Identified *
                       </Label>
@@ -844,7 +795,7 @@ const Schools = () => {
                         required
                       />
                     </div>
-                    <div className="md:col-span-2">
+                    <div className="sm:col-span-2">
                       <Label htmlFor="actionPlan">Action Plan *</Label>
                       <Textarea
                         id="actionPlan"
@@ -883,27 +834,27 @@ const Schools = () => {
                     </div>
                   </div>
 
-                  <DialogFooter>
+                  <FormSheetFooter>
                     <Button type="button" variant="outline" onClick={resetForm}>
                       Cancel
                     </Button>
                     <Button type="submit">Create School</Button>
-                  </DialogFooter>
+                  </FormSheetFooter>
                 </form>
-              </DialogContent>
-            </Dialog>
+              </FormSheetContent>
+            </FormSheet>
 
             {/* Edit Modal */}
-            <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
-              <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-                <DialogHeader>
-                  <DialogTitle>Edit School</DialogTitle>
-                  <DialogDescription>
+            <FormSheet open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
+              <FormSheetContent>
+                <FormSheetHeader>
+                  <FormSheetTitle>Edit School</FormSheetTitle>
+                  <FormSheetDescription>
                     Update the school information.
-                  </DialogDescription>
-                </DialogHeader>
+                  </FormSheetDescription>
+                </FormSheetHeader>
                 <form onSubmit={handleSubmit} className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <Label htmlFor="editSchoolCode">School Code *</Label>
                       <Input
@@ -930,7 +881,7 @@ const Schools = () => {
                         placeholder="Select ward"
                       />
                     </div>
-                    <div className="md:col-span-2">
+                    <div className="sm:col-span-2">
                       <Label htmlFor="editSchoolName">School Name *</Label>
                       <Input
                         id="editSchoolName"
@@ -1072,7 +1023,10 @@ const Schools = () => {
                           })
                         }
                         placeholder="10-digit mobile number"
+                        type="tel"
+                        inputMode="numeric"
                         pattern="[6-9][0-9]{9}"
+                        title="10-digit mobile number starting with 6-9"
                         required
                       />
                     </div>
@@ -1092,7 +1046,7 @@ const Schools = () => {
                         required
                       />
                     </div>
-                    <div className="md:col-span-2">
+                    <div className="sm:col-span-2">
                       <Label htmlFor="editKeyIssueIdentified">
                         Key Issue Identified *
                       </Label>
@@ -1108,7 +1062,7 @@ const Schools = () => {
                         required
                       />
                     </div>
-                    <div className="md:col-span-2">
+                    <div className="sm:col-span-2">
                       <Label htmlFor="editActionPlan">Action Plan *</Label>
                       <Textarea
                         id="editActionPlan"
@@ -1147,15 +1101,15 @@ const Schools = () => {
                     </div>
                   </div>
 
-                  <DialogFooter>
+                  <FormSheetFooter>
                     <Button type="button" variant="outline" onClick={resetForm}>
                       Cancel
                     </Button>
                     <Button type="submit">Update School</Button>
-                  </DialogFooter>
+                  </FormSheetFooter>
                 </form>
-              </DialogContent>
-            </Dialog>
+              </FormSheetContent>
+            </FormSheet>
 
             {/* View Modal */}
             <Dialog open={isViewModalOpen} onOpenChange={setIsViewModalOpen}>
@@ -1178,7 +1132,7 @@ const Schools = () => {
                       <div>
                         <Label>Ward Number</Label>
                         <p className="text-sm font-medium">
-                          {selectedSchool.wardNo}
+                          {formatWard(selectedSchool.wardNo)}
                         </p>
                       </div>
                       <div className="md:col-span-2">
