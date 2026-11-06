@@ -13,6 +13,8 @@ CRM for an NGO in Kolkata. Three domains — **Education**, **Health**, **Social
 3. First run only: `node scripts/createAdmin.js` → `admin@sevakendra.com` / `Admin@123`.
 4. `cd Frontend && npm run dev` → http://localhost:5173
 
+Production: Render (static site + free web service) and MongoDB Atlas, defined in `render.yaml`. Steps in `DEPLOY.md`.
+
 ## Rules
 
 - **The Mongoose model is the source of truth** for a module's fields, types, enums and required flags. Forms, filters, display and import templates follow the model. When the model itself looks wrong, raise it with the user before changing it.
@@ -33,6 +35,8 @@ CRM for an NGO in Kolkata. Three domains — **Education**, **Health**, **Social
 | Page kit: `ModulePageHeader` (breadcrumb + mobile menu), `FilterBar`, `tableState`, `StatusBadge`, `formatWard`, `formatDate`, `toDateInput`, `normalizePagination`, `toApiPayload`, `statusTone` (pure ones live in `src/lib/recordData.js`, `src/lib/pagination.js`) | `Frontend/src/components/module/ModuleKit.jsx` |
 | Health / Social Justice reports: fetch every page, filter on real model fields (`REPORT_SOURCES` names each category's date, name and status field) | `Frontend/src/lib/reportData.js` |
 | Follow-up access rules (domain scoping, editable fields, monthly due dates) | `sevaKendra-backend/src/modules/tracking/tracking.access.js` |
+| Sleeping-server handling (free Render API wakes in ~1 min): `serverStatus` state + `/health` polling, `ServerStatusBanner`, sign-in "Waiting for the server…"; `api.js` waits and retries requests once | `Frontend/src/lib/serverStatus.js`, `src/components/ServerStatusBanner.jsx`, `src/lib/api.js` |
+| GET cache (30 s, de-duplicated, cleared on any write and on sign-in/out). Pass `{ cache: false }` to `api.get` for always-fresh data | `Frontend/src/lib/requestCache.js` |
 | Add/edit record panel (slide-over from the right, sticky Save bar, backdrop click doesn't close). Form fields use `grid-cols-1 sm:grid-cols-2` | `Frontend/src/components/module/FormSheet.jsx` |
 | Design tokens (light + dark), type, motion, `#app-content main` column | `Frontend/src/index.css`, `Frontend/tailwind.config.js` |
 | Ward options (`"Ward 1"…"Ward 144"`) | `Frontend/src/lib/formOptions.js` → `getWardOptions()` |
@@ -65,7 +69,7 @@ A change is done when every one of these is green:
 - `node --test scripts/test-excel-import.mjs` — import-engine suite, all pass.
 - `node scripts/check-form-options.mjs` — every literal `<SelectItem>` value is a model enum value.
 - `npm run build` succeeds; `npx eslint <changed files>` has 0 errors; `npx eslint -c .jsx-undef.config.js src/pages src/components` has 0 errors (catches JSX components used without an import, which the build does not).
-- `node --test scripts/test-pagination.mjs scripts/test-record-data.mjs scripts/test-report-data.mjs` pass.
+- `node --test scripts/test-pagination.mjs scripts/test-record-data.mjs scripts/test-report-data.mjs scripts/test-server-status.mjs` pass.
 - UI changes: screenshot the changed page at 375 and 1280, light and dark.
 - When the backend is running against the dev DB: `node scripts/e2e-smoke.mjs` — imports every template's sample row through the live API, checks view-only users get 403 on create/delete, then cleans up. Also `node scripts/e2e-security.mjs` — follow-up scoping, suspended/deleted users, removed endpoints, query injection, headers.
 
@@ -73,5 +77,4 @@ A change is done when every one of these is green:
 
 - `entitlements.idCode` is `unique` but optional and not `sparse` → only one record may omit it.
 - `Entitlements.getStats` groups on `$idProofDetails.status` (should be `idProofAndDomicile`).
-- `studyCenter.service` search runs `$regex` against the `groupLeader` ObjectId.
 - Editing cannot clear an optional enum (unset values are dropped from the payload; needs `$unset`).

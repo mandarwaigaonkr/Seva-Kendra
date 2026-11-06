@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "../contexts/AuthContext";
 import ThemeToggle from "@/components/ThemeToggle";
+import { useServerStatus } from "@/hooks/useServerStatus";
 
 // Validation schema
 const signInSchema = yup.object({
@@ -27,6 +28,8 @@ export default function SignIn() {
   const [showPassword, setShowPassword] = useState(false);
   const navigate = useNavigate();
   const { login, isLoading, error, clearError, isAuthenticated } = useAuth();
+  const { status: serverState } = useServerStatus();
+  const serverStarting = serverState === "waking";
 
   const {
     register,
@@ -140,8 +143,13 @@ export default function SignIn() {
 
             <Button type="submit" size="lg" className="w-full" aria-busy={isLoading}>
               {isLoading && <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent motion-reduce:animate-none" aria-hidden />}
-              {isLoading ? "Signing in…" : "Sign in"}
+              {isLoading ? (serverStarting ? "Waiting for the server…" : "Signing in…") : "Sign in"}
             </Button>
+            {serverStarting && (
+              <p className="text-center text-sm text-muted-foreground" aria-live="polite">
+                The server is starting up. You can sign in now; it will go through as soon as the server is ready.
+              </p>
+            )}
           </form>
         </div>
 

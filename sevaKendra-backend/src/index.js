@@ -4,6 +4,7 @@ import dbConnect from "./utils/dbConnection.js";
 import cors from "cors";
 import morgan from "morgan";
 import helmet from "helmet";
+import compression from "compression";
 import notFound from "./middleware/notFound.js";
 import errorHandler from "./middleware/errorHandler.js";
 import { sanitizeInput } from "./middleware/sanitizeInput.js";
@@ -17,6 +18,7 @@ app.disable("x-powered-by");
 app.set("query parser", "simple");
 
 const isVercel = Boolean(process.env.VERCEL || process.env.VERCEL_URL);
+const isRender = Boolean(process.env.RENDER); // set by Render on every service
 
 const whitelist = [
   appConfig.whiteList,
@@ -28,9 +30,9 @@ const whitelist = [
   .map((origin) => origin.trim())
   .filter(Boolean);
 
-// Only behind Vercel's proxy is X-Forwarded-For trustworthy; elsewhere a client could set it
-// and dodge the per-IP sign-in limit.
-if (isVercel) app.set("trust proxy", 1);
+// Only behind the host's own proxy (Render, Vercel) is X-Forwarded-For trustworthy; elsewhere
+// a client could set it and dodge the per-IP sign-in limit.
+if (isVercel || isRender) app.set("trust proxy", 1);
 
 const corsOptions = {
   origin(origin, callback) {
@@ -69,6 +71,7 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 app.use(helmet());
+app.use(compression()); // record lists are large JSON; gzip cuts them by ~80%
 app.use(express.json({ limit: "1mb" }));
 app.use(sanitizeInput);
 app.use(morgan("tiny"));
@@ -113,6 +116,11 @@ if (isVercel) {
   });
 }
 
+// API answers hold personal and health data: never let a browser or proxy store them.
+app.use("/api/v1", (req, res, next) => {
+  res.set("Cache-Control", "no-store");
+  next();
+});
 app.use("/api/v1", indexRouter);
 
 app.use(notFound);
@@ -124,9 +132,21 @@ const startServer = async () => {
   try {
     await dbConnect();
 
-    app.listen(port, () => {
+    // Listen only once the database is connected, so /health "ok" means ready to serve.
+    const server = app.listen(port, () => {
       console.log(`Server Running on ${port}`);
     });
+
+    // The host stops the process when it sleeps or redeploys: finish requests in flight first.
+    const shutdown = (signal) => {
+      console.log(`${signal} received, shutting down`);
+      server.close(() => {
+        mongoose.connection.close(false).finally(() => process.exit(0));
+      });
+      setTimeout(() => process.exit(0), 10_000).unref();
+    };
+    process.once("SIGTERM", () => shutdown("SIGTERM"));
+    process.once("SIGINT", () => shutdown("SIGINT"));
   } catch (error) {
     console.error("Failed to start server:", error.message);
     process.exit(1);

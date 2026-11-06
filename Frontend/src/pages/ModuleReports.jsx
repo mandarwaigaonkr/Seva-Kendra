@@ -38,7 +38,7 @@ import {
 import Sidebar from "../components/Sidebar";
 import { Button } from "../components/ui/button";
 import { jsPDF } from "jspdf";
-import "jspdf-autotable";
+import { autoTable } from "jspdf-autotable";
 import {
   Card,
   CardContent,
@@ -405,7 +405,7 @@ const ModuleReports = () => {
         ];
       });
 
-      doc.autoTable({
+      autoTable(doc, {
         head,
         body,
         startY: y,

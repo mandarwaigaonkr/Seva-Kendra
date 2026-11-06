@@ -1,0 +1,22 @@
+# Pings the API during office hours so field staff rarely meet the free plan's ~1 minute
+# wake-up. Outside these hours it sleeps (and uses no free instance hours).
+# Set the repository variable API_HEALTH_URL (Settings → Secrets and variables → Actions →
+# Variables), e.g. https://seva-kendra-api.onrender.com/health. Without it this does nothing.
+name: Keep API warm
+
+on:
+  schedule:
+    # Every 10 minutes, 09:00–19:00 India time (03:30–13:30 UTC), Monday to Saturday.
+    - cron: "*/10 3-13 * * 1-6"
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  ping:
+    if: vars.API_HEALTH_URL != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Ping health check
+        run: curl --silent --show-error --max-time 90 --retry 2 --retry-delay 10 "${{ vars.API_HEALTH_URL }}" || true

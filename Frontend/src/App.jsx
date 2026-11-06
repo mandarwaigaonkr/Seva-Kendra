@@ -4,6 +4,11 @@ import { Toaster } from "sonner";
 import { AuthProvider } from "./contexts/AuthContext";
 import ProtectedRoute from "./components/ProtectedRoute";
 import AppShell from "./components/shell/AppShell";
+import ServerStatusBanner from "./components/ServerStatusBanner";
+import { warmUpServer } from "./lib/api";
+
+// Wake the backend as soon as the page opens, while the person is still typing.
+warmUpServer();
 
 const pages = {
   SignIn: () => import("./pages/SignIn"),
@@ -77,6 +82,7 @@ function App() {
   return (
     <AuthProvider>
       <Toaster position="top-right" closeButton toastOptions={{ classNames: { toast: "font-sans" } }} />
+      <ServerStatusBanner />
       <Router>
         <Suspense fallback={null}>
           <Routes>

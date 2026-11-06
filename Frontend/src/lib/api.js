@@ -1,11 +1,13 @@
 import axios from "axios";
 import { toast } from "sonner";
 
-// Determine default base URL based on environment
-// For production, we prefer VITE_API_URL env var set in Vercel
-const defaultBaseUrl = import.meta.env.PROD 
-  ? "https://seva-kendra-backend.vercel.app/api/v1" // Fallback - should ideally be set in Vercel
-  : "http://localhost:5000/api/v1";
+import { createServerStatus, healthUrlFor, looksLikeSleepingServer } from "./serverStatus";
+import { cacheKey, createRequestCache } from "./requestCache";
+
+// VITE_API_URL is set at build time (Render static site env). Without it, production
+// assumes the API is on the same site under /api/v1.
+const baseURL =
+  import.meta.env.VITE_API_URL || (import.meta.env.PROD ? "/api/v1" : "http://localhost:5000/api/v1");
 
 // While > 0, the response interceptor does not toast errors. Callers that
 // report errors themselves (bulk Excel import) wrap their requests in
@@ -21,52 +23,113 @@ export const runWithoutErrorToasts = async (fn) => {
   }
 };
 
-// Create axios instance with default config
-const api = axios.create({  
-  baseURL: import.meta.env.VITE_API_URL || defaultBaseUrl,
+/* ------------------------------------------------------------------ */
+/* Is the server awake? (free hosting sleeps when idle)                */
+/* ------------------------------------------------------------------ */
+
+const healthUrl = healthUrlFor(baseURL);
+
+const pingHealth = async (timeoutMs) => {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(healthUrl, { signal: controller.signal, cache: "no-store" });
+    if (!res.ok || !String(res.headers.get("content-type")).includes("application/json")) return false;
+    const body = await res.json();
+    return body?.status === "ok" && body?.dbState === 1; // started AND connected to the database
+  } finally {
+    clearTimeout(timer);
+  }
+};
+
+export const serverStatus = createServerStatus({ ping: pingHealth });
+
+/** Start waking the server now (app load, sign-in page) so it is ready by the time it's needed. */
+export const warmUpServer = () => serverStatus.whenReady();
+
+const SLEEPING_MESSAGE =
+  "The server didn't respond. It may still be starting, or your internet may be down. Please try again in a minute.";
+
+/* ------------------------------------------------------------------ */
+/* Client                                                              */
+/* ------------------------------------------------------------------ */
+
+const api = axios.create({
+  baseURL,
   timeout: 30000,
   headers: {
     "Content-Type": "application/json",
   },
 });
 
-// Debug log for production connectivity issues
-if (import.meta.env.PROD) {
-  console.log("API Base URL:", api.defaults.baseURL);
-}
+// Recently fetched GET responses, so moving between pages is instant.
+export const responseCache = createRequestCache({ ttlMs: 30000 });
 
-// Request interceptor to add auth token
+/** Drop cached responses (after sign-in / sign-out, or when fresh data is required). */
+export const clearResponseCache = () => responseCache.clear();
+
+const rawGet = api.get.bind(api);
+api.get = (url, config = {}) => {
+  const cacheable = config.cache !== false && !config.responseType && !String(url).startsWith("/auth");
+  if (!cacheable) return rawGet(url, config);
+  return responseCache.fetch(cacheKey(url, config.params), () => rawGet(url, config));
+};
+
 api.interceptors.request.use(
-  (config) => {
+  async (config) => {
     const token = localStorage.getItem("authToken");
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+    // If we already know the server is starting, wait for it instead of firing requests
+    // that will fail. Requests go ahead (and report the problem) if it never answers.
+    const { status } = serverStatus.get();
+    if (status === "waking") await serverStatus.whenReady();
     return config;
   },
-  (error) => {
-    return Promise.reject(error);
-  }
+  (error) => Promise.reject(error)
 );
 
-// Response interceptor to handle errors
 api.interceptors.response.use(
   (response) => {
+    serverStatus.markReady();
+    const method = response.config?.method;
+    if (method && method !== "get") responseCache.clear(); // a write may change any list
     return response.data;
   },
-  (error) => {
+  async (error) => {
+    const config = error.config || {};
+
+    // Sleeping or starting server: wait for it, then send the request once more. Reads
+    // are always safe to repeat; a write is repeated only when it can't have reached the
+    // app (no answer at all, or a gateway error from the host's proxy).
+    if (looksLikeSleepingServer(error) && !config._wokeAndRetried) {
+      const ready = await serverStatus.markUnreachable();
+      const neverReachedApp = !error.response || [502, 503, 504].includes(error.response.status);
+      const method = String(config.method || "get").toLowerCase();
+      if (ready && (method === "get" || neverReachedApp)) {
+        config._wokeAndRetried = true;
+        return api.request(config);
+      }
+      if (!ready) {
+        // The status banner already explains this; one toast is enough.
+        if (silentErrorDepth === 0) toast.error(SLEEPING_MESSAGE, { id: "server-unreachable" });
+        return Promise.reject(Object.assign(new Error(SLEEPING_MESSAGE), { status: 0, serverUnreachable: true }));
+      }
+    }
+
     // Extract error message from response
-    let errorMessage = "An error occurred";
+    let errorMessage = "Something went wrong. Please try again.";
 
     if (error.response) {
-      // Server responded with error status
-      const { data, status, config } = error.response;
+      serverStatus.markReady(); // it answered, so it is awake
+      const { data, status, config: responseConfig } = error.response;
 
       if (status === 401) {
-        // Handle unauthorized access
         errorMessage = data?.message || "Session expired. Please sign in again.";
         localStorage.removeItem("authToken");
         localStorage.removeItem("user");
+        responseCache.clear();
         const sessionError = Object.assign(new Error(errorMessage), { status });
         // During a bulk import the caller stops, shows what was saved and offers sign-in;
         // redirecting here would throw that result away.
@@ -77,44 +140,28 @@ api.interceptors.response.use(
         return Promise.reject(sessionError);
       }
 
-      // Extract error message from various possible formats
-      if (data?.message) {
+      if (status === 429) {
+        errorMessage = data?.message || "Too many attempts. Please wait a few minutes and try again.";
+      } else if (data?.message) {
         errorMessage = data.message;
       } else if (data?.error) {
-        errorMessage =
-          typeof data.error === "string" ? data.error : data.error.message;
-      } else if (typeof data === "string") {
-        errorMessage = data;
+        errorMessage = typeof data.error === "string" ? data.error : data.error.message;
       } else if (status === 404) {
-        errorMessage = `Route not found: ${config.method?.toUpperCase()} ${config.url}`;
-      } else if (status === 500) {
-        errorMessage = "Server error. Please try again later.";
-      } else if (status >= 400 && status < 500) {
-        errorMessage = data?.message || "Request failed. Please check your input.";
+        errorMessage = `Not found: ${responseConfig.method?.toUpperCase()} ${responseConfig.url}`;
+      } else if (status >= 500) {
+        errorMessage = "The server had a problem. Please try again.";
+      } else if (status >= 400) {
+        errorMessage = "Request failed. Please check your input.";
       }
 
-      // Log error details for debugging
-      console.error("API Error:", {
-        status,
-        url: config.url,
-        method: config.method,
-        message: errorMessage,
-        data,
-      });
+      console.error("API Error:", { status, url: responseConfig.url, method: responseConfig.method, message: errorMessage });
     } else if (error.request) {
-      // Request made but no response received
-      errorMessage = "Network error. Please check your connection.";
-      console.error("Full Network Error Object:", error);
-      console.error("Error Code:", error.code);
-      console.error("Error Message:", error.message);
-      console.error("Request Config:", error.config);
+      errorMessage = SLEEPING_MESSAGE;
+      console.error("Network error:", error.code, error.message);
     } else {
-      // Error in request setup
       errorMessage = error.message || "Failed to make request";
-      console.error("Request Setup Error:", error.message);
     }
 
-    // Show error toast (suppressed while a caller handles errors itself, e.g. bulk import)
     if (silentErrorDepth === 0) {
       toast.error(errorMessage);
     }
