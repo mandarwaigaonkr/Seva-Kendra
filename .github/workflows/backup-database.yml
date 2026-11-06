@@ -1,0 +1,47 @@
+# Nightly backup of the Atlas database (the free M0 cluster keeps no backups of its own).
+# The dump is encrypted with BACKUP_PASSPHRASE and kept as a workflow artifact for 14 days.
+# It holds health and children's records, so it only runs while this repository is PRIVATE.
+# Secrets needed (Settings → Secrets and variables → Actions → Secrets):
+#   MONGO_URL          Atlas connection string (a read-only database user is enough)
+#   BACKUP_PASSPHRASE  long random passphrase; store it somewhere safe, it is needed to restore
+# Restore steps are in DEPLOY.md.
+name: Back up database
+
+on:
+  schedule:
+    - cron: "30 20 * * *" # 02:00 India time
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    if: github.event.repository.private == true
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Dump database
+        env:
+          MONGO_URL: ${{ secrets.MONGO_URL }}
+        run: |
+          test -n "$MONGO_URL" || { echo "MONGO_URL secret is not set"; exit 1; }
+          docker run --rm -e MONGO_URL -v "$PWD:/out" mongo:7 \
+            sh -c 'mongodump --uri="$MONGO_URL" --archive=/out/db.archive.gz --gzip'
+
+      - name: Encrypt
+        env:
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          test -n "$BACKUP_PASSPHRASE" || { echo "BACKUP_PASSPHRASE secret is not set"; exit 1; }
+          openssl enc -aes-256-cbc -pbkdf2 -iter 200000 -salt \
+            -in db.archive.gz -out "sevakendra-$(date -u +%Y-%m-%d).archive.gz.enc" -pass env:BACKUP_PASSPHRASE
+          rm db.archive.gz
+
+      - name: Keep for 14 days
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: sevakendra-backup-${{ github.run_id }}
+          path: sevakendra-*.archive.gz.enc
+          retention-days: 14
+          if-no-files-found: error

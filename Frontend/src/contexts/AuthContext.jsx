@@ -6,7 +6,7 @@ import React, {
   useCallback,
 } from "react";
 import { authAPI } from "../services/api";
-import { runWithoutErrorToasts } from "../lib/api";
+import { clearResponseCache, runWithoutErrorToasts } from "../lib/api";
 
 // Create Auth Context
 const AuthContext = createContext();
@@ -146,6 +146,7 @@ export function AuthProvider({ children }) {
       const { user, token } = result.data;
 
       // Store in localStorage
+      clearResponseCache(); // never show one user's cached lists to another
       localStorage.setItem("authToken", token);
       localStorage.setItem("user", JSON.stringify(user));
 
@@ -167,11 +168,16 @@ export function AuthProvider({ children }) {
   // Logout function
   const logout = async () => {
     try {
-      await authAPI.logout();
+      // Tell the server (ends this session everywhere), but never keep someone waiting
+      // on a sleeping server just to sign out.
+      await Promise.race([
+        runWithoutErrorToasts(() => authAPI.logout()),
+        new Promise((resolve) => setTimeout(resolve, 3000)),
+      ]);
     } catch (error) {
       console.error("Logout error:", error);
     } finally {
-      // Clear localStorage
+      clearResponseCache();
       localStorage.removeItem("authToken");
       localStorage.removeItem("user");
 
