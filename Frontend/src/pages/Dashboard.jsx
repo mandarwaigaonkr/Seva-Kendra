@@ -96,9 +96,7 @@ import { cn } from "@/lib/utils";
 import { ModulePageHeader, formatDate } from "@/components/module/ModuleKit";
 import { DOMAINS, DOMAIN_TONE, canSeeDomain } from "@/components/shell/navigation";
 import {
-  dashboardAPI,
   analyticsAPI,
-  reportsAPI,
   healthCampAPI,
   elderlyAPI,
   motherChildAPI,
@@ -118,8 +116,6 @@ import {
   cbucboDetailsAPI,
   entitlementsAPI,
   legalAidServiceAPI,
-  workshopAndAwarenessAPI,
-  beneficiaryAPI,
   trackingAPI,
 } from "../services/api";
 
