@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { createServerStatus, healthUrlFor, looksLikeSleepingServer } from "../src/lib/serverStatus.js";
+import { createServerStatus, healthUrlFor, isHealthyResponse, looksLikeSleepingServer } from "../src/lib/serverStatus.js";
 import { cacheKey, createRequestCache } from "../src/lib/requestCache.js";
 
 /** A clock that only moves when sleep() is called. */
@@ -128,4 +128,28 @@ test("cache: a failed load is not cached", async () => {
 test("cache key ignores param order and empty params", () => {
   assert.equal(cacheKey("/x", { b: 2, a: 1, c: "" }), cacheKey("/x", { a: 1, b: 2 }));
   assert.equal(cacheKey("/x", undefined), "/x");
+});
+
+test("a real request succeeding ends a running check (banner clears, no endless polling)", async () => {
+  const clock = fakeTime();
+  let calls = 0;
+  let s;
+  const ping = async () => {
+    calls += 1;
+    if (calls === 2) s.markReady(); // e.g. the sign-in request came back while we were checking
+    return false; // the health check itself keeps failing
+  };
+  s = createServerStatus({ ping, ...clock });
+  assert.equal(await s.whenReady(), true);
+  assert.equal(s.get().status, "ready");
+  assert.equal(calls, 2);
+});
+
+test("what counts as a healthy /health answer", () => {
+  assert.equal(isHealthyResponse(200, { status: "ok", dbState: 1 }), true);
+  assert.equal(isHealthyResponse(200, { status: "ok" }), true);
+  assert.equal(isHealthyResponse(200, JSON.stringify({ status: "ok", dbState: 1 })), true);
+  assert.equal(isHealthyResponse(200, { status: "ok", dbState: 2 }), false); // still connecting to the database
+  assert.equal(isHealthyResponse(200, "<html>Service waking up</html>"), false); // the host's loading page
+  assert.equal(isHealthyResponse(503, { status: "ok" }), false);
 });

@@ -1,7 +1,7 @@
 import axios from "axios";
 import { toast } from "sonner";
 
-import { createServerStatus, healthUrlFor, looksLikeSleepingServer } from "./serverStatus";
+import { createServerStatus, healthUrlFor, isHealthyResponse, looksLikeSleepingServer } from "./serverStatus";
 import { cacheKey, createRequestCache } from "./requestCache";
 
 // VITE_API_URL is set at build time (Render static site env). Without it, production
@@ -29,16 +29,19 @@ export const runWithoutErrorToasts = async (fn) => {
 
 const healthUrl = healthUrlFor(baseURL);
 
+// Same transport as every other request (axios/XHR, no interceptors), so anything that lets
+// the app's normal requests through (browser settings, extensions) lets this through too.
+const healthClient = axios.create({ timeout: 8000 });
+
 const pingHealth = async (timeoutMs) => {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const res = await fetch(healthUrl, { signal: controller.signal, cache: "no-store" });
-    if (!res.ok || !String(res.headers.get("content-type")).includes("application/json")) return false;
-    const body = await res.json();
-    return body?.status === "ok" && body?.dbState === 1; // started AND connected to the database
-  } finally {
-    clearTimeout(timer);
+    const res = await healthClient.get(healthUrl, { timeout: timeoutMs, params: { t: Date.now() } });
+    const healthy = isHealthyResponse(res.status, res.data);
+    if (!healthy) console.warn("Health check: unexpected answer", res.status, res.data);
+    return healthy;
+  } catch (error) {
+    console.warn("Health check failed:", error.code || error.message, error.response?.status ?? "");
+    return false;
   }
 };
 
