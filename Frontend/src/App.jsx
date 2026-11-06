@@ -13,11 +13,8 @@ warmUpServer();
 const pages = {
   SignIn: () => import("./pages/SignIn"),
   Dashboard: () => import("./pages/Dashboard"),
-  Beneficiaries: () => import("./pages/Beneficiaries"),
   LegalAid: () => import("./pages/LegalAid"),
   Workshops: () => import("./pages/Workshops"),
-  Reports: () => import("./pages/Reports"),
-  Form: () => import("./pages/Form"),
   StudyCenters: () => import("./pages/StudyCenters"),
   Teachers: () => import("./pages/Teachers"),
   GroupLeaders: () => import("./pages/GroupLeaders"),
@@ -45,11 +42,8 @@ const pages = {
 };
 const SignIn = lazy(pages.SignIn);
 const Dashboard = lazy(pages.Dashboard);
-const Beneficiaries = lazy(pages.Beneficiaries);
 const LegalAid = lazy(pages.LegalAid);
 const Workshops = lazy(pages.Workshops);
-const Reports = lazy(pages.Reports);
-const Form = lazy(pages.Form);
 const StudyCenters = lazy(pages.StudyCenters);
 const Teachers = lazy(pages.Teachers);
 const GroupLeaders = lazy(pages.GroupLeaders);
@@ -87,7 +81,6 @@ function App() {
         <Suspense fallback={null}>
           <Routes>
             <Route path="/signin" element={<SignIn />} />
-            <Route path="/form" element={<Form />} />
             <Route
               element={
                 <ProtectedRoute>
@@ -96,10 +89,10 @@ function App() {
               }
             >
               <Route path="/dashboard" element={<Dashboard />} />
-              <Route path="/beneficiaries" element={<Beneficiaries />} />
+              <Route path="/beneficiaries" element={<Navigate to="/dashboard" replace />} />
               <Route path="/legal-aid" element={<LegalAid />} />
               <Route path="/workshops" element={<Workshops />} />
-              <Route path="/reports" element={<Reports />} />
+              <Route path="/reports" element={<Navigate to="/module-reports" replace />} />
               <Route path="/tracking" element={<TrackingDashboard />} />
               <Route path="/tracking/urgent-cases" element={<UrgentCases />} />
               <Route path="/education/study-centers" element={<StudyCenters />} />
