@@ -42,7 +42,8 @@ export const createServerStatus = ({ ping, now = () => Date.now(), sleep, option
       } catch {
         ok = false;
       }
-      if (ok) {
+      // A real request may have succeeded meanwhile (markReady): the server is up, stop.
+      if (ok || state.status === "ready") {
         set({ status: "ready", lastReadyAt: now() });
         return true;
       }
@@ -51,6 +52,7 @@ export const createServerStatus = ({ ping, now = () => Date.now(), sleep, option
         return false;
       }
       await wait(delay);
+      if (state.status === "ready") return true;
       delay = Math.min(opts.maxRetryMs, Math.round(delay * 1.5));
     }
   };
@@ -105,3 +107,22 @@ export const looksLikeSleepingServer = (error) => {
 
 /** Root of the backend (strips "/api/v1") for the health check. */
 export const healthUrlFor = (apiBaseUrl) => `${String(apiBaseUrl).replace(/\/api\/v\d+\/?$/, "").replace(/\/$/, "")}/health`;
+
+/**
+ * Is this /health answer "awake and ready"? Any 2xx whose body says status "ok". A database
+ * state, when reported, must be 1 (connected); a missing one is not held against it.
+ */
+export const isHealthyResponse = (status, body) => {
+  if (!(status >= 200 && status < 300)) return false;
+  const data = typeof body === "string" ? safeJson(body) : body;
+  if (!data || data.status !== "ok") return false;
+  return data.dbState === undefined || data.dbState === 1;
+};
+
+const safeJson = (text) => {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
+};
