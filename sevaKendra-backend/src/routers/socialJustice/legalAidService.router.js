@@ -11,8 +11,6 @@ import {
   getLegalAidServicesByCaseType,
   getLegalAidServicesByCaseStatus,
   getLegalAidServicesByPriority,
-  addInterventionStep,
-  updateInterventionStep,
   updateCaseStatus,
   getCasesRequiringFollowUp,
   getCaseTimeline,
@@ -20,7 +18,7 @@ import {
 } from "../../modules/socialJustice/controllers/legalAidService.controller.js";
 import { verifyTokenExists } from "../../middleware/authMiddleware.js";
 import { checkPermission } from "../../middleware/permissionMiddleware.js";
-import { createAutoFollowUp } from "../../middleware/autoTracking.middleware.js";
+import { createAutoFollowUp, closeFollowUpsOnDelete } from "../../middleware/autoTracking.middleware.js";
 
 const router = Router();
 
@@ -37,7 +35,7 @@ router.get("/follow-up", verifyTokenExists, checkPermission("socialJustice", "vi
 router.get("/report", verifyTokenExists, checkPermission("socialJustice", "view"), generateCaseReport);
 router.get("/:id", verifyTokenExists, checkPermission("socialJustice", "view"), getLegalAidServiceById);
 router.put("/:id", verifyTokenExists, checkPermission("socialJustice", "edit"), updateLegalAidService);
-router.delete("/:id", verifyTokenExists, checkPermission("socialJustice", "delete"), deleteLegalAidService);
+router.delete("/:id", verifyTokenExists, checkPermission("socialJustice", "delete"), closeFollowUpsOnDelete("LegalAid"), deleteLegalAidService);
 
 // Filter routes
 router.get("/ward/:wardNo", verifyTokenExists, checkPermission("socialJustice", "view"), getLegalAidServicesByWard);
@@ -64,12 +62,8 @@ router.get(
 
 // Special action routes
 router.get("/:id/timeline", verifyTokenExists, checkPermission("socialJustice", "view"), getCaseTimeline);
-router.post("/:id/interventions", verifyTokenExists, checkPermission("socialJustice", "edit"), addInterventionStep);
-router.put(
-  "/:id/interventions/:stepId",
-  verifyTokenExists, checkPermission("socialJustice", "edit"),
-  updateInterventionStep
-);
 router.put("/:id/status", verifyTokenExists, checkPermission("socialJustice", "edit"), updateCaseStatus);
 
+// Sub-item endpoints (members, participants, interventions, progress reports, ...) were
+// removed: they wrote to arrays these models do not have, and no screen used them.
 export default router;

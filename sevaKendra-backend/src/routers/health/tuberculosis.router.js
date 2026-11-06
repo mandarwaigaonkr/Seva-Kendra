@@ -3,7 +3,7 @@ const router = Router();
 import tuberculosisController from "../../modules/health/controllers/tuberculosis.controller.js";
 import { verifyTokenExists } from "../../middleware/authMiddleware.js";
 import { checkPermission } from "../../middleware/permissionMiddleware.js";
-import { createAutoFollowUp } from "../../middleware/autoTracking.middleware.js";
+import { createAutoFollowUp, closeFollowUpsOnDelete } from "../../middleware/autoTracking.middleware.js";
 
 // Routes with authentication
 router.get("/", verifyTokenExists, checkPermission("health", "view"), tuberculosisController.getAllTuberculosis);
@@ -30,7 +30,7 @@ router.put(
 );
 router.delete(
   "/:id",
-  verifyTokenExists, checkPermission("health", "delete"),
+  verifyTokenExists, checkPermission("health", "delete"), closeFollowUpsOnDelete("Tuberculosis"),
   tuberculosisController.deleteTuberculosis
 );
 

@@ -257,7 +257,7 @@ const Dropouts = () => {
   // Fetch SC Students
   const fetchScStudents = async () => {
     try {
-      const response = await scStudentAPI.getAll({});
+      const response = await scStudentAPI.getAll({ page: 1, limit: 500 });
       setScStudents(response.data.data || []);
     } catch (error) {
       console.error("Error fetching SC students:", error);

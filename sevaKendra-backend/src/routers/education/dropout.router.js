@@ -3,7 +3,7 @@ const router = Router();
 import dropoutController from "../../modules/education/controllers/dropout.controller.js";
 import { verifyTokenExists } from "../../middleware/authMiddleware.js";
 import { checkPermission } from "../../middleware/permissionMiddleware.js";
-import { createAutoFollowUp } from "../../middleware/autoTracking.middleware.js";
+import { createAutoFollowUp, closeFollowUpsOnDelete } from "../../middleware/autoTracking.middleware.js";
 
 // Routes
 router.get("/", verifyTokenExists, checkPermission("education", "view"), dropoutController.getAllDropouts);
@@ -21,6 +21,6 @@ router.post(
   dropoutController.createDropout
 );
 router.put("/:id", verifyTokenExists, checkPermission("education", "edit"), dropoutController.updateDropout);
-router.delete("/:id", verifyTokenExists, checkPermission("education", "delete"), dropoutController.deleteDropout);
+router.delete("/:id", verifyTokenExists, checkPermission("education", "delete"), closeFollowUpsOnDelete("Dropouts"), dropoutController.deleteDropout);
 
 export default router;

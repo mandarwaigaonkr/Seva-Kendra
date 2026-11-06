@@ -1,6 +1,7 @@
 import CompetitiveExam from "../models/competitiveExam.model.js";
 import { APIError } from "../../../errors/apiError.js";
 import { getPaginationOptions } from "../../../utils/pagination.utils.js";
+import { escapeRegex } from "../../../utils/regex.utils.js";
 
 class CompetitiveExamService {
   // Get all competitive exam records with pagination, search, and filters
@@ -23,10 +24,10 @@ class CompetitiveExamService {
     // Search functionality
     if (search) {
       filter.$or = [
-        { name: { $regex: search, $options: "i" } },
-        { householdCode: { $regex: search, $options: "i" } },
-        { habitation: { $regex: search, $options: "i" } },
-        { headOfHousehold: { $regex: search, $options: "i" } },
+        { name: { $regex: escapeRegex(search), $options: "i" } },
+        { householdCode: { $regex: escapeRegex(search), $options: "i" } },
+        { habitation: { $regex: escapeRegex(search), $options: "i" } },
+        { headOfHousehold: { $regex: escapeRegex(search), $options: "i" } },
       ];
     }
 
@@ -52,11 +53,12 @@ class CompetitiveExamService {
 
     // Filter by project responsible
     if (projectResponsible) {
-      filter.projectResponsible = { $regex: projectResponsible, $options: "i" };
+      filter.projectResponsible = { $regex: escapeRegex(projectResponsible), $options: "i" };
     }
 
-    const { skip, limitNum } = getPaginationOptions(page, limit);
-    const sortOptions = { [sortBy]: sortOrder === "desc" ? -1 : 1 };
+    const { skip, limitNum, page: pageNum } = getPaginationOptions(page, limit);
+    const sortField = /^[A-Za-z_][\w.]{0,60}$/.test(String(sortBy)) ? String(sortBy) : "createdAt";
+    const sortOptions = { [sortField]: sortOrder === "asc" ? 1 : -1 };
 
     const [exams, total] = await Promise.all([
       CompetitiveExam.find(filter)
@@ -72,10 +74,10 @@ class CompetitiveExamService {
     return {
       data: exams,
       pagination: {
-        page: parseInt(page),
-        limit: parseInt(limit),
+        page: pageNum,
+        limit: limitNum,
         total,
-        pages: Math.ceil(total / limit),
+        pages: Math.ceil(total / limitNum),
       },
     };
   }

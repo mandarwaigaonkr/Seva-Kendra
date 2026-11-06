@@ -1,6 +1,6 @@
 import { FormSheet, FormSheetContent, FormSheetDescription, FormSheetFooter, FormSheetHeader, FormSheetTitle } from "@/components/module/FormSheet";
 import React, { useState, useEffect, useRef } from "react";
-import { normalizePagination } from "@/components/module/ModuleKit";
+import { normalizePagination, toApiPayload } from "@/components/module/ModuleKit";
 import { FilterBar } from "@/components/module/ModuleKit";
 import { toast } from "sonner";
 import {
@@ -196,7 +196,7 @@ const StudyCenters = () => {
     centreName: "",
     sourceOfFunding: "",
     infrastructure: "",
-    timing: "",
+    timing: "9:00 AM - 3:00 PM", // what the time picker shows before it is touched
     studentsLevelOfEducation: [],
     wardNo: "",
     habitation: "",
@@ -241,6 +241,20 @@ const StudyCenters = () => {
   const buildPhoneNumber = () => {
     const suffix = uniqueSuffix().slice(-9);
     return `9${suffix}`;
+  };
+
+  // Leaders / teachers typed by name in the form are created before the centre is saved.
+  // Remember them for this form, so retrying after a failed save reuses them instead of
+  // creating duplicates.
+  const createdInForm = useRef(new Map());
+  const createOnce = async (kind, name, create) => {
+    const key = `${kind}:${name.trim().replace(/\s+/g, " ").toLowerCase()}`;
+    if (!createdInForm.current.has(key)) {
+      const id = await create(name);
+      if (id) createdInForm.current.set(key, id);
+      return id;
+    }
+    return createdInForm.current.get(key);
   };
 
   const createGroupLeaderFromManual = async (name, phoneNumber) => {
@@ -441,6 +455,7 @@ const StudyCenters = () => {
 
   useEffect(() => {
     if (isCreateModalOpen || isEditModalOpen) {
+      createdInForm.current.clear(); // a new form starts with no remembered people
       fetchTeachers();
       fetchGroupLeaders();
     }
@@ -467,7 +482,8 @@ const StudyCenters = () => {
         const existingLeader = groupLeaders.find(
           (leader) => leader.label.toLowerCase() === manualLeaderName.toLowerCase()
         );
-        resolvedGroupLeader = existingLeader?.id || (await createGroupLeaderFromManual(manualLeaderName));
+        resolvedGroupLeader =
+          existingLeader?.id || (await createOnce("leader", manualLeaderName, createGroupLeaderFromManual));
       }
 
       if (!resolvedGroupLeader) {
@@ -487,7 +503,7 @@ const StudyCenters = () => {
               manualTeacherName.toLowerCase()
           );
           const teacherId =
-            existingTeacher?.id || (await createTeacherFromManual(manualTeacherName));
+            existingTeacher?.id || (await createOnce("teacher", manualTeacherName, createTeacherFromManual));
           resolvedTeachers.push(teacherId);
           continue;
         }
@@ -502,11 +518,14 @@ const StudyCenters = () => {
         return;
       }
 
-      const submitData = {
-        ...formData,
-        groupLeader: resolvedGroupLeader,
-        teachers: resolvedTeachers,
-      };
+      const submitData = toApiPayload(
+        {
+          ...formData,
+          groupLeader: resolvedGroupLeader,
+          teachers: resolvedTeachers,
+        },
+        Boolean(selectedCenter)
+      );
 
       if (selectedCenter) {
         await studyCenterAPI.update(selectedCenter._id, submitData);
@@ -523,7 +542,9 @@ const StudyCenters = () => {
       fetchGroupLeaders();
       resetForm();
     } catch (error) {
-      toast.error(error.response?.data?.message || "An error occurred");
+      // API errors were already shown by the API layer; anything else needs a message here.
+      console.error("Saving study center failed:", error);
+      if (error?.status === undefined) toast.error("Could not save the study center. Please try again.");
     }
   };
 
@@ -540,12 +561,13 @@ const StudyCenters = () => {
 
   // Reset form
   const resetForm = () => {
+    createdInForm.current.clear();
     setFormData({
       centreCode: "",
       centreName: "",
       sourceOfFunding: "",
       infrastructure: "",
-      timing: "",
+      timing: "9:00 AM - 3:00 PM",
       studentsLevelOfEducation: [],
       wardNo: "",
       habitation: "",

@@ -31,6 +31,8 @@ CRM for an NGO in Kolkata. Three domains — **Education**, **Health**, **Social
 | Import UI: preview → import → error report | `ExcelBulkImportButton.jsx`, wrapped by `ExcelImportPanel.jsx` |
 | App shell (persistent sidebar, Ctrl K "Find a section", page Suspense). Pages render only their header + `<main>` | `Frontend/src/components/shell/` — `navigation.js` is the one list of sections (sidebar, search, breadcrumbs, Home) |
 | Page kit: `ModulePageHeader` (breadcrumb + mobile menu), `FilterBar`, `tableState`, `StatusBadge`, `formatWard`, `formatDate`, `toDateInput`, `normalizePagination`, `toApiPayload`, `statusTone` (pure ones live in `src/lib/recordData.js`, `src/lib/pagination.js`) | `Frontend/src/components/module/ModuleKit.jsx` |
+| Health / Social Justice reports: fetch every page, filter on real model fields (`REPORT_SOURCES` names each category's date, name and status field) | `Frontend/src/lib/reportData.js` |
+| Follow-up access rules (domain scoping, editable fields, monthly due dates) | `sevaKendra-backend/src/modules/tracking/tracking.access.js` |
 | Add/edit record panel (slide-over from the right, sticky Save bar, backdrop click doesn't close). Form fields use `grid-cols-1 sm:grid-cols-2` | `Frontend/src/components/module/FormSheet.jsx` |
 | Design tokens (light + dark), type, motion, `#app-content main` column | `Frontend/src/index.css`, `Frontend/tailwind.config.js` |
 | Ward options (`"Ward 1"…"Ward 144"`) | `Frontend/src/lib/formOptions.js` → `getWardOptions()` |
@@ -39,16 +41,19 @@ CRM for an NGO in Kolkata. Three domains — **Education**, **Health**, **Social
 
 - **Ward** is stored as `"Ward N"`; display with `formatWard` (plain `"4"` exists in old data).
 - **Dates**: date inputs load via `toDateInput()`, display via `formatDate()` (both UTC-safe); import parses DD/MM/YYYY day-first.
-- **Optional enum Selects** start at `""`, which Mongoose rejects — submit through `toApiPayload(formData, isUpdate)` (drops `""` on create, sends `null` on update).
+- **Optional enum Selects** start at `""`, which Mongoose rejects — submit through `toApiPayload(formData, isUpdate)` (drops `""` on create, sends `null` on update; also inside nested objects such as `functionalAspects`).
 - `src/lib/api.js` interceptor returns `response.data` and toasts every error; rejected errors carry `.status`. Wrap bulk calls in `runWithoutErrorToasts`.
 - Backend `errorHandler` returns `{ message, success:false }`; Social Justice models normalise enum case in `pre("validate")`.
 - `householdCode` is `unique` in several health/education models (one record per household).
 - Every module route runs `verifyTokenExists` then `checkPermission("<domain>", action)`: GET → view, POST `/` → create, POST `/:id/...` and PUT → edit, DELETE → delete. New routes follow the same pattern; default users have `view` on all three domains.
+- **Auth** re-reads the user on every request: role, permissions and status come from the database, never the token. Deleted → 401, suspended → 403. There is no public sign-up; admins create users (passwords ≥ 8).
+- **Follow-ups** (`/tracking`) are scoped by domain permission through `trackingScope(action)`; services take the caller's `modules` and must pass them to every query. PATCH only accepts `EDITABLE_FIELDS`. Completing a monthly follow-up schedules the next; deleting a record closes its follow-ups (`closeFollowUpsOnDelete` on each DELETE `/:id`).
+- **Untrusted input**: user text in `$regex` / `new RegExp` goes through `escapeRegex` (`src/utils/regex.utils.js`). Query strings use Express's simple parser and `sanitizeInput` (values are strings; `$`/dotted keys stripped from bodies). Paging goes through `getPaginationOptions` (1–500 per page).
 - **Design system**: Atkinson Hyperlegible Next (slashed zero is the font, not a bug); weights 400/500/600 only (`font-bold` maps to 600); one jade accent; domain colours (`text-domain-*`) only as small wayfinding marks; motion 100–300ms, transform/opacity only. Use tokens (`bg-card`, `text-muted-foreground`, `text-destructive`), not raw palette colours — dark mode depends on it.
 - Dialogs are centred with `inset-0 m-auto`, never translate — the enter animation owns `transform`.
 - Backend list endpoints return `{ currentPage, totalPages, totalRecords }`; wrap with `normalizePagination`.
 - `<Button>` defaults to `type="button"`; form submits need `type="submit"`.
-- `TBHIVAddict.jsx` is not routed (dead page). `/auth/dummy-login` is dev-only.
+- `TBHIVAddict.jsx` is not routed (dead page).
 - ESLint prints many `no-unused-vars` warnings for JSX-only identifiers — pre-existing noise; errors are what count.
 - Git `autocrlf` normalises line endings on commit; mixed endings in the working tree are fine.
 
@@ -60,9 +65,9 @@ A change is done when every one of these is green:
 - `node --test scripts/test-excel-import.mjs` — import-engine suite, all pass.
 - `node scripts/check-form-options.mjs` — every literal `<SelectItem>` value is a model enum value.
 - `npm run build` succeeds; `npx eslint <changed files>` has 0 errors; `npx eslint -c .jsx-undef.config.js src/pages src/components` has 0 errors (catches JSX components used without an import, which the build does not).
-- `node --test scripts/test-pagination.mjs` and `node --test scripts/test-record-data.mjs` pass.
+- `node --test scripts/test-pagination.mjs scripts/test-record-data.mjs scripts/test-report-data.mjs` pass.
 - UI changes: screenshot the changed page at 375 and 1280, light and dark.
-- When the backend is running against the dev DB: `node scripts/e2e-smoke.mjs` — imports every template's sample row through the live API, checks view-only users get 403 on create/delete, then cleans up.
+- When the backend is running against the dev DB: `node scripts/e2e-smoke.mjs` — imports every template's sample row through the live API, checks view-only users get 403 on create/delete, then cleans up. Also `node scripts/e2e-security.mjs` — follow-up scoping, suspended/deleted users, removed endpoints, query injection, headers.
 
 ## Open backend issues (awaiting a decision from the user)
 

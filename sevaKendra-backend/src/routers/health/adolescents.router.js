@@ -3,7 +3,7 @@ const router = Router();
 import adolescentsController from "../../modules/health/controllers/adolescents.controller.js";
 import { verifyTokenExists } from "../../middleware/authMiddleware.js";
 import { checkPermission } from "../../middleware/permissionMiddleware.js";
-import { createAutoFollowUp } from "../../middleware/autoTracking.middleware.js";
+import { createAutoFollowUp, closeFollowUpsOnDelete } from "../../middleware/autoTracking.middleware.js";
 
 // Routes with authentication
 router.get("/", verifyTokenExists, checkPermission("health", "view"), adolescentsController.getAllAdolescents);
@@ -22,7 +22,7 @@ router.post(
 router.put("/:id", verifyTokenExists, checkPermission("health", "edit"), adolescentsController.updateAdolescent);
 router.delete(
   "/:id",
-  verifyTokenExists, checkPermission("health", "delete"),
+  verifyTokenExists, checkPermission("health", "delete"), closeFollowUpsOnDelete("Adolescents"),
   adolescentsController.deleteAdolescent
 );
 

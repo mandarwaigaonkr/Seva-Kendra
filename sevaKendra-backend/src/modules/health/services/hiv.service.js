@@ -1,4 +1,6 @@
 import HIV from "../models/hiv.model.js";
+import { escapeRegex } from "../../../utils/regex.utils.js";
+import { getPaginationOptions } from "../../../utils/pagination.utils.js";
 
 class HIVService {
   async createHIV(data, userId) {
@@ -10,14 +12,13 @@ class HIVService {
   }
 
   async getAllHIV(filters = {}, pagination = {}) {
-    const { page = 1, limit = 10 } = pagination;
-    const skip = (page - 1) * limit;
+    const { page, limit, skip } = getPaginationOptions(pagination);
 
     const query = {};
 
     // Apply filters
     if (filters.name) {
-      query.name = { $regex: filters.name, $options: "i" };
+      query.name = { $regex: escapeRegex(filters.name), $options: "i" };
     }
     if (filters.gender) {
       query.gender = filters.gender;
@@ -26,10 +27,10 @@ class HIVService {
       query.wardNo = filters.wardNo;
     }
     if (filters.habitation) {
-      query.habitation = { $regex: filters.habitation, $options: "i" };
+      query.habitation = { $regex: escapeRegex(filters.habitation), $options: "i" };
     }
     if (filters.householdCode) {
-      query.householdCode = { $regex: filters.householdCode, $options: "i" };
+      query.householdCode = { $regex: escapeRegex(filters.householdCode), $options: "i" };
     }
     if (filters.hivStage) {
       query.hivStage = filters.hivStage;
@@ -48,7 +49,7 @@ class HIVService {
       HIV.find(query)
         .sort({ createdAt: -1 })
         .skip(skip)
-        .limit(parseInt(limit))
+        .limit(limit)
         .populate("createdBy", "name email")
         .populate("updatedBy", "name email")
         .lean(),
@@ -58,7 +59,7 @@ class HIVService {
     return {
       hiv,
       total,
-      page: parseInt(page),
+      page,
       totalPages: Math.ceil(total / limit),
     };
   }

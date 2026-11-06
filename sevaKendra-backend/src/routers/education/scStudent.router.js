@@ -3,7 +3,7 @@ const router = Router();
 import scStudentController from "../../modules/education/controllers/scStudent.controller.js";
 import { verifyTokenExists } from "../../middleware/authMiddleware.js";
 import { checkPermission } from "../../middleware/permissionMiddleware.js";
-import { createAutoFollowUp } from "../../middleware/autoTracking.middleware.js";
+import { createAutoFollowUp, closeFollowUpsOnDelete } from "../../middleware/autoTracking.middleware.js";
 
 // Routes
 router.get("/", verifyTokenExists, checkPermission("education", "view"), scStudentController.getAllSCStudents);
@@ -21,6 +21,6 @@ router.post(
   scStudentController.createSCStudent
 );
 router.put("/:id", verifyTokenExists, checkPermission("education", "edit"), scStudentController.updateSCStudent);
-router.delete("/:id", verifyTokenExists, checkPermission("education", "delete"), scStudentController.deleteSCStudent);
+router.delete("/:id", verifyTokenExists, checkPermission("education", "delete"), closeFollowUpsOnDelete("SCStudents"), scStudentController.deleteSCStudent);
 
 export default router;

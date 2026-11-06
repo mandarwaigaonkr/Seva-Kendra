@@ -1,11 +1,20 @@
 import express from "express";
 import analyticsController from "./analytics.controller.js";
 import { verifyTokenExists } from "../../middleware/authMiddleware.js";
+import { checkAnyPermission } from "../../middleware/permissionMiddleware.js";
 
 const router = express.Router();
 
 // All analytics routes require authentication
 router.use(verifyTokenExists);
+// Dashboard figures are counts across all domains: any domain view permission is enough.
+router.use(
+  checkAnyPermission([
+    ["health", "view"],
+    ["education", "view"],
+    ["socialJustice", "view"],
+  ])
+);
 
 // Get complete dashboard data (all endpoints combined)
 router.get("/dashboard", analyticsController.getCompleteDashboard);

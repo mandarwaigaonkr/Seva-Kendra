@@ -1,4 +1,6 @@
 import OtherDiseases from "../models/otherDiseases.model.js";
+import { escapeRegex } from "../../../utils/regex.utils.js";
+import { getPaginationOptions } from "../../../utils/pagination.utils.js";
 
 class OtherDiseasesService {
   async createOtherDiseases(data, userId) {
@@ -10,14 +12,13 @@ class OtherDiseasesService {
   }
 
   async getAllOtherDiseases(filters = {}, pagination = {}) {
-    const { page = 1, limit = 10 } = pagination;
-    const skip = (page - 1) * limit;
+    const { page, limit, skip } = getPaginationOptions(pagination);
 
     const query = {};
 
     // Apply filters
     if (filters.name) {
-      query.name = { $regex: filters.name, $options: "i" };
+      query.name = { $regex: escapeRegex(filters.name), $options: "i" };
     }
     if (filters.gender) {
       query.gender = filters.gender;
@@ -26,10 +27,10 @@ class OtherDiseasesService {
       query.wardNo = filters.wardNo;
     }
     if (filters.habitation) {
-      query.habitation = { $regex: filters.habitation, $options: "i" };
+      query.habitation = { $regex: escapeRegex(filters.habitation), $options: "i" };
     }
     if (filters.natureOfIssue) {
-      query.natureOfIssue = { $regex: filters.natureOfIssue, $options: "i" };
+      query.natureOfIssue = { $regex: escapeRegex(filters.natureOfIssue), $options: "i" };
     }
     if (filters.overallStatus) {
       query.overallStatus = filters.overallStatus;
@@ -42,7 +43,7 @@ class OtherDiseasesService {
       OtherDiseases.find(query)
         .sort({ createdAt: -1 })
         .skip(skip)
-        .limit(parseInt(limit))
+        .limit(limit)
         .populate("createdBy", "name email")
         .populate("updatedBy", "name email")
         .lean(),
@@ -52,7 +53,7 @@ class OtherDiseasesService {
     return {
       otherDiseases,
       total,
-      page: parseInt(page),
+      page,
       totalPages: Math.ceil(total / limit),
     };
   }

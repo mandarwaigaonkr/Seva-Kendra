@@ -506,7 +506,7 @@ const UserManagement = () => {
                   setFormData({ ...formData, password: e.target.value })
                 }
                 required
-                minLength={6}
+                minLength={8}
               />
             </div>
             <div>
@@ -600,7 +600,7 @@ const UserManagement = () => {
                 onChange={(e) =>
                   setFormData({ ...formData, password: e.target.value })
                 }
-                minLength={6}
+                minLength={8}
               />
             </div>
             <div>

@@ -3,6 +3,7 @@ const router = Router();
 import otherDiseasesController from "../../modules/health/controllers/otherDiseases.controller.js";
 import { verifyTokenExists } from "../../middleware/authMiddleware.js";
 import { checkPermission } from "../../middleware/permissionMiddleware.js";
+import { createAutoFollowUp, closeFollowUpsOnDelete } from "../../middleware/autoTracking.middleware.js";
 
 // Routes with authentication
 router.get("/", verifyTokenExists, checkPermission("health", "view"), otherDiseasesController.getAllOtherDiseases);
@@ -19,6 +20,7 @@ router.get(
 router.post(
   "/",
   verifyTokenExists, checkPermission("health", "create"),
+  createAutoFollowUp("OtherDiseases"),
   otherDiseasesController.createOtherDiseases
 );
 router.put(
@@ -28,7 +30,7 @@ router.put(
 );
 router.delete(
   "/:id",
-  verifyTokenExists, checkPermission("health", "delete"),
+  verifyTokenExists, checkPermission("health", "delete"), closeFollowUpsOnDelete("OtherDiseases"),
   otherDiseasesController.deleteOtherDiseases
 );
 

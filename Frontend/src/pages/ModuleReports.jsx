@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from "react";
 import { FilterBar, ModulePageHeader } from "@/components/module/ModuleKit";
 import sevaLogo from "../assets/seva_logo.png";
+import { buildReport, fetchAllRecords } from "@/lib/reportData";
 import usePermissions from "../hooks/usePermissions";
 import {
   FileText,
@@ -66,7 +67,6 @@ import { toast } from "sonner";
 import {
   educationReportsAPI,
   healthReportsAPI,
-  beneficiaryAPI,
   entitlementsAPI,
   legalAidServiceAPI,
   workshopsAwarenessAPI,
@@ -96,8 +96,6 @@ const ModuleReports = () => {
   const [statusFilter, setStatusFilter] = useState("");
   const [classStandard, setClassStandard] = useState("");
   const [patientName, setPatientName] = useState("");
-  const [diseaseType, setDiseaseType] = useState("");
-  const [treatmentStatus, setTreatmentStatus] = useState("");
 
   const allModules = [
     { value: "education", label: "Education", icon: GraduationCap, permissionKey: "education" },
@@ -133,7 +131,6 @@ const ModuleReports = () => {
   ];
 
   const socialJusticeCategories = [
-    { value: "beneficiaries", label: "Beneficiaries" },
     { value: "cbucbo", label: "CBUCBO Details" },
     { value: "entitlements", label: "Entitlements" },
     { value: "legal-aid", label: "Legal Aid Services" },
@@ -170,22 +167,6 @@ const ModuleReports = () => {
     { value: "12", label: "Class 12" },
   ];
 
-  const diseaseTypes = [
-    { value: "all", label: "All" },
-    { value: "chronic", label: "Chronic" },
-    { value: "acute", label: "Acute" },
-    { value: "infectious", label: "Infectious" },
-    { value: "non-communicable", label: "Non-Communicable" },
-  ];
-
-  const treatmentStatuses = [
-    { value: "all", label: "All" },
-    { value: "ongoing", label: "Ongoing" },
-    { value: "completed", label: "Completed" },
-    { value: "follow-up", label: "Follow-up Required" },
-    { value: "referred", label: "Referred" },
-  ];
-
   const getCurrentCategories = () => {
     if (module === "education") return educationCategories;
     if (module === "health") return healthCategories;
@@ -202,122 +183,17 @@ const ModuleReports = () => {
   };
 
   const generateSocialJusticeReport = async (params) => {
-    const { category, startDate, endDate, ...filters } = params || {};
-
-    try {
-      let data = null;
-
-      switch (category) {
-        case "beneficiaries":
-          data = await beneficiaryAPI.getAll({
-            startDate,
-            endDate,
-            ...filters,
-          });
-          break;
-        case "cbucbo":
-          data = await cbucboDetailsAPI.getAll({
-            startDate,
-            endDate,
-            ...filters,
-          });
-          break;
-        case "entitlements":
-          data = await entitlementsAPI.getAll({
-            startDate,
-            endDate,
-            ...filters,
-          });
-          break;
-        case "legal-aid":
-          data = await legalAidServiceAPI.getAll({
-            startDate,
-            endDate,
-            ...filters,
-          });
-          break;
-        case "workshops":
-          data = await workshopsAwarenessAPI.getAll({
-            startDate,
-            endDate,
-            ...filters,
-          });
-          break;
-        default:
-          throw new Error("Unknown category for report generation");
-      }
-
-      // Normalize records
-      let records = [];
-      if (!data) {
-        records = [];
-      } else if (data.data) {
-        if (data.data.data && Array.isArray(data.data.data)) {
-          records = data.data.data;
-        } else if (data.data.records) {
-          records = data.data.records;
-        } else if (data.data.beneficiaries) {
-          records = data.data.beneficiaries;
-        } else if (data.data.cases) {
-          records = data.data.cases;
-        } else if (Array.isArray(data.data)) {
-          records = data.data;
-        } else {
-          records = [];
-        }
-      } else if (Array.isArray(data)) {
-        records = data;
-      } else if (data.records) {
-        records = data.records;
-      } else {
-        records = [];
-      }
-
-      // Build simple summary
-      const totalRecords = records.length;
-      const active = records.filter((r) => r.status === "active").length;
-      const pending = records.filter((r) => r.status === "pending").length;
-      const completed = records.filter((r) => r.status === "completed").length;
-      const completionRate = totalRecords
-        ? Math.round((completed / totalRecords) * 100)
-        : 0;
-
-      // Build basic monthly chart data
-      const months = [
-        "Jan",
-        "Feb",
-        "Mar",
-        "Apr",
-        "May",
-        "Jun",
-        "Jul",
-        "Aug",
-        "Sep",
-        "Oct",
-        "Nov",
-        "Dec",
-      ];
-      const monthCounts = new Array(12).fill(0);
-      records.forEach((rec) => {
-        const d = new Date(rec.date || rec.createdAt || rec.dateOpened || null);
-        if (!isNaN(d)) monthCounts[d.getMonth()] += 1;
-      });
-
-      const chartData = {
-        labels: months,
-        datasets: [{ label: "Records", data: monthCounts }],
-      };
-
-      return {
-        report: {
-          summary: { totalRecords, active, pending, completed, completionRate },
-          records,
-        },
-        chartData,
-      };
-    } catch (err) {
-      throw err;
-    }
+    const { category, startDate, endDate, wardNo, habitation, status } = params || {};
+    const sources = {
+      cbucbo: cbucboDetailsAPI,
+      entitlements: entitlementsAPI,
+      "legal-aid": legalAidServiceAPI,
+      workshops: workshopsAwarenessAPI,
+    };
+    const source = sources[category];
+    if (!source) throw new Error("Unknown category for report generation");
+    const records = await fetchAllRecords((query) => source.getAll(query));
+    return buildReport(category, records, { startDate, endDate, wardNo, habitation, status });
   };
 
   const getReportsAPI = () => {
@@ -386,10 +262,6 @@ const ModuleReports = () => {
         if (wardNo) params.wardNo = wardNo;
         if (habitation) params.habitation = habitation;
         if (patientName) params.patientName = patientName;
-        if (diseaseType && diseaseType !== "all")
-          params.diseaseType = diseaseType;
-        if (treatmentStatus && treatmentStatus !== "all")
-          params.treatmentStatus = treatmentStatus;
         if (statusFilter && statusFilter !== "all")
           params.status = statusFilter;
       } else if (module === "social-justice") {
@@ -923,8 +795,6 @@ const ModuleReports = () => {
     setStatusFilter("");
     setClassStandard("");
     setPatientName("");
-    setDiseaseType("");
-    setTreatmentStatus("");
   };
 
   const handleReset = () => {
@@ -1299,51 +1169,6 @@ const ModuleReports = () => {
             onChange={(e) => setHabitation(e.target.value)}
           />
         </div>
-        {(category === "tuberculosis" ||
-          category === "hiv" ||
-          category === "leprosy" ||
-          category === "addiction" ||
-          category === "other-diseases") && (
-          <>
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">
-                Disease Type
-              </label>
-              <Select value={diseaseType} onValueChange={setDiseaseType}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select disease type" />
-                </SelectTrigger>
-                <SelectContent>
-                  {diseaseTypes.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">
-                Treatment Status
-              </label>
-              <Select
-                value={treatmentStatus}
-                onValueChange={setTreatmentStatus}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select treatment status" />
-                </SelectTrigger>
-                <SelectContent>
-                  {treatmentStatuses.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </>
-        )}
         <div className="space-y-2">
           <label className="text-sm font-medium text-foreground">Status</label>
           <Select value={statusFilter} onValueChange={setStatusFilter}>
@@ -1577,7 +1402,7 @@ const ModuleReports = () => {
 
                   <Card className="border border-border shadow-lg transition-shadow">
                     <CardHeader className="pb-3">
-                      <CardTitle className="text-sm font-medium text-accent">
+                      <CardTitle className="text-sm font-medium text-info">
                         Completion Rate
                       </CardTitle>
                     </CardHeader>
@@ -1586,8 +1411,8 @@ const ModuleReports = () => {
                         <div className="text-3xl sm:text-4xl font-bold text-foreground">
                           {reportData.summary.completionRate || 0}%
                         </div>
-                        <div className="p-3 bg-accent/20 rounded-xl">
-                          <PieChart className="w-7 h-7 text-accent" />
+                        <div className="p-3 bg-info/10 rounded-xl">
+                          <PieChart className="w-7 h-7 text-info" />
                         </div>
                       </div>
                     </CardContent>

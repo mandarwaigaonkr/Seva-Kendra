@@ -143,8 +143,8 @@ const TrackingDashboard = () => {
     "StudyCenters",
     "CBUCBODetails",
     "Entitlements",
-    "LegalAidService",
-    "WorkshopsAwareness",
+    "LegalAid",
+    "Workshops",
   ];
 
   const priorities = ["Low", "Medium", "High", "Urgent"];
@@ -155,11 +155,18 @@ const TrackingDashboard = () => {
     "Cancelled",
     "On Hold",
   ];
+  // Completed / Cancelled are set by the Complete and Cancel actions (which also schedule the
+  // next monthly follow-up), so the forms only offer the open statuses.
+  const openStatuses = ["Pending", "In Progress", "On Hold"];
 
   useEffect(() => {
     fetchTrackingRecords();
-    fetchStats();
   }, []);
+
+  // "Completed this month" comes from the server; refetch it for the chosen module.
+  useEffect(() => {
+    fetchStats();
+  }, [moduleFilter]);
 
   useEffect(() => {
     applyFilters();
@@ -188,6 +195,10 @@ const TrackingDashboard = () => {
     }
   };
 
+  // Completed follow-ups leave the active list, so "completed this month" comes from the
+  // server's stats; the other cards are counted from the filtered list.
+  const [serverStats, setServerStats] = useState({});
+
   const fetchStats = async () => {
     try {
       // Pass moduleFilter to stats API if we want global stats for that module
@@ -197,7 +208,7 @@ const TrackingDashboard = () => {
       console.log("Stats data:", response.data);
       const statsData = response.data.data || response.data || {};
       console.log("Setting stats to:", statsData);
-      setStats(statsData);
+      setServerStats(statsData);
     } catch (error) {
       console.error("Error fetching stats:", error);
     }
@@ -245,7 +256,6 @@ const TrackingDashboard = () => {
       total: filtered.length,
       overdue: filtered.filter((r) => isOverdue(r)).length,
       inProgress: filtered.filter((r) => r.status?.toLowerCase() === "in progress").length,
-      completedThisMonth: filtered.filter((r) => r.status?.toLowerCase() === "completed").length,
     };
     setStats(newStats);
   };
@@ -571,7 +581,7 @@ const TrackingDashboard = () => {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold text-success">
-                  {stats.completedThisMonth || 0}
+                  {serverStats.completedThisMonth || 0}
                 </div>
               </CardContent>
             </Card>
@@ -1048,7 +1058,7 @@ const TrackingDashboard = () => {
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          {statuses.map((status) => (
+                          {openStatuses.map((status) => (
                             <SelectItem key={status} value={status}>
                               {status}
                             </SelectItem>
@@ -1195,7 +1205,7 @@ const TrackingDashboard = () => {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        {statuses.map((status) => (
+                        {openStatuses.map((status) => (
                           <SelectItem key={status} value={status}>
                             {status}
                           </SelectItem>

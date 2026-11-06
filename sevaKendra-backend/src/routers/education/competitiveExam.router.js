@@ -3,7 +3,7 @@ const router = Router();
 import competitiveExamController from "../../modules/education/controllers/competitiveExam.controller.js";
 import { verifyTokenExists } from "../../middleware/authMiddleware.js";
 import { checkPermission } from "../../middleware/permissionMiddleware.js";
-import { createAutoFollowUp } from "../../middleware/autoTracking.middleware.js";
+import { createAutoFollowUp, closeFollowUpsOnDelete } from "../../middleware/autoTracking.middleware.js";
 
 // Routes
 router.get(
@@ -39,7 +39,7 @@ router.put(
 );
 router.delete(
   "/:id",
-  verifyTokenExists, checkPermission("education", "delete"),
+  verifyTokenExists, checkPermission("education", "delete"), closeFollowUpsOnDelete("CompetitiveExams"),
   competitiveExamController.deleteCompetitiveExam
 );
 

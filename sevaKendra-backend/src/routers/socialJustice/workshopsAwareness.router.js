@@ -10,19 +10,13 @@ import {
   getWorkshopsAwarenessByHabitation,
   getWorkshopsAwarenessByGroupType,
   getWorkshopsAwarenessByCategory,
-  addParticipant,
-  updateParticipantAttendance,
-  addLearningObjective,
-  updateLearningObjective,
-  addFollowUpAction,
-  updateFollowUpActionStatus,
   getWorkshopsRequiringFollowUp,
   generateEffectivenessReport,
   getUpcomingWorkshops,
 } from "../../modules/socialJustice/controllers/workshopsAwareness.controller.js";
 import { verifyTokenExists } from "../../middleware/authMiddleware.js";
 import { checkPermission } from "../../middleware/permissionMiddleware.js";
-import { createAutoFollowUp } from "../../middleware/autoTracking.middleware.js";
+import { createAutoFollowUp, closeFollowUpsOnDelete } from "../../middleware/autoTracking.middleware.js";
 
 const router = Router();
 
@@ -44,7 +38,7 @@ router.get(
 );
 router.get("/:id", verifyTokenExists, checkPermission("socialJustice", "view"), getWorkshopsAwarenessById);
 router.put("/:id", verifyTokenExists, checkPermission("socialJustice", "edit"), updateWorkshopsAwareness);
-router.delete("/:id", verifyTokenExists, checkPermission("socialJustice", "delete"), deleteWorkshopsAwareness);
+router.delete("/:id", verifyTokenExists, checkPermission("socialJustice", "delete"), closeFollowUpsOnDelete("Workshops"), deleteWorkshopsAwareness);
 
 // Filter routes
 router.get("/ward/:wardNo", verifyTokenExists, checkPermission("socialJustice", "view"), getWorkshopsAwarenessByWard);
@@ -65,23 +59,7 @@ router.get(
 );
 
 // Special action routes
-router.post("/:id/participants", verifyTokenExists, checkPermission("socialJustice", "edit"), addParticipant);
-router.put(
-  "/:id/participants/:participantId/attendance",
-  verifyTokenExists, checkPermission("socialJustice", "edit"),
-  updateParticipantAttendance
-);
-router.post("/:id/objectives", verifyTokenExists, checkPermission("socialJustice", "edit"), addLearningObjective);
-router.put(
-  "/:id/objectives/:objectiveId",
-  verifyTokenExists, checkPermission("socialJustice", "edit"),
-  updateLearningObjective
-);
-router.post("/:id/follow-up-actions", verifyTokenExists, checkPermission("socialJustice", "edit"), addFollowUpAction);
-router.put(
-  "/:id/follow-up-actions/:actionId/status",
-  verifyTokenExists, checkPermission("socialJustice", "edit"),
-  updateFollowUpActionStatus
-);
 
+// Sub-item endpoints (members, participants, interventions, progress reports, ...) were
+// removed: they wrote to arrays these models do not have, and no screen used them.
 export default router;

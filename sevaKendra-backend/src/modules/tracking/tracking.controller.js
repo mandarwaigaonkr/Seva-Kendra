@@ -1,375 +1,147 @@
 import trackingService from "./tracking.service.js";
+import { allowedModules } from "./tracking.access.js";
+
+/**
+ * Thin HTTP layer over trackingService. `req.trackingModules` (set by trackingScope in the
+ * router) limits every call to the domains the caller holds the needed permission in.
+ * Errors go to the shared errorHandler, which hides internal details on 500s.
+ */
+const handle = (fn) => async (req, res, next) => {
+  try {
+    await fn(req, res);
+  } catch (error) {
+    next(error);
+  }
+};
+
+const userId = (req) => req.user._id || req.user.id;
+
+// Write permission is not read permission: someone who may only edit (or create) Health
+// follow-ups gets an acknowledgement back, not the record's contents.
+const visible = (req, doc) => {
+  if (!doc) return doc;
+  return allowedModules(req.user, "view").includes(doc.module) ? doc : { _id: doc._id, module: doc.module };
+};
 
 class TrackingController {
-  // Create new tracking record
-  async createTracking(req, res) {
-    try {
-      const trackingData = {
-        ...req.body,
-        createdBy: req.user._id || req.user.id, // From auth middleware
-      };
+  createTracking = handle(async (req, res) => {
+    const tracking = await trackingService.createForUser(req.body, userId(req), req.trackingModules);
+    res.status(201).json({ success: true, message: "Follow-up tracking created successfully", data: visible(req, tracking) });
+  });
 
-      const tracking = await trackingService.createTracking(trackingData);
+  getAllTracking = handle(async (req, res) => {
+    const q = req.query;
+    const result = await trackingService.getAllTracking(
+      {
+        recordType: q.recordType,
+        module: q.module,
+        status: q.status,
+        priority: q.priority,
+        assignedTo: q.assignedTo,
+        createdBy: q.createdBy,
+        wardNo: q.wardNo,
+        habitation: q.habitation,
+        projectResponsible: q.projectResponsible,
+        followUpDateFrom: q.followUpDateFrom,
+        followUpDateTo: q.followUpDateTo,
+        isOverdue: q.isOverdue,
+        search: q.search,
+      },
+      { page: q.page, limit: q.limit, sort: q.sort, populate: q.populate !== "false" },
+      req.trackingModules
+    );
+    res.status(200).json({ success: true, data: result.trackings, pagination: result.pagination });
+  });
 
-      res.status(201).json({
-        success: true,
-        message: "Follow-up tracking created successfully",
-        data: tracking,
-      });
-    } catch (error) {
-      console.error("Error creating tracking:", error);
-      res.status(500).json({
-        success: false,
-        message: error.message || "Failed to create tracking record",
-      });
-    }
-  }
+  getTrackingById = handle(async (req, res) => {
+    const tracking = await trackingService.getTrackingById(req.params.id, req.trackingModules);
+    if (!tracking) return res.status(404).json({ success: false, message: "Follow-up not found" });
+    res.status(200).json({ success: true, data: tracking });
+  });
 
-  // Get all tracking records with filters
-  async getAllTracking(req, res) {
-    try {
-      const filters = {
-        recordType: req.query.recordType,
-        module: req.query.module,
-        status: req.query.status,
-        priority: req.query.priority,
-        assignedTo: req.query.assignedTo,
-        createdBy: req.query.createdBy,
-        wardNo: req.query.wardNo,
-        habitation: req.query.habitation,
-        projectResponsible: req.query.projectResponsible,
-        followUpDateFrom: req.query.followUpDateFrom,
-        followUpDateTo: req.query.followUpDateTo,
-        isOverdue: req.query.isOverdue,
-        search: req.query.search,
-      };
+  getTrackingByRecord = handle(async (req, res) => {
+    const { recordType, recordId } = req.params;
+    const data = await trackingService.getTrackingByRecord(recordType, recordId, req.trackingModules);
+    res.status(200).json({ success: true, data });
+  });
 
-      const options = {
-        page: req.query.page || 1,
-        limit: req.query.limit || 10,
-        sort: req.query.sort || "-followUpDate",
-        populate: req.query.populate !== "false", // Default to true unless explicitly false
-      };
+  updateTracking = handle(async (req, res) => {
+    const tracking = await trackingService.updateTracking(req.params.id, req.body, req.trackingModules);
+    res.status(200).json({ success: true, message: "Tracking record updated successfully", data: visible(req, tracking) });
+  });
 
-      const result = await trackingService.getAllTracking(filters, options);
+  addMonthlyUpdate = handle(async (req, res) => {
+    const tracking = await trackingService.addMonthlyUpdate(
+      req.params.id,
+      { ...req.body, updatedBy: userId(req) },
+      req.trackingModules
+    );
+    res.status(200).json({ success: true, message: "Monthly update added successfully", data: visible(req, tracking) });
+  });
 
-      res.status(200).json({
-        success: true,
-        data: result.trackings,
-        pagination: result.pagination,
-      });
-    } catch (error) {
-      console.error("Error fetching tracking records:", error);
-      res.status(500).json({
-        success: false,
-        message: error.message || "Failed to fetch tracking records",
-      });
-    }
-  }
+  completeTracking = handle(async (req, res) => {
+    const { tracking, next } = await trackingService.completeTracking(
+      req.params.id,
+      req.body?.notes,
+      userId(req),
+      req.trackingModules
+    );
+    res.status(200).json({
+      success: true,
+      message: next ? "Follow-up completed. Next month's follow-up is scheduled." : "Follow-up marked as completed",
+      data: visible(req, tracking),
+      next: visible(req, next),
+    });
+  });
 
-  // Get tracking by ID
-  async getTrackingById(req, res) {
-    try {
-      const tracking = await trackingService.getTrackingById(req.params.id);
+  cancelTracking = handle(async (req, res) => {
+    const tracking = await trackingService.cancelTracking(req.params.id, req.body?.reason, userId(req), req.trackingModules);
+    res.status(200).json({ success: true, message: "Follow-up cancelled successfully", data: visible(req, tracking) });
+  });
 
-      if (!tracking) {
-        return res.status(404).json({
-          success: false,
-          message: "Tracking record not found",
-        });
-      }
+  deleteTracking = handle(async (req, res) => {
+    await trackingService.deleteTracking(req.params.id, req.trackingModules);
+    res.status(200).json({ success: true, message: "Tracking record deleted successfully" });
+  });
 
-      res.status(200).json({
-        success: true,
-        data: tracking,
-      });
-    } catch (error) {
-      console.error("Error fetching tracking:", error);
-      res.status(500).json({
-        success: false,
-        message: error.message || "Failed to fetch tracking record",
-      });
-    }
-  }
+  getOverdueTracking = handle(async (req, res) => {
+    const data = await trackingService.getOverdueTracking(req.trackingModules);
+    res.status(200).json({ success: true, data, count: data.length });
+  });
 
-  // Get tracking records for a specific record
-  async getTrackingByRecord(req, res) {
-    try {
-      const { recordType, recordId } = req.params;
+  getUpcomingTracking = handle(async (req, res) => {
+    const data = await trackingService.getUpcomingTracking(req.query.days, req.trackingModules);
+    res.status(200).json({ success: true, data, count: data.length });
+  });
 
-      const trackings = await trackingService.getTrackingByRecord(
-        recordType,
-        recordId
-      );
+  getTrackingStats = handle(async (req, res) => {
+    const data = await trackingService.getTrackingStats(
+      { module: req.query.module, assignedTo: req.query.assignedTo, recordType: req.query.recordType },
+      req.trackingModules
+    );
+    res.status(200).json({ success: true, data });
+  });
 
-      res.status(200).json({
-        success: true,
-        data: trackings,
-      });
-    } catch (error) {
-      console.error("Error fetching tracking by record:", error);
-      res.status(500).json({
-        success: false,
-        message: error.message || "Failed to fetch tracking records",
-      });
-    }
-  }
+  getUrgentCases = handle(async (req, res) => {
+    const data = await trackingService.getUrgentCases(
+      { status: req.query.status, assignedTo: req.query.assignedTo },
+      req.trackingModules
+    );
+    res.status(200).json({ success: true, data });
+  });
 
-  // Update tracking record
-  async updateTracking(req, res) {
-    try {
-      const tracking = await trackingService.updateTracking(
-        req.params.id,
-        req.body
-      );
+  getUrgentCaseAlerts = handle(async (req, res) => {
+    // Same clamp as the service, so the response says which window was actually used.
+    const staleAfterDays = Math.min(365, Math.max(1, Number(req.query.staleAfterDays) || 2));
+    const data = await trackingService.getUrgentCaseStaleAlerts(staleAfterDays, req.trackingModules);
+    res.status(200).json({ success: true, data, staleAfterDays });
+  });
 
-      if (!tracking) {
-        return res.status(404).json({
-          success: false,
-          message: "Tracking record not found",
-        });
-      }
-
-      res.status(200).json({
-        success: true,
-        message: "Tracking record updated successfully",
-        data: tracking,
-      });
-    } catch (error) {
-      console.error("Error updating tracking:", error);
-      res.status(500).json({
-        success: false,
-        message: error.message || "Failed to update tracking record",
-      });
-    }
-  }
-
-  // Add monthly update
-  async addMonthlyUpdate(req, res) {
-    try {
-      const updateData = {
-        ...req.body,
-        updatedBy: req.user._id || req.user.id,
-      };
-
-      const tracking = await trackingService.addMonthlyUpdate(
-        req.params.id,
-        updateData
-      );
-
-      res.status(200).json({
-        success: true,
-        message: "Monthly update added successfully",
-        data: tracking,
-      });
-    } catch (error) {
-      console.error("Error adding monthly update:", error);
-      res.status(500).json({
-        success: false,
-        message: error.message || "Failed to add monthly update",
-      });
-    }
-  }
-
-  // Complete tracking
-  async completeTracking(req, res) {
-    try {
-      const { notes } = req.body;
-      const tracking = await trackingService.completeTracking(
-        req.params.id,
-        notes,
-        req.user._id || req.user.id
-      );
-
-      res.status(200).json({
-        success: true,
-        message: "Follow-up marked as completed",
-        data: tracking,
-      });
-    } catch (error) {
-      console.error("Error completing tracking:", error);
-      res.status(500).json({
-        success: false,
-        message: error.message || "Failed to complete tracking record",
-      });
-    }
-  }
-
-  // Cancel tracking
-  async cancelTracking(req, res) {
-    try {
-      const { reason } = req.body;
-      const tracking = await trackingService.cancelTracking(
-        req.params.id,
-        reason,
-        req.user._id || req.user.id
-      );
-
-      res.status(200).json({
-        success: true,
-        message: "Follow-up cancelled successfully",
-        data: tracking,
-      });
-    } catch (error) {
-      console.error("Error cancelling tracking:", error);
-      res.status(500).json({
-        success: false,
-        message: error.message || "Failed to cancel tracking record",
-      });
-    }
-  }
-
-  // Delete tracking
-  async deleteTracking(req, res) {
-    try {
-      const tracking = await trackingService.deleteTracking(req.params.id);
-
-      if (!tracking) {
-        return res.status(404).json({
-          success: false,
-          message: "Tracking record not found",
-        });
-      }
-
-      res.status(200).json({
-        success: true,
-        message: "Tracking record deleted successfully",
-      });
-    } catch (error) {
-      console.error("Error deleting tracking:", error);
-      res.status(500).json({
-        success: false,
-        message: error.message || "Failed to delete tracking record",
-      });
-    }
-  }
-
-  // Get overdue follow-ups
-  async getOverdueTracking(req, res) {
-    try {
-      const trackings = await trackingService.getOverdueTracking();
-
-      res.status(200).json({
-        success: true,
-        data: trackings,
-        count: trackings.length,
-      });
-    } catch (error) {
-      console.error("Error fetching overdue tracking:", error);
-      res.status(500).json({
-        success: false,
-        message: error.message || "Failed to fetch overdue tracking records",
-      });
-    }
-  }
-
-  // Get upcoming follow-ups
-  async getUpcomingTracking(req, res) {
-    try {
-      const days = parseInt(req.query.days) || 7;
-      const trackings = await trackingService.getUpcomingTracking(days);
-
-      res.status(200).json({
-        success: true,
-        data: trackings,
-        count: trackings.length,
-      });
-    } catch (error) {
-      console.error("Error fetching upcoming tracking:", error);
-      res.status(500).json({
-        success: false,
-        message: error.message || "Failed to fetch upcoming tracking records",
-      });
-    }
-  }
-
-  // Get tracking statistics
-  async getTrackingStats(req, res) {
-    try {
-      const filters = {
-        module: req.query.module,
-        assignedTo: req.query.assignedTo,
-        recordType: req.query.recordType,
-      };
-
-      console.log("Fetching stats with filters:", filters);
-      const stats = await trackingService.getTrackingStats(filters);
-      console.log("Stats calculated:", stats);
-
-      res.status(200).json({
-        success: true,
-        data: stats,
-      });
-    } catch (error) {
-      console.error("Error fetching tracking stats:", error);
-      res.status(500).json({
-        success: false,
-        message: error.message || "Failed to fetch tracking statistics",
-      });
-    }
-  }
-
-  async getUrgentCases(req, res) {
-    try {
-      const cases = await trackingService.getUrgentCases({
-        status: req.query.status,
-        assignedTo: req.query.assignedTo,
-      });
-
-      res.status(200).json({
-        success: true,
-        data: cases,
-      });
-    } catch (error) {
-      console.error("Error fetching urgent cases:", error);
-      res.status(500).json({
-        success: false,
-        message: error.message || "Failed to fetch urgent cases",
-      });
-    }
-  }
-
-  async getUrgentCaseAlerts(req, res) {
-    try {
-      const staleAfterDays = Number(req.query.staleAfterDays || 2);
-      const alerts = await trackingService.getUrgentCaseStaleAlerts(staleAfterDays);
-
-      res.status(200).json({
-        success: true,
-        data: alerts,
-        staleAfterDays,
-      });
-    } catch (error) {
-      console.error("Error fetching urgent case alerts:", error);
-      res.status(500).json({
-        success: false,
-        message: error.message || "Failed to fetch urgent case alerts",
-      });
-    }
-  }
-
-  // Get monthly update history for a record
-  async getMonthlyUpdateHistory(req, res) {
-    try {
-      const { recordType, recordId } = req.params;
-
-      const updates = await trackingService.getMonthlyUpdateHistory(
-        recordType,
-        recordId
-      );
-
-      res.status(200).json({
-        success: true,
-        data: updates,
-      });
-    } catch (error) {
-      console.error("Error fetching monthly update history:", error);
-      res.status(500).json({
-        success: false,
-        message: error.message || "Failed to fetch monthly update history",
-      });
-    }
-  }
+  getMonthlyUpdateHistory = handle(async (req, res) => {
+    const { recordType, recordId } = req.params;
+    const data = await trackingService.getMonthlyUpdateHistory(recordType, recordId, req.trackingModules);
+    res.status(200).json({ success: true, data });
+  });
 }
 
 export default new TrackingController();

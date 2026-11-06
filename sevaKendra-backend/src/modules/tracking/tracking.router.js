@@ -1,59 +1,48 @@
 import express from "express";
 import trackingController from "./tracking.controller.js";
+import trackingService from "./tracking.service.js";
+import { trackingScope } from "./tracking.access.js";
 import { verifyTokenExists } from "../../middleware/authMiddleware.js";
 
 const router = express.Router();
 
-// All routes require authentication
+// Signed in, and each route needs the matching domain permission (see tracking.access.js):
+// reads need view, add needs create, changes need edit, delete needs delete. Results are
+// limited to the domains the caller holds that permission in.
 router.use(verifyTokenExists);
 
-// Create new tracking record
-router.post("/", trackingController.createTracking);
+const view = trackingScope("view");
+const create = trackingScope("create");
+const edit = trackingScope("edit");
+const remove = trackingScope("delete");
 
-// Get all tracking records with filters
-router.get("/", trackingController.getAllTracking);
+// Keep the stored overdue flag current before anything is listed or counted.
+const refreshOverdue = async (req, res, next) => {
+  try {
+    await trackingService.updateOverdueStatus();
+  } catch (error) {
+    console.error("Could not refresh overdue flags:", error.message);
+  }
+  next();
+};
 
-// Get tracking statistics
-router.get("/stats", trackingController.getTrackingStats);
+router.post("/", create, trackingController.createTracking);
+router.get("/", view, refreshOverdue, trackingController.getAllTracking);
+router.get("/stats", view, refreshOverdue, trackingController.getTrackingStats);
+router.get("/urgent-cases", view, trackingController.getUrgentCases);
+router.get("/urgent-cases/alerts", view, trackingController.getUrgentCaseAlerts);
+router.get("/overdue", view, trackingController.getOverdueTracking);
+router.get("/upcoming", view, trackingController.getUpcomingTracking);
+router.get("/record/:recordType/:recordId", view, trackingController.getTrackingByRecord);
+router.get("/history/:recordType/:recordId", view, trackingController.getMonthlyUpdateHistory);
+router.get("/:id", view, trackingController.getTrackingById);
 
-// Urgent case endpoints
-router.get("/urgent-cases", trackingController.getUrgentCases);
-router.get("/urgent-cases/alerts", trackingController.getUrgentCaseAlerts);
+router.patch("/:id", edit, trackingController.updateTracking);
+router.post("/:id/monthly-update", edit, trackingController.addMonthlyUpdate);
+router.post("/:id/complete", edit, trackingController.completeTracking);
+router.post("/:id/cancel", edit, trackingController.cancelTracking);
 
-// Get overdue follow-ups
-router.get("/overdue", trackingController.getOverdueTracking);
-
-// Get upcoming follow-ups
-router.get("/upcoming", trackingController.getUpcomingTracking);
-
-// Get tracking records for a specific record
-router.get(
-  "/record/:recordType/:recordId",
-  trackingController.getTrackingByRecord
-);
-
-// Get monthly update history for a record
-router.get(
-  "/history/:recordType/:recordId",
-  trackingController.getMonthlyUpdateHistory
-);
-
-// Get tracking by ID
-router.get("/:id", trackingController.getTrackingById);
-
-// Update tracking record
-router.patch("/:id", trackingController.updateTracking);
-
-// Add monthly update
-router.post("/:id/monthly-update", trackingController.addMonthlyUpdate);
-
-// Complete tracking
-router.post("/:id/complete", trackingController.completeTracking);
-
-// Cancel tracking
-router.post("/:id/cancel", trackingController.cancelTracking);
-
-// Delete tracking record (soft delete)
-router.delete("/:id", trackingController.deleteTracking);
+// Soft delete
+router.delete("/:id", remove, trackingController.deleteTracking);
 
 export default router;

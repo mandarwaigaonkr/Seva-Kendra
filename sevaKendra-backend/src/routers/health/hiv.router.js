@@ -3,7 +3,7 @@ const router = Router();
 import hivController from "../../modules/health/controllers/hiv.controller.js";
 import { verifyTokenExists } from "../../middleware/authMiddleware.js";
 import { checkPermission } from "../../middleware/permissionMiddleware.js";
-import { createAutoFollowUp } from "../../middleware/autoTracking.middleware.js";
+import { createAutoFollowUp, closeFollowUpsOnDelete } from "../../middleware/autoTracking.middleware.js";
 
 // Routes with authentication
 router.get("/", verifyTokenExists, checkPermission("health", "view"), hivController.getAllHIV);
@@ -16,6 +16,6 @@ router.post(
   hivController.createHIV
 );
 router.put("/:id", verifyTokenExists, checkPermission("health", "edit"), hivController.updateHIV);
-router.delete("/:id", verifyTokenExists, checkPermission("health", "delete"), hivController.deleteHIV);
+router.delete("/:id", verifyTokenExists, checkPermission("health", "delete"), closeFollowUpsOnDelete("HIV"), hivController.deleteHIV);
 
 export default router;

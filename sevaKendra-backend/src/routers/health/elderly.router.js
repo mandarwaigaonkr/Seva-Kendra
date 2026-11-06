@@ -3,7 +3,7 @@ const router = Router();
 import elderlyController from "../../modules/health/controllers/elderly.controller.js";
 import { verifyTokenExists } from "../../middleware/authMiddleware.js";
 import { checkPermission } from "../../middleware/permissionMiddleware.js";
-import { createAutoFollowUp } from "../../middleware/autoTracking.middleware.js";
+import { createAutoFollowUp, closeFollowUpsOnDelete } from "../../middleware/autoTracking.middleware.js";
 
 // Routes with authentication
 router.get("/", verifyTokenExists, checkPermission("health", "view"), elderlyController.getAllElderly);
@@ -16,6 +16,6 @@ router.post(
   elderlyController.createElderly
 );
 router.put("/:id", verifyTokenExists, checkPermission("health", "edit"), elderlyController.updateElderly);
-router.delete("/:id", verifyTokenExists, checkPermission("health", "delete"), elderlyController.deleteElderly);
+router.delete("/:id", verifyTokenExists, checkPermission("health", "delete"), closeFollowUpsOnDelete("Elderly"), elderlyController.deleteElderly);
 
 export default router;

@@ -10,13 +10,10 @@ import {
   getCBUCBODetailsByHabitation,
   getCBUCBODetailsByGroupType,
   getCBUCBODetailsByStatus,
-  updateMemberDetails,
-  addCapacityBuildingActivity,
-  updateProgressReport,
 } from "../../modules/socialJustice/controllers/cbucboDetails.controller.js";
 import { verifyTokenExists } from "../../middleware/authMiddleware.js";
 import { checkPermission } from "../../middleware/permissionMiddleware.js";
-import { createAutoFollowUp } from "../../middleware/autoTracking.middleware.js";
+import { createAutoFollowUp, closeFollowUpsOnDelete } from "../../middleware/autoTracking.middleware.js";
 
 const router = Router();
 
@@ -32,7 +29,7 @@ router.get("/", verifyTokenExists, checkPermission("socialJustice", "view"), get
 router.get("/stats", verifyTokenExists, checkPermission("socialJustice", "view"), getCBUCBODetailsStats);
 router.get("/:id", verifyTokenExists, checkPermission("socialJustice", "view"), getCBUCBODetailsById);
 router.put("/:id", verifyTokenExists, checkPermission("socialJustice", "edit"), updateCBUCBODetails);
-router.delete("/:id", verifyTokenExists, checkPermission("socialJustice", "delete"), deleteCBUCBODetails);
+router.delete("/:id", verifyTokenExists, checkPermission("socialJustice", "delete"), closeFollowUpsOnDelete("CBUCBODetails"), deleteCBUCBODetails);
 
 // Filter routes
 router.get("/ward/:wardNo", verifyTokenExists, checkPermission("socialJustice", "view"), getCBUCBODetailsByWard);
@@ -51,13 +48,7 @@ router.get(
 router.get("/status/:status", verifyTokenExists, checkPermission("socialJustice", "view"), getCBUCBODetailsByStatus);
 
 // Special action routes
-router.put("/:id/members", verifyTokenExists, checkPermission("socialJustice", "edit"), updateMemberDetails);
-router.post(
-  "/:id/capacity-building",
-  verifyTokenExists,
-  checkPermission("socialJustice", "edit"),
-  addCapacityBuildingActivity
-);
-router.put("/:id/progress", verifyTokenExists, checkPermission("socialJustice", "edit"), updateProgressReport);
 
+// Sub-item endpoints (members, participants, interventions, progress reports, ...) were
+// removed: they wrote to arrays these models do not have, and no screen used them.
 export default router;

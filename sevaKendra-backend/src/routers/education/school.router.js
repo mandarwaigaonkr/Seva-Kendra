@@ -3,7 +3,7 @@ const router = Router();
 import schoolController from "../../modules/education/controllers/school.controller.js";
 import { verifyTokenExists } from "../../middleware/authMiddleware.js";
 import { checkPermission } from "../../middleware/permissionMiddleware.js";
-import { createAutoFollowUp } from "../../middleware/autoTracking.middleware.js";
+import { createAutoFollowUp, closeFollowUpsOnDelete } from "../../middleware/autoTracking.middleware.js";
 
 // Routes
 router.get("/", verifyTokenExists, checkPermission("education", "view"), schoolController.getAllSchools);
@@ -21,6 +21,6 @@ router.post(
   schoolController.createSchool
 );
 router.put("/:id", verifyTokenExists, checkPermission("education", "edit"), schoolController.updateSchool);
-router.delete("/:id", verifyTokenExists, checkPermission("education", "delete"), schoolController.deleteSchool);
+router.delete("/:id", verifyTokenExists, checkPermission("education", "delete"), closeFollowUpsOnDelete("Schools"), schoolController.deleteSchool);
 
 export default router;

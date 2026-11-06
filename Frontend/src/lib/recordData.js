@@ -3,16 +3,22 @@
  * Tests: scripts/test-record-data.mjs
  */
 
+const isPlainObject = (value) =>
+  value !== null && typeof value === "object" && Object.getPrototypeOf(value) === Object.prototype;
+
 /**
  * Mongoose rejects "" for enum / ObjectId / number fields. Optional Selects start at "",
  * so drop blanks on create and send null on update (null clears the field and passes
- * enum validation). Top-level keys only; nested objects are passed through.
+ * enum validation). Applies inside nested objects too (e.g. StudyCenter
+ * `functionalAspects.infrastructureQuality`); arrays and dates are passed through.
  */
 export const toApiPayload = (data, isUpdate = false) =>
   Object.fromEntries(
-    Object.entries(data).flatMap(([key, value]) =>
-      value === "" ? (isUpdate ? [[key, null]] : []) : [[key, value]]
-    )
+    Object.entries(data).flatMap(([key, value]) => {
+      if (value === "") return isUpdate ? [[key, null]] : [];
+      if (isPlainObject(value)) return [[key, toApiPayload(value, isUpdate)]];
+      return [[key, value]];
+    })
   );
 
 // First match wins, so negated values ("Not Enrolled", "Incomplete") are caught before
@@ -21,7 +27,11 @@ const TONE_RULES = [
   [/^(n\/?a|unknown|none|pending review|not (specified|applicable|available|assessed|provided|required))$/i, "neutral"],
   [/^not started$/i, "warning"],
   [/^not\b|\b(incomplete|unresolved|unsuccessful|unapproved)\b/i, "danger"],
-  [/(lost|drop|reject|denied|deceased|inactive|closed.*unresolved|relapse|critical|urgent|high|failed)/i, "danger"],
+  [/(lost|drop|reject|denied|deceased|died|death|defaulter|inactive|closed.*unresolved|relapse|critical|urgent|high|failed)/i, "danger"],
+  // "not" anywhere ("Treatment Not Completed", "Not yet cured") negates the outcome.
+  [/\bnot\b/i, "danger"],
+  // An outcome word wins over the process word next to it ("Treatment Completed" is done).
+  [/(complete|cured|recovered|resolved|discharged)/i, "success"],
   [/(pending|in progress|in process|ongoing|under|review|follow|applied|scheduled|partial|medium|referred|in rehab|treatment|interrupted)/i, "warning"],
   [/(complete|recovered|resolved|cured|active|approved|linked|received|eligible|passed|success|enrolled|low|yes|done)/i, "success"],
 ];

@@ -1,4 +1,5 @@
 import autoTrackingService from "../modules/tracking/autoTracking.service.js";
+import trackingService from "../modules/tracking/tracking.service.js";
 
 /**
  * Middleware to automatically create monthly follow-up tracking
@@ -145,7 +146,23 @@ function getRecordName(record, recordType) {
       const groupName = record.groupName || "Group";
       const topic = record.topic || "Workshop";
       return `${groupName} - ${topic}`;
+    case "OtherDiseases":
+      return record.name || `Patient (${record.householdCode || record._id})`;
     default:
-      return `${recordType} Record`;
+      return record.name || `${recordType} Record`;
   }
 }
+
+/**
+ * Closes a record's open follow-ups once the record itself is deleted (DELETE /:id
+ * answered 2xx), so the follow-up list never shows people whose record is gone.
+ */
+export const closeFollowUpsOnDelete = (recordType) => (req, res, next) => {
+  res.on("finish", () => {
+    if (res.statusCode < 200 || res.statusCode >= 300 || req.route?.path !== "/:id") return;
+    trackingService.deactivateForRecord(recordType, req.params.id).catch((error) => {
+      console.error(`Could not close follow-ups for deleted ${recordType}:`, error.message);
+    });
+  });
+  next();
+};

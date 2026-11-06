@@ -33,7 +33,12 @@ const errorHandler = (err, req, res, next) => {
       customError.statusCode = 400;
     }
   }
-  console.log(err);
+  // Unexpected errors are logged in full but answered generically, so database and code
+  // details never reach the client.
+  if (customError.statusCode >= 500) {
+    console.error(err);
+    customError.msg = "Something went wrong. Please try again.";
+  }
 
   return res.status(customError.statusCode ?? 400).json({
     message: customError.msg,

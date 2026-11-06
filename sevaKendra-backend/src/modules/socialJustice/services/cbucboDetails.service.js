@@ -1,6 +1,7 @@
 import CBUCBODetails from "../models/cbucboDetails.model.js";
 import { APIError } from "../../../errors/apiError.js";
 import { getPaginationOptions } from "../../../utils/pagination.utils.js";
+import { escapeRegex } from "../../../utils/regex.utils.js";
 
 class CBUCBODetailsService {
   /**
@@ -46,11 +47,11 @@ class CBUCBODetailsService {
       // Apply filters
       if (filters.wardNo) query.wardNo = filters.wardNo;
       if (filters.habitation)
-        query.habitation = new RegExp(filters.habitation, "i");
+        query.habitation = new RegExp(escapeRegex(filters.habitation), "i");
       if (filters.groupType) query.groupType = filters.groupType;
       if (filters.status) query.status = filters.status;
       if (filters.projectResponsible)
-        query.projectResponsible = new RegExp(filters.projectResponsible, "i");
+        query.projectResponsible = new RegExp(escapeRegex(filters.projectResponsible), "i");
 
       // Date range filters
       if (filters.dateFrom || filters.dateTo) {
@@ -63,7 +64,7 @@ class CBUCBODetailsService {
 
       // Apply search
       if (search) {
-        const searchRegex = new RegExp(search, "i");
+        const searchRegex = new RegExp(escapeRegex(search), "i");
         const searchQuery = {
           $or: [
             { groupId: searchRegex },
@@ -214,7 +215,7 @@ class CBUCBODetailsService {
   async getCBUCBODetailsByHabitation(habitation) {
     try {
       return await CBUCBODetails.find({
-        habitation: new RegExp(habitation, "i"),
+        habitation: new RegExp(escapeRegex(habitation), "i"),
       })
         .populate("createdBy", "name")
         .sort({ groupName: 1 });

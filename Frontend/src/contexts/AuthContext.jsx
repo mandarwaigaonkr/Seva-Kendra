@@ -6,6 +6,7 @@ import React, {
   useCallback,
 } from "react";
 import { authAPI } from "../services/api";
+import { runWithoutErrorToasts } from "../lib/api";
 
 // Create Auth Context
 const AuthContext = createContext();
@@ -109,6 +110,31 @@ export function AuthProvider({ children }) {
     }
   }, []);
 
+  // Role and permissions can change after sign-in (an admin edits them, or suspends the
+  // account). Re-read them from the server when the app opens; a 401/403 signs out.
+  useEffect(() => {
+    if (!localStorage.getItem("authToken")) return;
+    let cancelled = false;
+    runWithoutErrorToasts(() => authAPI.verifyToken())
+      .then((result) => {
+        const fresh = result?.data?.user;
+        if (cancelled || !fresh) return;
+        localStorage.setItem("user", JSON.stringify(fresh));
+        dispatch({ type: AUTH_ACTIONS.SET_USER, payload: fresh });
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        if (error?.status === 401 || error?.status === 403) {
+          localStorage.removeItem("authToken");
+          localStorage.removeItem("user");
+          dispatch({ type: AUTH_ACTIONS.LOGOUT });
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   // Login function with real JWT token from backend
   const login = async (credentials) => {
     try {
@@ -150,45 +176,6 @@ export function AuthProvider({ children }) {
       localStorage.removeItem("user");
 
       dispatch({ type: AUTH_ACTIONS.LOGOUT });
-    }
-  };
-
-  // Register function with dummy registration
-  const register = async (userData) => {
-    try {
-      dispatch({ type: AUTH_ACTIONS.LOGIN_START });
-
-      // Simulate API delay
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-
-      const dummyUser = {
-        id: Math.random().toString(36).substr(2, 9),
-        firstName: userData.firstName || "New",
-        lastName: userData.lastName || "User",
-        email: userData.email,
-        role: "user",
-        status: "active",
-      };
-
-      const dummyToken =
-        "dummy-jwt-token-" + Math.random().toString(36).substr(2, 9);
-
-      // Store in localStorage
-      localStorage.setItem("authToken", dummyToken);
-      localStorage.setItem("user", JSON.stringify(dummyUser));
-
-      dispatch({
-        type: AUTH_ACTIONS.LOGIN_SUCCESS,
-        payload: { user: dummyUser, token: dummyToken },
-      });
-
-      return { success: true, user: dummyUser };
-    } catch (error) {
-      dispatch({
-        type: AUTH_ACTIONS.LOGIN_FAILURE,
-        payload: error.message,
-      });
-      return { success: false, error: error.message };
     }
   };
 
@@ -240,7 +227,6 @@ export function AuthProvider({ children }) {
     error: state.error,
     login,
     logout,
-    register,
     clearError,
     updateUser,
     hasPermission,

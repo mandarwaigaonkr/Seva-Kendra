@@ -1,5 +1,6 @@
 import MotherChild from "../models/motherChild.model.js";
 import { getPaginationOptions } from "../../../utils/pagination.utils.js";
+import { escapeRegex } from "../../../utils/regex.utils.js";
 
 /**
  * Create a new mother child record
@@ -44,13 +45,13 @@ export const getAllMotherChild = async (options = {}) => {
 
     if (search) {
       filter.$or = [
-        { nameOfMother: { $regex: search, $options: "i" } },
-        { nameOfChild: { $regex: search, $options: "i" } },
-        { householdCode: { $regex: search, $options: "i" } },
-        { uniqueId: { $regex: search, $options: "i" } },
-        { headOfHousehold: { $regex: search, $options: "i" } },
-        { habitation: { $regex: search, $options: "i" } },
-        { projectResponsible: { $regex: search, $options: "i" } },
+        { nameOfMother: { $regex: escapeRegex(search), $options: "i" } },
+        { nameOfChild: { $regex: escapeRegex(search), $options: "i" } },
+        { householdCode: { $regex: escapeRegex(search), $options: "i" } },
+        { uniqueId: { $regex: escapeRegex(search), $options: "i" } },
+        { headOfHousehold: { $regex: escapeRegex(search), $options: "i" } },
+        { habitation: { $regex: escapeRegex(search), $options: "i" } },
+        { projectResponsible: { $regex: escapeRegex(search), $options: "i" } },
       ];
     }
 
@@ -63,7 +64,7 @@ export const getAllMotherChild = async (options = {}) => {
     }
 
     if (habitation && habitation !== "all") {
-      filter.habitation = { $regex: habitation, $options: "i" };
+      filter.habitation = { $regex: escapeRegex(habitation), $options: "i" };
     }
 
     if (immunizationStatus && immunizationStatus !== "all") {
